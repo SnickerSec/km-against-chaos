@@ -8,11 +8,17 @@ interface CardInput {
   pick?: number;
 }
 
+interface WinCondition {
+  mode: "rounds" | "points";
+  value: number;
+}
+
 interface DeckFormData {
   name: string;
   description: string;
   chaosCards: CardInput[];
   knowledgeCards: CardInput[];
+  winCondition: WinCondition;
 }
 
 interface Props {
@@ -30,6 +36,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [knowledgeCards, setKnowledgeCards] = useState<CardInput[]>(
     initial?.knowledgeCards || [{ text: "" }]
   );
+  const [winMode, setWinMode] = useState<"rounds" | "points">(initial?.winCondition?.mode || "rounds");
+  const [winValue, setWinValue] = useState(initial?.winCondition?.value || 10);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [chaosOpen, setChaosOpen] = useState(!initial || initial.chaosCards.length === 0);
@@ -72,6 +80,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         description: description.trim(),
         chaosCards: validChaos,
         knowledgeCards: validKnowledge,
+        winCondition: { mode: winMode, value: winValue },
       });
     } catch (e: any) {
       setError(e.message);
@@ -98,6 +107,53 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           onChange={(e) => setDescription(e.target.value)}
           className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
         />
+      </div>
+
+      {/* Win Condition */}
+      <div className="bg-gray-900 rounded-xl p-4">
+        <h2 className="text-sm font-semibold text-gray-300 mb-3">Win Condition</h2>
+        <div className="flex gap-3 mb-3">
+          <button
+            type="button"
+            onClick={() => setWinMode("rounds")}
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+              winMode === "rounds"
+                ? "bg-purple-600 text-white"
+                : "bg-gray-800 text-gray-400 hover:text-white"
+            }`}
+          >
+            Round-based
+          </button>
+          <button
+            type="button"
+            onClick={() => setWinMode("points")}
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+              winMode === "points"
+                ? "bg-purple-600 text-white"
+                : "bg-gray-800 text-gray-400 hover:text-white"
+            }`}
+          >
+            First to N points
+          </button>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-gray-400 text-sm whitespace-nowrap">
+            {winMode === "rounds" ? "Number of rounds:" : "Points to win:"}
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={winMode === "rounds" ? 50 : 25}
+            value={winValue}
+            onChange={(e) => setWinValue(Math.max(1, parseInt(e.target.value) || 1))}
+            className="w-20 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm text-center focus:outline-none focus:border-purple-500"
+          />
+        </div>
+        <p className="text-gray-600 text-xs mt-2">
+          {winMode === "rounds"
+            ? `Game ends after ${winValue} round${winValue !== 1 ? "s" : ""}. Highest score wins.`
+            : `First player to reach ${winValue} point${winValue !== 1 ? "s" : ""} wins instantly.`}
+        </p>
       </div>
 
       {/* Chaos Cards */}

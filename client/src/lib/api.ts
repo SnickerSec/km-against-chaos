@@ -1,11 +1,17 @@
 const API_URL = process.env.NEXT_PUBLIC_SERVER_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? "" : "http://localhost:3001");
 
+export interface WinCondition {
+  mode: "rounds" | "points";
+  value: number;
+}
+
 export interface DeckSummary {
   id: string;
   name: string;
   description: string;
   chaosCount: number;
   knowledgeCount: number;
+  winCondition: WinCondition;
   builtIn?: boolean;
 }
 
@@ -15,6 +21,7 @@ export interface CustomDeck {
   description: string;
   chaosCards: { id: string; text: string; pick: number }[];
   knowledgeCards: { id: string; text: string }[];
+  winCondition: WinCondition;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,6 +31,7 @@ export interface DeckExport {
   description: string;
   chaosCards: { text: string; pick?: number }[];
   knowledgeCards: { text: string }[];
+  winCondition?: WinCondition;
 }
 
 export async function fetchDecks(): Promise<DeckSummary[]> {

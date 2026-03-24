@@ -15,11 +15,18 @@ export async function initDb() {
       description TEXT DEFAULT '',
       chaos_cards JSONB NOT NULL DEFAULT '[]',
       knowledge_cards JSONB NOT NULL DEFAULT '[]',
+      win_condition JSONB NOT NULL DEFAULT '{"mode":"rounds","value":10}',
       built_in BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  // Add win_condition column if upgrading from old schema
+  await pool.query(`
+    ALTER TABLE decks ADD COLUMN IF NOT EXISTS win_condition JSONB NOT NULL DEFAULT '{"mode":"rounds","value":10}'
+  `);
+
   console.log("Database initialized");
 }
 

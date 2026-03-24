@@ -6,12 +6,18 @@ import pool from "./db.js";
 const MIN_CHAOS_CARDS = 5;
 const MIN_KNOWLEDGE_CARDS = 15;
 
+export interface WinCondition {
+  mode: "rounds" | "points";
+  value: number; // max rounds or target points
+}
+
 export interface CustomDeck {
   id: string;
   name: string;
   description: string;
   chaosCards: ChaosCard[];
   knowledgeCards: KnowledgeCard[];
+  winCondition: WinCondition;
   createdAt: string;
   updatedAt: string;
   builtIn?: boolean;
@@ -23,8 +29,11 @@ export interface DeckSummary {
   description: string;
   chaosCount: number;
   knowledgeCount: number;
+  winCondition: WinCondition;
   builtIn?: boolean;
 }
+
+const DEFAULT_WIN_CONDITION: WinCondition = { mode: "rounds", value: 10 };
 
 // Built-in decks (always available, seeded to DB on startup)
 const BUILT_IN_DECKS: CustomDeck[] = [
@@ -34,6 +43,7 @@ const BUILT_IN_DECKS: CustomDeck[] = [
     description: "A party game for Knowledge Management nerds. Chaos prompts meet Knowledge answers.",
     chaosCards: CHAOS_CARDS,
     knowledgeCards: KNOWLEDGE_CARDS,
+    winCondition: { mode: "rounds", value: 10 },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     builtIn: true,
@@ -43,13 +53,14 @@ const BUILT_IN_DECKS: CustomDeck[] = [
 export async function seedBuiltInDecks() {
   for (const deck of BUILT_IN_DECKS) {
     await pool.query(
-      `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, built_in, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)
+      `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, win_condition, built_in, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          description = EXCLUDED.description,
          chaos_cards = EXCLUDED.chaos_cards,
          knowledge_cards = EXCLUDED.knowledge_cards,
+         win_condition = EXCLUDED.win_condition,
          updated_at = EXCLUDED.updated_at`,
       [
         deck.id,
@@ -57,6 +68,7 @@ export async function seedBuiltInDecks() {
         deck.description,
         JSON.stringify(deck.chaosCards),
         JSON.stringify(deck.knowledgeCards),
+        JSON.stringify(deck.winCondition),
         deck.createdAt,
         deck.updatedAt,
       ]
@@ -71,6 +83,7 @@ function rowToDeck(row: any): CustomDeck {
     description: row.description,
     chaosCards: row.chaos_cards,
     knowledgeCards: row.knowledge_cards,
+    winCondition: row.win_condition || DEFAULT_WIN_CONDITION,
     builtIn: row.built_in,
     createdAt: row.created_at?.toISOString?.() || row.created_at,
     updatedAt: row.updated_at?.toISOString?.() || row.updated_at,
@@ -106,7 +119,7 @@ export function validateDeck(deck: {
 
 export async function listDecks(): Promise<DeckSummary[]> {
   const { rows } = await pool.query(
-    `SELECT id, name, description, built_in,
+    `SELECT id, name, description, built_in, win_condition,
             jsonb_array_length(chaos_cards) as chaos_count,
             jsonb_array_length(knowledge_cards) as knowledge_count
      FROM decks ORDER BY built_in DESC, created_at DESC`
@@ -117,6 +130,7 @@ export async function listDecks(): Promise<DeckSummary[]> {
     description: r.description,
     chaosCount: parseInt(r.chaos_count),
     knowledgeCount: parseInt(r.knowledge_count),
+    winCondition: r.win_condition || DEFAULT_WIN_CONDITION,
     builtIn: r.built_in,
   }));
 }
@@ -132,6 +146,7 @@ export async function createDeck(input: {
   description?: string;
   chaosCards: { text: string; pick?: number }[];
   knowledgeCards: { text: string }[];
+  winCondition?: WinCondition;
 }): Promise<CustomDeck> {
   const id = randomUUID().slice(0, 8);
   const now = new Date().toISOString();
@@ -146,11 +161,13 @@ export async function createDeck(input: {
     text: c.text.trim(),
   }));
 
+  const winCondition = input.winCondition || DEFAULT_WIN_CONDITION;
+
   const { rows } = await pool.query(
-    `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, win_condition, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [id, input.name.trim(), input.description?.trim() || "", JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), now, now]
+    [id, input.name.trim(), input.description?.trim() || "", JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), now, now]
   );
 
   return rowToDeck(rows[0]);
@@ -163,6 +180,7 @@ export async function updateDeck(
     description?: string;
     chaosCards?: { text: string; pick?: number }[];
     knowledgeCards?: { text: string }[];
+    winCondition?: WinCondition;
   }
 ): Promise<CustomDeck | null> {
   const existing = await getDeck(id);
@@ -176,11 +194,12 @@ export async function updateDeck(
   const knowledgeCards = input.knowledgeCards
     ? input.knowledgeCards.map((c, i) => ({ id: `kc-${Date.now()}-${i}`, text: c.text.trim() }))
     : existing.knowledgeCards;
+  const winCondition = input.winCondition || existing.winCondition;
 
   const { rows } = await pool.query(
-    `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, updated_at = NOW()
-     WHERE id = $5 RETURNING *`,
-    [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), id]
+    `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5, updated_at = NOW()
+     WHERE id = $6 RETURNING *`,
+    [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), id]
   );
 
   if (rows.length === 0) return null;

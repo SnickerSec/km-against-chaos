@@ -22,6 +22,8 @@ interface InternalGameState {
   scores: Map<string, number>;
   roundNumber: number;
   maxRounds: number;
+  winMode: "rounds" | "points";
+  targetPoints: number;
   gameOver: boolean;
 }
 
@@ -39,10 +41,13 @@ export function createGame(
   lobbyCode: string,
   playerIds: string[],
   customChaos?: ChaosCard[],
-  customKnowledge?: KnowledgeCard[]
+  customKnowledge?: KnowledgeCard[],
+  winCondition?: { mode: "rounds" | "points"; value: number }
 ): void {
   const chaosDeck = shuffled(customChaos || CHAOS_CARDS);
   const knowledgeDeck = shuffled(customKnowledge || KNOWLEDGE_CARDS);
+
+  const wc = winCondition || { mode: "rounds" as const, value: DEFAULT_MAX_ROUNDS };
 
   // Deal hands
   const hands = new Map<string, KnowledgeCard[]>();
@@ -62,7 +67,9 @@ export function createGame(
     currentRound: null,
     scores,
     roundNumber: 0,
-    maxRounds: Math.min(DEFAULT_MAX_ROUNDS, chaosDeck.length),
+    maxRounds: wc.mode === "rounds" ? Math.min(wc.value, chaosDeck.length) : chaosDeck.length,
+    winMode: wc.mode,
+    targetPoints: wc.mode === "points" ? wc.value : Infinity,
     gameOver: false,
   };
 
@@ -236,7 +243,13 @@ export function pickWinner(
 
   round.winnerId = winnerId;
   round.phase = "revealing";
-  game.scores.set(winnerId, (game.scores.get(winnerId) || 0) + 1);
+  const newScore = (game.scores.get(winnerId) || 0) + 1;
+  game.scores.set(winnerId, newScore);
+
+  // Check point-based win
+  if (game.winMode === "points" && newScore >= game.targetPoints) {
+    game.gameOver = true;
+  }
 
   return { success: true };
 }
@@ -266,6 +279,12 @@ export function isGameOver(lobbyCode: string): boolean {
   const game = games.get(lobbyCode);
   if (!game) return true;
   return game.gameOver || game.roundNumber >= game.maxRounds;
+}
+
+export function getWinInfo(lobbyCode: string): { mode: "rounds" | "points"; value: number } | null {
+  const game = games.get(lobbyCode);
+  if (!game) return null;
+  return { mode: game.winMode, value: game.winMode === "points" ? game.targetPoints : game.maxRounds };
 }
 
 export function endGame(lobbyCode: string): void {

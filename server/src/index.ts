@@ -148,15 +148,17 @@ io.on("connection", (socket) => {
       const deckId = getLobbyDeckId(result.code);
       let customChaos = undefined;
       let customKnowledge = undefined;
+      let winCondition = undefined;
       if (deckId) {
         const deck = await getDeck(deckId);
         if (deck) {
           customChaos = deck.chaosCards;
           customKnowledge = deck.knowledgeCards;
+          winCondition = deck.winCondition;
         }
       }
 
-      createGame(result.code, playerIds, customChaos, customKnowledge);
+      createGame(result.code, playerIds, customChaos, customKnowledge, winCondition);
       const round = startRound(result.code);
 
       callback({ success: true });
