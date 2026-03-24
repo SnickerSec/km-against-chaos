@@ -171,6 +171,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ selectedCards: current.filter((id) => id !== cardId) });
     } else if (current.length < maxPick) {
       set({ selectedCards: [...current, cardId] });
+    } else {
+      // At max picks — replace the last selection
+      set({ selectedCards: [...current.slice(0, maxPick - 1), cardId] });
     }
   },
 
