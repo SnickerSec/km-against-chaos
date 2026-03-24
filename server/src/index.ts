@@ -79,6 +79,29 @@ if (clientDir) {
   });
 }
 
+// Chat history per lobby (capped at 100 messages)
+const chatHistory = new Map<string, { id: string; playerName: string; text: string; timestamp: number }[]>();
+
+function addChatMessage(code: string, msg: { id: string; playerName: string; text: string; timestamp: number }) {
+  let history = chatHistory.get(code);
+  if (!history) {
+    history = [];
+    chatHistory.set(code, history);
+  }
+  history.push(msg);
+  if (history.length > 100) {
+    history.shift();
+  }
+}
+
+function getChatHistory(code: string) {
+  return chatHistory.get(code) || [];
+}
+
+function clearChatHistory(code: string) {
+  chatHistory.delete(code);
+}
+
 function sendRoundToPlayers(code: string) {
   const playerIds = getPlayerIds(code);
   for (const pid of playerIds) {
@@ -117,6 +140,7 @@ io.on("connection", (socket) => {
         socket.emit("session:reconnected", {
           lobby,
           gameView,
+          chatHistory: getChatHistory(code),
           screen: lobby.status === "playing" ? "game" : "lobby",
         });
 
@@ -350,12 +374,9 @@ io.on("connection", (socket) => {
     if (text.length === 0) return;
 
     const playerName = getPlayerName(code, socket.id) || "???";
-    io.to(code).emit("chat:message", {
-      id: `${socket.id}-${now}`,
-      playerName,
-      text,
-      timestamp: now,
-    });
+    const msg = { id: `${socket.id}-${now}`, playerName, text, timestamp: now };
+    addChatMessage(code, msg);
+    io.to(code).emit("chat:message", msg);
   });
 
   socket.on("disconnect", () => {
@@ -396,8 +417,9 @@ function handleLeave(socketId: string) {
       io.to(result.code).emit("lobby:host-changed", result.newHostId);
     }
   } else {
-    // Lobby was deleted (last player left) — clean up game too
+    // Lobby was deleted (last player left) — clean up game and chat
     cleanupGame(result.code);
+    clearChatHistory(result.code);
   }
 }
 

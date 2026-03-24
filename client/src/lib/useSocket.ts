@@ -58,10 +58,13 @@ export function useSocket() {
       setScreen("game");
     });
 
-    socket.on("session:reconnected" as any, (data: { lobby: LobbyState; gameView: PlayerGameView | null; screen: "lobby" | "game" }) => {
+    socket.on("session:reconnected" as any, (data: { lobby: LobbyState; gameView: PlayerGameView | null; chatHistory: ChatMessage[]; screen: "lobby" | "game" }) => {
       setLobby(data.lobby);
       if (data.gameView) {
         setGameView(data.gameView);
+      }
+      if (data.chatHistory?.length) {
+        useGameStore.setState({ chatMessages: data.chatHistory });
       }
       setScreen(data.screen);
     });

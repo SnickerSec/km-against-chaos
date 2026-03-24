@@ -110,6 +110,7 @@ export interface ServerEvents {
   "session:reconnected": (data: {
     lobby: LobbyState;
     gameView: PlayerGameView | null;
+    chatHistory: { id: string; playerName: string; text: string; timestamp: number }[];
     screen: "lobby" | "game";
   }) => void;
   "game:round-start": (view: PlayerGameView) => void;
