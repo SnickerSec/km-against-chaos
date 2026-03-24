@@ -51,11 +51,22 @@ const possibleClientDirs = [
 const clientDir = possibleClientDirs.find((d) => existsSync(d)) || "";
 if (clientDir) {
   app.use(express.static(clientDir));
-  // SPA fallback — serve index.html for all non-API routes
+  // Serve Next.js static export pages, then fall back to index.html
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api/") || req.path === "/health" || req.path.startsWith("/socket.io")) {
       return next();
     }
+    // Try exact path as .html (e.g. /decks/edit -> /decks/edit.html)
+    const htmlFile = join(clientDir, req.path + ".html");
+    if (existsSync(htmlFile)) {
+      return res.sendFile(htmlFile);
+    }
+    // Try as directory index (e.g. /decks -> /decks.html or /decks/index.html)
+    const indexFile = join(clientDir, req.path, "index.html");
+    if (existsSync(indexFile)) {
+      return res.sendFile(indexFile);
+    }
+    // SPA fallback
     res.sendFile(join(clientDir, "index.html"));
   });
 }
