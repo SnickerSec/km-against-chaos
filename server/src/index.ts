@@ -58,12 +58,20 @@ const possibleClientDirs = [
 ];
 const clientDir = possibleClientDirs.find((d) => existsSync(d)) || "";
 if (clientDir) {
-  app.use(express.static(clientDir));
+  // Cache hashed assets (JS/CSS chunks) long-term, but never cache HTML
+  app.use(express.static(clientDir, {
+    setHeaders: (res, path) => {
+      if (path.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    },
+  }));
   // Serve Next.js static export pages, then fall back to index.html
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api/") || req.path === "/health" || req.path.startsWith("/socket.io")) {
       return next();
     }
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     // Try exact path as .html (e.g. /decks/edit -> /decks/edit.html)
     const htmlFile = join(clientDir, req.path + ".html");
     if (existsSync(htmlFile)) {
