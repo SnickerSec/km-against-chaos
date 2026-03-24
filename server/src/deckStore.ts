@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID } from "crypto";
 import type { ChaosCard, KnowledgeCard } from "./types.js";
 import { CHAOS_CARDS, KNOWLEDGE_CARDS } from "./deck.js";
 
@@ -120,7 +120,7 @@ export function createDeck(input: {
   const now = new Date().toISOString();
 
   const deck: CustomDeck = {
-    id: uuidv4().slice(0, 8),
+    id: randomUUID().slice(0, 8),
     name: input.name.trim(),
     description: input.description?.trim() || "",
     chaosCards: input.chaosCards.map((c, i) => ({
