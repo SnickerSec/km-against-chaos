@@ -1,8 +1,29 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
+
+const NAME_COLORS = [
+  "text-purple-400",
+  "text-green-400",
+  "text-blue-400",
+  "text-yellow-400",
+  "text-pink-400",
+  "text-cyan-400",
+  "text-orange-400",
+  "text-emerald-400",
+  "text-rose-400",
+  "text-indigo-400",
+];
+
+function nameToColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return NAME_COLORS[Math.abs(hash) % NAME_COLORS.length];
+}
 
 export default function Chat() {
   const { chatMessages, chatOpen, unreadCount, setChatOpen } = useGameStore();
@@ -61,7 +82,7 @@ export default function Chat() {
         )}
         {chatMessages.map((msg) => (
           <div key={msg.id} className="text-sm">
-            <span className="font-semibold text-purple-400">{msg.playerName}</span>{" "}
+            <span className={`font-semibold ${nameToColor(msg.playerName)}`}>{msg.playerName}</span>{" "}
             <span className="text-gray-300">{msg.text}</span>
           </div>
         ))}
