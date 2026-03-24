@@ -7,7 +7,8 @@ import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
 import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
-import { getDeck } from "./deckStore.js";
+import { getDeck, seedBuiltInDecks } from "./deckStore.js";
+import { initDb } from "./db.js";
 import {
   createGame,
   startRound,
@@ -74,24 +75,27 @@ io.on("connection", (socket) => {
 
   // ── Lobby Events ──
 
-  socket.on("lobby:create", (playerName, deckId, callback) => {
-    // Validate deck exists
-    const deck = getDeck(deckId);
-    if (!deck) {
-      callback({ success: false, error: "Deck not found" });
-      return;
+  socket.on("lobby:create", async (playerName, deckId, callback) => {
+    try {
+      const deck = await getDeck(deckId);
+      if (!deck) {
+        callback({ success: false, error: "Deck not found" });
+        return;
+      }
+
+      const result = createLobby(socket.id, playerName, deckId, deck.name);
+
+      if ("error" in result) {
+        callback({ success: false, error: result.error });
+        return;
+      }
+
+      socket.join(result.lobby.code);
+      callback({ success: true, lobby: result.lobby });
+      console.log(`Lobby ${result.lobby.code} created by ${playerName} with deck "${deck.name}"`);
+    } catch (e: any) {
+      callback({ success: false, error: "Server error" });
     }
-
-    const result = createLobby(socket.id, playerName, deckId, deck.name);
-
-    if ("error" in result) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-
-    socket.join(result.lobby.code);
-    callback({ success: true, lobby: result.lobby });
-    console.log(`Lobby ${result.lobby.code} created by ${playerName} with deck "${deck.name}"`);
   });
 
   socket.on("lobby:join", (code, playerName, callback) => {
@@ -114,43 +118,47 @@ io.on("connection", (socket) => {
     handleLeave(socket);
   });
 
-  socket.on("lobby:start", (callback) => {
-    const result = startGame(socket.id);
+  socket.on("lobby:start", async (callback) => {
+    try {
+      const result = startGame(socket.id);
 
-    if ("error" in result) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-
-    const playerIds = getLobbyPlayers(result.code);
-    if (!playerIds || playerIds.length < 2) {
-      callback({ success: false, error: "Not enough players" });
-      return;
-    }
-
-    // Load deck from lobby
-    const deckId = getLobbyDeckId(result.code);
-    let customChaos = undefined;
-    let customKnowledge = undefined;
-    if (deckId) {
-      const deck = getDeck(deckId);
-      if (deck) {
-        customChaos = deck.chaosCards;
-        customKnowledge = deck.knowledgeCards;
+      if ("error" in result) {
+        callback({ success: false, error: result.error });
+        return;
       }
+
+      const playerIds = getLobbyPlayers(result.code);
+      if (!playerIds || playerIds.length < 2) {
+        callback({ success: false, error: "Not enough players" });
+        return;
+      }
+
+      // Load deck from lobby
+      const deckId = getLobbyDeckId(result.code);
+      let customChaos = undefined;
+      let customKnowledge = undefined;
+      if (deckId) {
+        const deck = await getDeck(deckId);
+        if (deck) {
+          customChaos = deck.chaosCards;
+          customKnowledge = deck.knowledgeCards;
+        }
+      }
+
+      createGame(result.code, playerIds, customChaos, customKnowledge);
+      const round = startRound(result.code);
+
+      callback({ success: true });
+      io.to(result.code).emit("lobby:started");
+
+      if (round) {
+        sendRoundToPlayers(result.code);
+      }
+
+      console.log(`Game started in lobby ${result.code}`);
+    } catch (e: any) {
+      callback({ success: false, error: "Server error" });
     }
-
-    createGame(result.code, playerIds, customChaos, customKnowledge);
-    const round = startRound(result.code);
-
-    callback({ success: true });
-    io.to(result.code).emit("lobby:started");
-
-    if (round) {
-      sendRoundToPlayers(result.code);
-    }
-
-    console.log(`Game started in lobby ${result.code}`);
   });
 
   // ── Game Events ──
@@ -289,6 +297,21 @@ function getPlayerName(code: string, playerId: string): string | undefined {
 }
 
 const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, () => {
-  console.log(`Decked server running on port ${PORT}`);
+
+async function start() {
+  if (process.env.DATABASE_URL) {
+    await initDb();
+    await seedBuiltInDecks();
+  } else {
+    console.warn("No DATABASE_URL set — database features disabled");
+  }
+
+  httpServer.listen(PORT, () => {
+    console.log(`Decked server running on port ${PORT}`);
+  });
+}
+
+start().catch((err) => {
+  console.error("Failed to start:", err);
+  process.exit(1);
 });
