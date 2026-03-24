@@ -43,20 +43,12 @@ app.get("/health", (_req, res) => {
 app.use("/api/decks", deckRoutes);
 
 // Serve static Next.js export in production
-// Try multiple possible locations for the client build
 const possibleClientDirs = [
-  join(process.cwd(), "client", "out"),        // from /app (Railway)
-  join(process.cwd(), "..", "client", "out"),   // from /app/server (local)
-  "/app/client/out",                            // absolute (Railway fallback)
+  join(process.cwd(), "client", "out"),
+  join(process.cwd(), "..", "client", "out"),
 ];
-console.log(`CWD: ${process.cwd()}`);
-const clientDir = possibleClientDirs.find((d) => {
-  const found = existsSync(d);
-  console.log(`Checking ${d}: ${found}`);
-  return found;
-}) || "";
+const clientDir = possibleClientDirs.find((d) => existsSync(d)) || "";
 if (clientDir) {
-  console.log(`Serving static files from: ${clientDir}`);
   app.use(express.static(clientDir));
   // SPA fallback — serve index.html for all non-API routes
   app.get("*", (req, res, next) => {
