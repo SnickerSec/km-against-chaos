@@ -24,6 +24,8 @@ import {
   cleanupGame,
   getPlayerIds,
   remapGamePlayer,
+  addPlayerToGame,
+  removePlayerFromGame,
 } from "./game.js";
 import {
   registerSession,
@@ -198,10 +200,27 @@ io.on("connection", (socket) => {
     }
 
     socket.join(result.lobby.code);
-    callback({ success: true, lobby: result.lobby });
 
-    socket.to(result.lobby.code).emit("lobby:player-joined", result.player);
-    socket.to(result.lobby.code).emit("lobby:updated", result.lobby);
+    // If game is in progress, add the player to the active game
+    if (result.lobby.status === "playing") {
+      addPlayerToGame(result.lobby.code, socket.id);
+      const gameView = getPlayerView(result.lobby.code, socket.id);
+      callback({ success: true, lobby: result.lobby });
+
+      socket.to(result.lobby.code).emit("lobby:player-joined", result.player);
+      io.to(result.lobby.code).emit("lobby:updated", result.lobby);
+
+      // Send them straight into the game
+      if (gameView) {
+        socket.emit("game:round-start", gameView);
+        socket.emit("lobby:started");
+      }
+    } else {
+      callback({ success: true, lobby: result.lobby });
+      socket.to(result.lobby.code).emit("lobby:player-joined", result.player);
+      socket.to(result.lobby.code).emit("lobby:updated", result.lobby);
+    }
+
     console.log(`${playerName} joined lobby ${code}`);
   });
 
@@ -398,8 +417,15 @@ io.on("connection", (socket) => {
 });
 
 function handleLeave(socketId: string) {
+  const code = getLobbyForSocket(socketId);
+
   const result = leaveLobby(socketId);
   if (!result) return;
+
+  // Remove from active game so it doesn't block on their submissions
+  if (code) {
+    removePlayerFromGame(code, socketId);
+  }
 
   // The socket may already be disconnected (timer-based cleanup),
   // so use io.to() for broadcasting instead of socket methods.

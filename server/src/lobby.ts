@@ -82,10 +82,6 @@ export function joinLobby(
     return { error: "Lobby not found" };
   }
 
-  if (lobby.status !== "waiting") {
-    return { error: "Game already in progress" };
-  }
-
   if (lobby.players.size >= lobby.maxPlayers) {
     return { error: "Lobby is full" };
   }

@@ -304,6 +304,42 @@ export function getCzarId(lobbyCode: string): string | undefined {
   return games.get(lobbyCode)?.currentRound?.czarId;
 }
 
+export function addPlayerToGame(lobbyCode: string, playerId: string): boolean {
+  const game = games.get(lobbyCode);
+  if (!game || game.gameOver) return false;
+
+  // Already in the game
+  if (game.playerIds.includes(playerId)) return true;
+
+  game.playerIds.push(playerId);
+  game.scores.set(playerId, 0);
+
+  // Deal a hand from the remaining deck
+  const hand: KnowledgeCard[] = [];
+  for (let i = 0; i < HAND_SIZE; i++) {
+    if (game.knowledgeDeck.length > 0) {
+      hand.push(game.knowledgeDeck.pop()!);
+    }
+  }
+  game.hands.set(playerId, hand);
+
+  return true;
+}
+
+export function removePlayerFromGame(lobbyCode: string, playerId: string): void {
+  const game = games.get(lobbyCode);
+  if (!game) return;
+
+  game.playerIds = game.playerIds.filter(id => id !== playerId);
+  game.hands.delete(playerId);
+  game.scores.delete(playerId);
+
+  // If they had a submission this round, remove it
+  if (game.currentRound) {
+    game.currentRound.submissions.delete(playerId);
+  }
+}
+
 export function remapGamePlayer(
   lobbyCode: string,
   oldPlayerId: string,
