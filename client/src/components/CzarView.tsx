@@ -41,6 +41,9 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
           >
             {sub.cards.map((card, j) => (
               <p key={j} className="font-medium">
+                {sub.cards.length > 1 && (
+                  <span className="text-xs text-purple-300 mr-2">#{j + 1}</span>
+                )}
                 {card.text}
               </p>
             ))}

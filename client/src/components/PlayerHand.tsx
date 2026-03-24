@@ -18,22 +18,30 @@ export default function PlayerHand() {
   return (
     <div>
       <p className="text-gray-400 text-sm mb-3 text-center">
-        Pick {pick} card{pick > 1 ? "s" : ""} from your hand
+        {pick > 1
+          ? `Pick ${pick} cards in order (1st blank, 2nd blank)`
+          : "Pick a card from your hand"}
       </p>
       <div className="grid grid-cols-1 gap-3 max-w-lg mx-auto">
         {hand.map((card) => {
-          const isSelected = selectedCards.includes(card.id);
+          const selIndex = selectedCards.indexOf(card.id);
+          const isSelected = selIndex !== -1;
           return (
             <button
               key={card.id}
               onClick={() => toggleCardSelection(card.id, pick)}
-              className={`p-4 rounded-xl text-left transition-all ${
+              className={`p-4 rounded-xl text-left transition-all relative ${
                 isSelected
                   ? "bg-purple-600 border-2 border-purple-400 scale-[1.02]"
                   : "bg-gray-800 border-2 border-gray-700 hover:border-gray-500"
               }`}
             >
               <p className="font-medium">{card.text}</p>
+              {isSelected && pick > 1 && (
+                <span className="absolute top-2 right-3 bg-white text-purple-700 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {selIndex + 1}
+                </span>
+              )}
             </button>
           );
         })}
