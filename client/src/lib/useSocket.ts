@@ -58,6 +58,14 @@ export function useSocket() {
       setScreen("game");
     });
 
+    socket.on("session:reconnected" as any, (data: { lobby: LobbyState; gameView: PlayerGameView | null; screen: "lobby" | "game" }) => {
+      setLobby(data.lobby);
+      if (data.gameView) {
+        setGameView(data.gameView);
+      }
+      setScreen(data.screen);
+    });
+
     socket.on("error", (message: string) => setError(message));
 
     // ── Game Events ──

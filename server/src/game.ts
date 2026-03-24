@@ -303,3 +303,50 @@ export function getPlayerIds(lobbyCode: string): string[] {
 export function getCzarId(lobbyCode: string): string | undefined {
   return games.get(lobbyCode)?.currentRound?.czarId;
 }
+
+export function remapGamePlayer(
+  lobbyCode: string,
+  oldPlayerId: string,
+  newPlayerId: string
+): void {
+  const game = games.get(lobbyCode);
+  if (!game) return;
+
+  // Update playerIds array
+  const idx = game.playerIds.indexOf(oldPlayerId);
+  if (idx !== -1) {
+    game.playerIds[idx] = newPlayerId;
+  }
+
+  // Update hands
+  const hand = game.hands.get(oldPlayerId);
+  if (hand) {
+    game.hands.delete(oldPlayerId);
+    game.hands.set(newPlayerId, hand);
+  }
+
+  // Update scores
+  if (game.scores.has(oldPlayerId)) {
+    const score = game.scores.get(oldPlayerId)!;
+    game.scores.delete(oldPlayerId);
+    game.scores.set(newPlayerId, score);
+  }
+
+  // Update current round references
+  const round = game.currentRound;
+  if (!round) return;
+
+  if (round.czarId === oldPlayerId) {
+    round.czarId = newPlayerId;
+  }
+
+  if (round.submissions.has(oldPlayerId)) {
+    const cards = round.submissions.get(oldPlayerId)!;
+    round.submissions.delete(oldPlayerId);
+    round.submissions.set(newPlayerId, cards);
+  }
+
+  if (round.winnerId === oldPlayerId) {
+    round.winnerId = newPlayerId;
+  }
+}

@@ -174,3 +174,33 @@ export function getPlayerNameInLobby(code: string, playerId: string): string | u
 export function getLobbyDeckId(code: string): string | undefined {
   return lobbies.get(code)?.deckId;
 }
+
+export function remapPlayer(
+  oldSocketId: string,
+  newSocketId: string
+): { code: string; lobby: LobbyState } | null {
+  const code = playerLobby.get(oldSocketId);
+  if (!code) return null;
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return null;
+
+  const player = lobby.players.get(oldSocketId);
+  if (!player) return null;
+
+  // Move player entry to new socket ID
+  lobby.players.delete(oldSocketId);
+  player.id = newSocketId;
+  lobby.players.set(newSocketId, player);
+
+  // Update host reference
+  if (lobby.hostId === oldSocketId) {
+    lobby.hostId = newSocketId;
+  }
+
+  // Update playerLobby mapping
+  playerLobby.delete(oldSocketId);
+  playerLobby.set(newSocketId, code);
+
+  return { code, lobby: lobbyToState(lobby) };
+}

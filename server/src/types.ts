@@ -104,7 +104,14 @@ export interface ServerEvents {
   "lobby:player-joined": (player: PlayerInfo) => void;
   "lobby:player-left": (playerId: string) => void;
   "lobby:host-changed": (newHostId: string) => void;
+  "lobby:player-disconnecting": (playerId: string) => void;
+  "lobby:player-reconnected": (playerId: string) => void;
   "lobby:started": () => void;
+  "session:reconnected": (data: {
+    lobby: LobbyState;
+    gameView: PlayerGameView | null;
+    screen: "lobby" | "game";
+  }) => void;
   "game:round-start": (view: PlayerGameView) => void;
   "game:player-submitted": (playerId: string) => void;
   "game:judging": (submissions: Submission[], chaosCard: ChaosCard) => void;
