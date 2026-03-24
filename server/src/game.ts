@@ -124,7 +124,7 @@ export function getPlayerView(lobbyCode: string, playerId: string): PlayerGameVi
       submissions:
         round.phase === "judging" || round.phase === "revealing"
           ? shuffled(Array.from(round.submissions.entries()).map(([pid, cards]) => ({
-              playerId: round.phase === "revealing" ? pid : "", // anonymous during judging
+              playerId: pid,
               cards,
             })))
           : [],
