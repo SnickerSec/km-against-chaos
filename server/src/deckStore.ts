@@ -55,13 +55,7 @@ export async function seedBuiltInDecks() {
     await pool.query(
       `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, win_condition, built_in, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)
-       ON CONFLICT (id) DO UPDATE SET
-         name = EXCLUDED.name,
-         description = EXCLUDED.description,
-         chaos_cards = EXCLUDED.chaos_cards,
-         knowledge_cards = EXCLUDED.knowledge_cards,
-         win_condition = EXCLUDED.win_condition,
-         updated_at = EXCLUDED.updated_at`,
+       ON CONFLICT (id) DO NOTHING`,
       [
         deck.id,
         deck.name,
