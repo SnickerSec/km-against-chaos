@@ -40,6 +40,9 @@ const io = new Server<ClientEvents, ServerEvents>(httpServer, {
     origin: process.env.CLIENT_URL || "http://localhost:3000",
     methods: ["GET", "POST"],
   },
+  // Frequent pings keep the WebSocket alive through Railway's proxy
+  pingInterval: 10_000,
+  pingTimeout: 5_000,
 });
 
 app.get("/health", (_req, res) => {
