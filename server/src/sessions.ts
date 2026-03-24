@@ -1,7 +1,7 @@
 // Session management: maps persistent session IDs to transient socket IDs
 // so players can reconnect after a page refresh within a grace period.
 
-const GRACE_PERIOD_MS = 15_000;
+const GRACE_PERIOD_MS = 120_000; // 2 minutes — mobile browsers kill sockets when backgrounded
 
 // sessionId -> current socketId
 const sessionToSocket = new Map<string, string>();
