@@ -95,6 +95,7 @@ export interface ClientEvents {
   "game:pick-winner": (playerId: string, callback: (response: { success: boolean; error?: string }) => void) => void;
   "game:next-round": () => void;
   "reaction:send": (emoji: string) => void;
+  "chat:send": (message: string) => void;
 }
 
 // Server -> Client game events
@@ -110,5 +111,6 @@ export interface ServerEvents {
   "game:round-winner": (winnerId: string, winnerName: string, cards: KnowledgeCard[], scores: Record<string, number>) => void;
   "game:over": (scores: Record<string, number>) => void;
   "reaction:broadcast": (emoji: string, playerName: string) => void;
+  "chat:message": (message: { id: string; playerName: string; text: string; timestamp: number }) => void;
   "error": (message: string) => void;
 }

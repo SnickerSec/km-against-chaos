@@ -4,6 +4,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
+import Chat from "./Chat";
 
 export default function LobbyScreen() {
   const { lobby, error } = useGameStore();
@@ -93,6 +94,8 @@ export default function LobbyScreen() {
           Leave Lobby
         </button>
       </div>
+
+      <Chat />
     </div>
   );
 }

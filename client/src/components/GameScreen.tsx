@@ -9,6 +9,7 @@ import RoundWinner from "./RoundWinner";
 import ScoreBar from "./ScoreBar";
 import ReactionBar from "./ReactionBar";
 import ReactionOverlay from "./ReactionOverlay";
+import Chat from "./Chat";
 
 export default function GameScreen() {
   const { round, hasSubmitted, winnerInfo, lobby, roundNumber, maxRounds } =
@@ -96,6 +97,8 @@ export default function GameScreen() {
           <CzarView isCzar={isCzar} />
         ) : null}
       </div>
+
+      <Chat />
     </div>
   );
 }

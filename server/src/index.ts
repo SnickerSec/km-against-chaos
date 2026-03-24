@@ -265,6 +265,34 @@ io.on("connection", (socket) => {
     io.to(code).emit("reaction:broadcast", emoji, playerName);
   });
 
+  // ── Chat ──
+
+  const chatCooldowns = new Map<string, number>();
+
+  socket.on("chat:send", (message) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code) return;
+
+    // Rate limit: 1 message per 300ms
+    const now = Date.now();
+    const last = chatCooldowns.get(socket.id) || 0;
+    if (now - last < 300) return;
+    chatCooldowns.set(socket.id, now);
+
+    // Validate
+    if (!message || typeof message !== "string") return;
+    const text = message.trim().slice(0, 200);
+    if (text.length === 0) return;
+
+    const playerName = getPlayerName(code, socket.id) || "???";
+    io.to(code).emit("chat:message", {
+      id: `${socket.id}-${now}`,
+      playerName,
+      text,
+      timestamp: now,
+    });
+  });
+
   socket.on("disconnect", () => {
     handleLeave(socket);
     console.log(`Player disconnected: ${socket.id}`);

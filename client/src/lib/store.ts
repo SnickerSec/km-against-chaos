@@ -55,6 +55,13 @@ export interface PlayerGameView {
 
 export type Screen = "home" | "lobby" | "game" | "gameover";
 
+export interface ChatMessage {
+  id: string;
+  playerName: string;
+  text: string;
+  timestamp: number;
+}
+
 interface GameStore {
   // Connection
   playerName: string;
@@ -76,6 +83,11 @@ interface GameStore {
   selectedCards: string[];
   winnerInfo: { winnerId: string; winnerName: string; cards: KnowledgeCard[] } | null;
 
+  // Chat
+  chatMessages: ChatMessage[];
+  chatOpen: boolean;
+  unreadCount: number;
+
   // Actions
   setPlayerName: (name: string) => void;
   setLobby: (lobby: LobbyState | null) => void;
@@ -90,6 +102,8 @@ interface GameStore {
   setHasSubmitted: (v: boolean) => void;
   setWinnerInfo: (info: { winnerId: string; winnerName: string; cards: KnowledgeCard[] } | null) => void;
   setScores: (scores: Record<string, number>) => void;
+  addChatMessage: (msg: ChatMessage) => void;
+  setChatOpen: (open: boolean) => void;
   reset: () => void;
 }
 
@@ -108,6 +122,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   submittedPlayers: new Set(),
   selectedCards: [],
   winnerInfo: null,
+  chatMessages: [],
+  chatOpen: false,
+  unreadCount: 0,
 
   setPlayerName: (name) => set({ playerName: name }),
   setLobby: (lobby) => set({ lobby }),
@@ -163,6 +180,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setScores: (scores) => set({ scores }),
 
+  addChatMessage: (msg) => {
+    const { chatMessages, chatOpen } = get();
+    set({
+      chatMessages: [...chatMessages.slice(-99), msg],
+      unreadCount: chatOpen ? 0 : get().unreadCount + 1,
+    });
+  },
+
+  setChatOpen: (open) => set({ chatOpen: open, unreadCount: open ? 0 : get().unreadCount }),
+
   reset: () =>
     set({
       playerName: "",
@@ -178,5 +205,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       submittedPlayers: new Set(),
       selectedCards: [],
       winnerInfo: null,
+      chatMessages: [],
+      chatOpen: false,
+      unreadCount: 0,
     }),
 }));

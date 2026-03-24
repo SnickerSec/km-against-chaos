@@ -10,6 +10,7 @@ import {
   Submission,
   ChaosCard,
   KnowledgeCard,
+  ChatMessage,
 } from "./store";
 
 export function useSocket() {
@@ -24,6 +25,7 @@ export function useSocket() {
     addSubmittedPlayer,
     setWinnerInfo,
     setScores,
+    addChatMessage,
   } = useGameStore();
 
   useEffect(() => {
@@ -86,6 +88,10 @@ export function useSocket() {
       setScreen("gameover");
     });
 
+    socket.on("chat:message", (msg: ChatMessage) => {
+      addChatMessage(msg);
+    });
+
     return () => {
       // Don't disconnect — the socket is a singleton that persists across screen changes
     };
@@ -99,6 +105,7 @@ export function useSocket() {
     addSubmittedPlayer,
     setWinnerInfo,
     setScores,
+    addChatMessage,
   ]);
 
   const createLobby = (playerName: string, deckId?: string) => {
@@ -201,6 +208,12 @@ export function useSocket() {
     socket.emit("game:next-round");
   };
 
+  const sendChat = (message: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("chat:send", message);
+  };
+
   return {
     socket: socketRef.current,
     createLobby,
@@ -210,5 +223,6 @@ export function useSocket() {
     submitCards,
     pickWinner,
     nextRound,
+    sendChat,
   };
 }
