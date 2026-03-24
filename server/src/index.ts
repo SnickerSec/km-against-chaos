@@ -5,7 +5,7 @@ import cors from "cors";
 import { join } from "path";
 import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
-import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer } from "./lobby.js";
+import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
 import { getDeck, seedBuiltInDecks } from "./deckStore.js";
 import { initDb } from "./db.js";
@@ -28,9 +28,7 @@ import {
 import {
   registerSession,
   getSessionId,
-  startDisconnectTimer,
   cancelDisconnectTimer,
-  cleanupSession,
 } from "./sessions.js";
 
 const app = express();
@@ -125,39 +123,39 @@ io.on("connection", (socket) => {
   const { isReconnect, oldSocketId } = registerSession(sessionId, socket.id);
 
   if (isReconnect && oldSocketId) {
-    // Cancel the pending disconnect cleanup
-    const wasDisconnecting = cancelDisconnectTimer(sessionId);
+    // Cancel any legacy disconnect timer
+    cancelDisconnectTimer(sessionId);
 
-    if (wasDisconnecting) {
-      // Remap player in lobby and game state
-      const lobbyResult = remapPlayer(oldSocketId, socket.id);
+    // Remap player in lobby and game state
+    const lobbyResult = remapPlayer(oldSocketId, socket.id);
 
-      if (lobbyResult) {
-        const { code, lobby } = lobbyResult;
-        socket.join(code);
+    if (lobbyResult) {
+      const { code, lobby } = lobbyResult;
+      socket.join(code);
 
-        // Remap in game state too
-        remapGamePlayer(code, oldSocketId, socket.id);
+      // Remap in game state too
+      remapGamePlayer(code, oldSocketId, socket.id);
 
-        // Get current game view if game is in progress
-        const gameView = lobby.status === "playing"
-          ? getPlayerView(code, socket.id)
-          : null;
+      // Get current game view if game is in progress
+      const gameView = lobby.status === "playing"
+        ? getPlayerView(code, socket.id)
+        : null;
 
-        // Send full state to the reconnected player
-        socket.emit("session:reconnected", {
-          lobby,
-          gameView,
-          chatHistory: getChatHistory(code),
-          screen: lobby.status === "playing" ? "game" : "lobby",
-        });
+      // Send full state to the reconnected player
+      socket.emit("session:reconnected", {
+        lobby,
+        gameView,
+        chatHistory: getChatHistory(code),
+        screen: lobby.status === "playing" ? "game" : "lobby",
+      });
 
-        // Notify others the player is back
-        socket.to(code).emit("lobby:player-reconnected", socket.id);
-        io.to(code).emit("lobby:updated", lobby);
+      // Notify others the player is back
+      socket.to(code).emit("lobby:player-reconnected", socket.id);
+      io.to(code).emit("lobby:updated", lobby);
 
-        console.log(`Player reconnected: ${socket.id} (session ${sessionId})`);
-      }
+      console.log(`Player reconnected: ${socket.id} (session ${sessionId})`);
+    } else {
+      console.log(`Player connected: ${socket.id}`);
     }
   } else {
     console.log(`Player connected: ${socket.id}`);
@@ -205,11 +203,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("lobby:leave", () => {
-    // Explicit leave — bypass grace period
-    const sid = getSessionId(socket.id);
-    if (sid) {
-      cancelDisconnectTimer(sid);
-    }
     handleLeave(socket.id);
   });
 
@@ -388,26 +381,16 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    const sid = getSessionId(socket.id);
-    if (!sid) {
-      handleLeave(socket.id);
-      console.log(`Player disconnected (no session): ${socket.id}`);
-      return;
+    // Mark player as disconnected but keep them in the lobby.
+    // The lobby persists until players explicitly leave.
+    const result = disconnectPlayer(socket.id);
+    if (result) {
+      io.to(result.code).emit("lobby:updated", result.lobby);
+      io.to(result.code).emit("lobby:player-disconnecting", socket.id);
+      console.log(`Player disconnected (kept in lobby): ${socket.id}`);
+    } else {
+      console.log(`Player disconnected: ${socket.id}`);
     }
-
-    const code = getLobbyForSocket(socket.id);
-    if (code) {
-      // Notify others this player may be reconnecting
-      io.to(code).emit("lobby:player-disconnecting", socket.id);
-    }
-
-    console.log(`Player disconnected, waiting for reconnect: ${socket.id} (session ${sid})`);
-
-    startDisconnectTimer(sid, () => {
-      console.log(`Grace period expired for session ${sid}, removing player`);
-      handleLeave(socket.id);
-      cleanupSession(sid);
-    });
   });
 });
 

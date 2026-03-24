@@ -31,6 +31,7 @@ function playerToInfo(player: Player): PlayerInfo {
     name: player.name,
     isHost: player.isHost,
     score: player.score,
+    connected: player.connected,
   };
 }
 
@@ -45,6 +46,7 @@ export function createLobby(socketId: string, playerName: string, deckId: string
     name: playerName,
     isHost: true,
     score: 0,
+    connected: true,
   };
 
   const lobby: Lobby = {
@@ -93,6 +95,7 @@ export function joinLobby(
     name: playerName,
     isHost: false,
     score: 0,
+    connected: true,
   };
 
   lobby.players.set(socketId, player);
@@ -101,6 +104,7 @@ export function joinLobby(
   return { lobby: lobbyToState(lobby), player: playerToInfo(player) };
 }
 
+// Explicit leave — actually removes the player from the lobby
 export function leaveLobby(socketId: string): {
   code: string;
   lobby: LobbyState | null;
@@ -124,16 +128,49 @@ export function leaveLobby(socketId: string): {
     return { code, lobby: null };
   }
 
-  // If host left, assign new host
+  // If host left, assign new host (prefer connected players)
   let newHostId: string | undefined;
   if (lobby.hostId === socketId) {
-    const nextPlayer = lobby.players.values().next().value!;
+    const connectedPlayer = Array.from(lobby.players.values()).find(p => p.connected);
+    const nextPlayer = connectedPlayer || lobby.players.values().next().value!;
     nextPlayer.isHost = true;
     lobby.hostId = nextPlayer.id;
     newHostId = nextPlayer.id;
   }
 
   return { code, lobby: lobbyToState(lobby), newHostId };
+}
+
+// Mark player as disconnected but keep them in the lobby
+export function disconnectPlayer(socketId: string): { code: string; lobby: LobbyState } | null {
+  const code = playerLobby.get(socketId);
+  if (!code) return null;
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return null;
+
+  const player = lobby.players.get(socketId);
+  if (!player) return null;
+
+  player.connected = false;
+
+  return { code, lobby: lobbyToState(lobby) };
+}
+
+// Mark player as connected again
+export function reconnectPlayer(socketId: string): { code: string; lobby: LobbyState } | null {
+  const code = playerLobby.get(socketId);
+  if (!code) return null;
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return null;
+
+  const player = lobby.players.get(socketId);
+  if (!player) return null;
+
+  player.connected = true;
+
+  return { code, lobby: lobbyToState(lobby) };
 }
 
 export function startGame(socketId: string): { code: string } | { error: string } {
@@ -191,6 +228,7 @@ export function remapPlayer(
   // Move player entry to new socket ID
   lobby.players.delete(oldSocketId);
   player.id = newSocketId;
+  player.connected = true;
   lobby.players.set(newSocketId, player);
 
   // Update host reference

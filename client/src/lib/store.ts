@@ -7,6 +7,7 @@ export interface PlayerInfo {
   name: string;
   isHost: boolean;
   score: number;
+  connected: boolean;
 }
 
 export interface LobbyState {

@@ -46,12 +46,17 @@ export default function LobbyScreen() {
           {lobby.players.map((player) => (
             <div
               key={player.id}
-              className="flex items-center justify-between bg-gray-800 px-4 py-3 rounded-lg"
+              className={`flex items-center justify-between bg-gray-800 px-4 py-3 rounded-lg ${
+                player.connected === false ? "opacity-50" : ""
+              }`}
             >
               <span className="font-medium">
                 {player.name}
                 {player.id === socket.id && (
                   <span className="text-gray-500 text-sm ml-2">(you)</span>
+                )}
+                {player.connected === false && (
+                  <span className="text-yellow-500 text-sm ml-2">reconnecting...</span>
                 )}
               </span>
               {player.isHost && (

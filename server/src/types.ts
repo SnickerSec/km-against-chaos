@@ -3,6 +3,7 @@ export interface Player {
   name: string;
   isHost: boolean;
   score: number;
+  connected: boolean;
 }
 
 export interface Lobby {
@@ -36,6 +37,7 @@ export interface PlayerInfo {
   name: string;
   isHost: boolean;
   score: number;
+  connected: boolean;
 }
 
 // ── Game Types ──
