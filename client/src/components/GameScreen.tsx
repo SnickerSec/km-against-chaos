@@ -14,7 +14,7 @@ import Chat from "./Chat";
 export default function GameScreen() {
   const { round, hasSubmitted, winnerInfo, lobby, roundNumber, maxRounds } =
     useGameStore();
-  const { nextRound } = useSocket();
+  const { nextRound, leaveLobby } = useSocket();
   const socket = getSocket();
   const isCzar = round?.czarId === socket.id;
 
@@ -38,7 +38,15 @@ export default function GameScreen() {
         <span className="text-sm text-gray-400">
           Round {roundNumber}/{maxRounds}
         </span>
-        <ScoreBar />
+        <div className="flex items-center gap-3">
+          <ScoreBar />
+          <button
+            onClick={() => { if (confirm("Leave the game?")) leaveLobby(); }}
+            className="text-gray-500 hover:text-red-400 text-xs transition-colors"
+          >
+            Leave
+          </button>
+        </div>
       </div>
 
       {/* Chaos card */}
