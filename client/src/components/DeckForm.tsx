@@ -32,6 +32,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [chaosOpen, setChaosOpen] = useState(!initial || initial.chaosCards.length === 0);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(!initial || initial.knowledgeCards.length === 0);
 
   const updateChaos = (index: number, field: keyof CardInput, value: string | number) => {
     const updated = [...chaosCards];
@@ -100,88 +102,110 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
       {/* Chaos Cards */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          onClick={() => setChaosOpen(!chaosOpen)}
+          className="flex items-center justify-between w-full mb-3"
+        >
           <h2 className="text-lg font-semibold text-red-400">
             Chaos Cards (Prompts) — {chaosCards.filter((c) => c.text.trim()).length}
           </h2>
-          <button
-            onClick={() => setChaosCards([...chaosCards, { text: "", pick: 1 }])}
-            className="px-3 py-1 text-xs bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded border border-red-600/50 transition-colors"
-          >
-            + Add
-          </button>
-        </div>
-        <p className="text-gray-500 text-xs mb-3">
-          Use ___ as a blank for players to fill in. Min 5 cards.
-        </p>
-        <div className="space-y-2">
-          {chaosCards.map((card, i) => (
-            <div key={i} className="flex gap-2">
-              <input
-                type="text"
-                placeholder={`Prompt ${i + 1}, e.g. "The root cause was ___"`}
-                value={card.text}
-                onChange={(e) => updateChaos(i, "text", e.target.value)}
-                className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-red-500 text-sm"
-              />
-              <select
-                value={card.pick || 1}
-                onChange={(e) => updateChaos(i, "pick", parseInt(e.target.value))}
-                className="w-20 px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
+          <span className="text-gray-400 text-sm">{chaosOpen ? "▲ Collapse" : "▼ Expand"}</span>
+        </button>
+        {chaosOpen && (
+          <>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-gray-500 text-xs">
+                Use ___ as a blank for players to fill in. Min 5 cards.
+              </p>
+              <button
+                onClick={() => setChaosCards([...chaosCards, { text: "", pick: 1 }])}
+                className="px-3 py-1 text-xs bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded border border-red-600/50 transition-colors"
               >
-                <option value={1}>Pick 1</option>
-                <option value={2}>Pick 2</option>
-              </select>
-              {chaosCards.length > 1 && (
-                <button
-                  onClick={() => removeChaos(i)}
-                  className="px-2 text-gray-500 hover:text-red-400 transition-colors"
-                >
-                  ×
-                </button>
-              )}
+                + Add
+              </button>
             </div>
-          ))}
-        </div>
+            <div className="space-y-2">
+              {chaosCards.map((card, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder={`Prompt ${i + 1}, e.g. "The root cause was ___"`}
+                    value={card.text}
+                    onChange={(e) => updateChaos(i, "text", e.target.value)}
+                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-red-500 text-sm"
+                  />
+                  <select
+                    value={card.pick || 1}
+                    onChange={(e) => updateChaos(i, "pick", parseInt(e.target.value))}
+                    className="w-20 px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
+                  >
+                    <option value={1}>Pick 1</option>
+                    <option value={2}>Pick 2</option>
+                  </select>
+                  {chaosCards.length > 1 && (
+                    <button
+                      onClick={() => removeChaos(i)}
+                      className="px-2 text-gray-500 hover:text-red-400 transition-colors"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Knowledge Cards */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          onClick={() => setKnowledgeOpen(!knowledgeOpen)}
+          className="flex items-center justify-between w-full mb-3"
+        >
           <h2 className="text-lg font-semibold text-purple-400">
             Knowledge Cards (Answers) — {knowledgeCards.filter((c) => c.text.trim()).length}
           </h2>
-          <button
-            onClick={() => setKnowledgeCards([...knowledgeCards, { text: "" }])}
-            className="px-3 py-1 text-xs bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded border border-purple-600/50 transition-colors"
-          >
-            + Add
-          </button>
-        </div>
-        <p className="text-gray-500 text-xs mb-3">
-          Short answers or phrases. Min 15 cards.
-        </p>
-        <div className="space-y-2">
-          {knowledgeCards.map((card, i) => (
-            <div key={i} className="flex gap-2">
-              <input
-                type="text"
-                placeholder={`Answer ${i + 1}`}
-                value={card.text}
-                onChange={(e) => updateKnowledge(i, e.target.value)}
-                className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm"
-              />
-              {knowledgeCards.length > 1 && (
-                <button
-                  onClick={() => removeKnowledge(i)}
-                  className="px-2 text-gray-500 hover:text-red-400 transition-colors"
-                >
-                  ×
-                </button>
-              )}
+          <span className="text-gray-400 text-sm">{knowledgeOpen ? "▲ Collapse" : "▼ Expand"}</span>
+        </button>
+        {knowledgeOpen && (
+          <>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-gray-500 text-xs">
+                Short answers or phrases. Min 15 cards.
+              </p>
+              <button
+                onClick={() => setKnowledgeCards([...knowledgeCards, { text: "" }])}
+                className="px-3 py-1 text-xs bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded border border-purple-600/50 transition-colors"
+              >
+                + Add
+              </button>
             </div>
-          ))}
-        </div>
+            <div className="space-y-2">
+              {knowledgeCards.map((card, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder={`Answer ${i + 1}`}
+                    value={card.text}
+                    onChange={(e) => updateKnowledge(i, e.target.value)}
+                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm"
+                  />
+                  {knowledgeCards.length > 1 && (
+                    <button
+                      onClick={() => removeKnowledge(i)}
+                      className="px-2 text-gray-500 hover:text-red-400 transition-colors"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* AI Generation */}
