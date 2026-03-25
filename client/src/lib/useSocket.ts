@@ -106,7 +106,7 @@ export function useSocket() {
 
     socket.on("media:sticker" as any, (url: string, playerName: string) => {
       setActiveSticker({ url, playerName });
-      setTimeout(() => setActiveSticker(null), 1800);
+      setTimeout(() => setActiveSticker(null), 1500);
     });
 
     return () => {
