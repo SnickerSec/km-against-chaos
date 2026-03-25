@@ -214,3 +214,128 @@ export async function deleteDeck(id: string, ownerId?: string): Promise<boolean>
   );
   return (rowCount ?? 0) > 0;
 }
+
+export interface PackSummary {
+  id: string;
+  deckId: string | null;
+  deckName: string;
+  type: string;
+  name: string;
+  description: string;
+  chaosCount: number;
+  knowledgeCount: number;
+  ownerId: string | null;
+  builtIn: boolean;
+}
+
+export interface PackInput {
+  type: string;
+  name: string;
+  description: string;
+  chaosCards: { text: string; pick?: number }[];
+  knowledgeCards: { text: string }[];
+}
+
+export async function upsertPacksForDeck(
+  deckId: string,
+  packs: PackInput[],
+  ownerId: string | null,
+  builtIn: boolean
+): Promise<void> {
+  await pool.query("DELETE FROM packs WHERE deck_id = $1", [deckId]);
+  for (const pack of packs) {
+    if (pack.chaosCards.length === 0 && pack.knowledgeCards.length === 0) continue;
+    const id = randomUUID().slice(0, 8);
+    const chaosCards = pack.chaosCards.map((c, i) => ({
+      id: `cc-${Date.now()}-${i}`,
+      text: c.text.trim(),
+      pick: c.pick || 1,
+    }));
+    const knowledgeCards = pack.knowledgeCards.map((c, i) => ({
+      id: `kc-${Date.now()}-${i}`,
+      text: c.text.trim(),
+    }));
+    await pool.query(
+      `INSERT INTO packs (id, deck_id, type, name, description, chaos_cards, knowledge_cards, owner_id, built_in)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [id, deckId, pack.type, pack.name, pack.description || "", JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), ownerId, builtIn]
+    );
+  }
+}
+
+export async function listPacks(type?: string): Promise<PackSummary[]> {
+  const { rows } = await pool.query(
+    `SELECT p.id, p.deck_id, p.type, p.name, p.description, p.owner_id, p.built_in,
+            d.name as deck_name,
+            jsonb_array_length(p.chaos_cards) as chaos_count,
+            jsonb_array_length(p.knowledge_cards) as knowledge_count
+     FROM packs p
+     LEFT JOIN decks d ON p.deck_id = d.id
+     ${type ? "WHERE p.type = $1" : ""}
+     ORDER BY p.built_in DESC, p.created_at DESC`,
+    type ? [type] : []
+  );
+  return rows.map((r: any) => ({
+    id: r.id,
+    deckId: r.deck_id || null,
+    deckName: r.deck_name || "",
+    type: r.type,
+    name: r.name,
+    description: r.description,
+    chaosCount: parseInt(r.chaos_count),
+    knowledgeCount: parseInt(r.knowledge_count),
+    ownerId: r.owner_id || null,
+    builtIn: r.built_in,
+  }));
+}
+
+export async function getPackById(id: string): Promise<{ id: string; type: string; name: string; description: string; chaosCards: ChaosCard[]; knowledgeCards: KnowledgeCard[] } | null> {
+  const { rows } = await pool.query("SELECT * FROM packs WHERE id = $1", [id]);
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    id: r.id,
+    type: r.type,
+    name: r.name,
+    description: r.description,
+    chaosCards: r.chaos_cards,
+    knowledgeCards: r.knowledge_cards,
+  };
+}
+
+export async function createDeckFromPacks(
+  packIds: string[],
+  name: string,
+  winCondition: WinCondition,
+  ownerId: string
+): Promise<CustomDeck> {
+  // Fetch all selected packs
+  const packRows = await Promise.all(packIds.map((id) => getPackById(id)));
+  const validPacks = packRows.filter(Boolean) as NonNullable<Awaited<ReturnType<typeof getPackById>>>[];
+
+  // Merge all cards
+  const allChaos = validPacks.flatMap((p) => p.chaosCards);
+  const allKnowledge = validPacks.flatMap((p) => p.knowledgeCards);
+
+  if (allChaos.length < MIN_CHAOS_CARDS) throw new Error(`Need at least ${MIN_CHAOS_CARDS} prompt cards`);
+  if (allKnowledge.length < MIN_KNOWLEDGE_CARDS) throw new Error(`Need at least ${MIN_KNOWLEDGE_CARDS} answer cards`);
+
+  // Create the deck
+  const deck = await createDeck({ name, chaosCards: allChaos, knowledgeCards: allKnowledge, winCondition, ownerId });
+
+  // Save packs on the new deck too
+  await upsertPacksForDeck(
+    deck.id,
+    validPacks.map((p) => ({
+      type: p.type,
+      name: p.name,
+      description: p.description,
+      chaosCards: p.chaosCards,
+      knowledgeCards: p.knowledgeCards,
+    })),
+    ownerId,
+    false
+  );
+
+  return deck;
+}

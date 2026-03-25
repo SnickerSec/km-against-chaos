@@ -36,6 +36,20 @@ export interface DeckExport {
   chaosCards: { text: string; pick?: number }[];
   knowledgeCards: { text: string }[];
   winCondition?: WinCondition;
+  packs?: { type: string; name: string; description: string; chaosCards: { text: string; pick?: number }[]; knowledgeCards: { text: string }[] }[];
+}
+
+export interface PackSummary {
+  id: string;
+  deckId: string | null;
+  deckName: string;
+  type: string;
+  name: string;
+  description: string;
+  chaosCount: number;
+  knowledgeCount: number;
+  ownerId: string | null;
+  builtIn: boolean;
 }
 
 export async function fetchDecks(): Promise<DeckSummary[]> {
@@ -134,6 +148,26 @@ export async function generateCardsAI(ctx: GenerateContext): Promise<GeneratedCa
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.error || "Failed to generate cards");
+  }
+  return res.json();
+}
+
+export async function fetchPacks(type?: string): Promise<PackSummary[]> {
+  const url = type ? `${API_URL}/api/packs?type=${type}` : `${API_URL}/api/packs`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch packs");
+  return res.json();
+}
+
+export async function createDeckFromPacks(data: { packIds: string[]; name: string; winCondition?: { mode: string; value: number } }): Promise<CustomDeck> {
+  const res = await fetch(`${API_URL}/api/decks/from-packs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to create deck");
   }
   return res.json();
 }

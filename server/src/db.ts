@@ -43,10 +43,29 @@ export async function initDb() {
 
   // Add columns if upgrading from old schema
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS packs (
+      id TEXT PRIMARY KEY,
+      deck_id TEXT REFERENCES decks(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      chaos_cards JSONB NOT NULL DEFAULT '[]',
+      knowledge_cards JSONB NOT NULL DEFAULT '[]',
+      owner_id TEXT REFERENCES users(id),
+      built_in BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  // Add columns if upgrading from old schema
+  await pool.query(`
     ALTER TABLE decks ADD COLUMN IF NOT EXISTS win_condition JSONB NOT NULL DEFAULT '{"mode":"rounds","value":10}'
   `);
   await pool.query(`
     ALTER TABLE decks ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id)
+  `);
+  await pool.query(`
+    ALTER TABLE packs ADD COLUMN IF NOT EXISTS built_in BOOLEAN DEFAULT FALSE
   `);
 
   console.log("Database initialized");

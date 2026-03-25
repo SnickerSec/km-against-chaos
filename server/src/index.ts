@@ -10,6 +10,7 @@ import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobb
 import deckRoutes from "./deckRoutes.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from "./adminRoutes.js";
+import packRoutes from "./packRoutes.js";
 import { getDeck, seedBuiltInDecks } from "./deckStore.js";
 import { initDb } from "./db.js";
 import {
@@ -80,6 +81,7 @@ const staticLimiter = rateLimit({
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin", apiLimiter, adminRoutes);
 app.use("/api/decks", apiLimiter, deckRoutes);
+app.use("/api/packs", apiLimiter, packRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [

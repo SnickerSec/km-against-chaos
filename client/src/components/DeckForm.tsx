@@ -19,6 +19,7 @@ interface DeckFormData {
   chaosCards: CardInput[];
   knowledgeCards: CardInput[];
   winCondition: WinCondition;
+  packs?: { type: string; name: string; description: string; chaosCards: CardInput[]; knowledgeCards: CardInput[] }[];
 }
 
 type PackType = "base" | "expansion" | "themed";
@@ -119,6 +120,14 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
     if (allChaos.length < 5) { setError("Need at least 5 prompt cards with text across all packs"); return; }
     if (allKnowledge.length < 15) { setError("Need at least 15 answer cards with text across all packs"); return; }
 
+    const packData = packs.map((p) => ({
+      type: p.type,
+      name: p.name,
+      description: p.description,
+      chaosCards: p.chaosCards.filter((c) => c.text.trim()),
+      knowledgeCards: p.knowledgeCards.filter((c) => c.text.trim()),
+    })).filter((p) => p.chaosCards.length > 0 || p.knowledgeCards.length > 0);
+
     setSaving(true);
     try {
       await onSubmit({
@@ -127,6 +136,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         chaosCards: allChaos,
         knowledgeCards: allKnowledge,
         winCondition: { mode: winMode, value: winValue },
+        packs: packData,
       });
     } catch (e: any) {
       setError(e.message);

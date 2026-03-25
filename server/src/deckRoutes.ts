@@ -6,6 +6,9 @@ import {
   updateDeck,
   deleteDeck,
   validateDeck,
+  upsertPacksForDeck,
+  createDeckFromPacks,
+  type PackInput,
 } from "./deckStore.js";
 import { generateCards, generateDeck } from "./aiGenerate.js";
 import { requireAuth } from "./auth.js";
@@ -73,6 +76,26 @@ router.get("/:id/export", async (req, res) => {
   }
 });
 
+// Create deck from selected pack IDs
+router.post("/from-packs", requireAuth, async (req, res) => {
+  const body = (req as any).body;
+  const { packIds, name, winCondition } = body;
+  if (!name || typeof name !== "string" || !name.trim()) {
+    res.status(400).json({ error: "Deck name is required" });
+    return;
+  }
+  if (!Array.isArray(packIds) || packIds.length === 0) {
+    res.status(400).json({ error: "At least one pack must be selected" });
+    return;
+  }
+  try {
+    const deck = await createDeckFromPacks(packIds, name.trim(), winCondition || { mode: "rounds", value: 10 }, (req as any).user.id);
+    res.status(201).json(deck);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // Create a new deck
 router.post("/", requireAuth, async (req, res) => {
   const body = (req as any).body;
@@ -83,6 +106,9 @@ router.post("/", requireAuth, async (req, res) => {
   }
   try {
     const deck = await createDeck({ ...body, ownerId: (req as any).user.id });
+    if (body.packs && Array.isArray(body.packs)) {
+      await upsertPacksForDeck(deck.id, body.packs as PackInput[], (req as any).user.id, false);
+    }
     res.status(201).json(deck);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -183,6 +209,9 @@ router.put("/:id", requireAuth, async (req, res) => {
     if (!deck) {
       res.status(404).json({ error: "Deck not found or not owned by you" });
       return;
+    }
+    if (body.packs && Array.isArray(body.packs) && deck) {
+      await upsertPacksForDeck(deck.id, body.packs as PackInput[], (req as any).user.id, false);
     }
     res.json(deck);
   } catch (e: any) {
