@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { fetchDecks, deleteDeck, importDeck, DeckSummary, DeckExport } from "@/lib/api";
+import { fetchDecks, deleteDeck, importDeck, DeckSummary, DeckExport, API_URL } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
@@ -141,7 +141,7 @@ export default function DecksPage() {
               </div>
               <div className="flex gap-2 ml-4">
                 <a
-                  href={`${process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3001"}/api/decks/${deck.id}/export`}
+                  href={`${API_URL}/api/decks/${deck.id}/export`}
                   className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors"
                 >
                   Export
