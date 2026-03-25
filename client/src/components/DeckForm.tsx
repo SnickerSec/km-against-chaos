@@ -27,6 +27,7 @@ interface CardPack {
   id: string;
   type: PackType;
   name: string;
+  description: string;
   chaosCards: CardInput[];
   knowledgeCards: CardInput[];
   open: boolean;
@@ -64,6 +65,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       id: "base",
       type: "base",
       name: "Base Game",
+      description: "",
       chaosCards: initial?.chaosCards || [{ text: "", pick: 1 }],
       knowledgeCards: initial?.knowledgeCards || [{ text: "" }],
       open: true,
@@ -99,6 +101,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         id,
         type,
         name: defaultName,
+        description: "",
         chaosCards: [{ text: "", pick: 1 }],
         knowledgeCards: [{ text: "" }],
         open: true,
@@ -154,7 +157,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       const rest = prev.filter((p) => p.type !== "base");
       return [
         {
-          ...(basePack || { id: "base", type: "base" as const, name: "Base Game", open: true }),
+          ...(basePack || { id: "base", type: "base" as const, name: "Base Game", description: "", open: true }),
           chaosCards: deck.chaosCards.map((c) => ({ text: c.text, pick: c.pick || 1 })),
           knowledgeCards: deck.knowledgeCards.map((c) => ({ text: c.text })),
         },
@@ -447,6 +450,17 @@ function CardPackEditor({
 
       {pack.open && (
         <div className="px-4 pb-4 space-y-5">
+          {/* Description field for expansion/themed packs */}
+          {!isBase && (
+            <textarea
+              value={pack.description}
+              onChange={(e) => onUpdate((p) => ({ ...p, description: e.target.value }))}
+              placeholder="Pack description (optional)..."
+              rows={2}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 text-sm resize-none"
+            />
+          )}
+
           {/* AI Generator for expansion/themed packs (base uses top-level generator) */}
           {!isBase && (
             <AIGenerate
@@ -454,7 +468,7 @@ function CardPackEditor({
               packType={pack.type}
               gameType={gameType}
               deckName={deckName}
-              deckDescription={deckDescription}
+              deckDescription={pack.description || deckDescription}
               onGenerated={(chaos, knowledge) => {
                 onUpdate((p) => ({
                   ...p,
@@ -475,6 +489,7 @@ function CardPackEditor({
             addButtonColor="bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-600/50"
             focusColor="focus:border-red-500"
             showPick
+            packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
             onUpdate={(index, field, value) => updateChaos(index, field, value)}
             onAdd={() => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, { text: "", pick: 1 }] }))}
             onRemove={(index) =>
@@ -491,6 +506,7 @@ function CardPackEditor({
             hint={isBase ? "Short answers or phrases. Min 15 cards." : "Short answers or phrases."}
             addButtonColor="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border-purple-600/50"
             focusColor="focus:border-purple-500"
+            packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
             onUpdate={(index, _field, value) => updateKnowledge(index, value as string)}
             onAdd={() => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, { text: "" }] }))}
             onRemove={(index) =>
@@ -522,6 +538,7 @@ function CardListEditor({
   addButtonColor,
   focusColor,
   showPick,
+  packBadge,
   onUpdate,
   onAdd,
   onRemove,
@@ -534,12 +551,17 @@ function CardListEditor({
   addButtonColor: string;
   focusColor: string;
   showPick?: boolean;
+  packBadge?: { name: string; type: PackType };
   onUpdate: (index: number, field: keyof CardInput, value: string | number) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
 }) {
   const [open, setOpen] = useState(true);
   const count = cards.filter((c) => c.text.trim()).length;
+
+  const badgeClass = packBadge?.type === "themed"
+    ? "text-cyan-300 bg-cyan-900/40 border border-cyan-600/40"
+    : "text-yellow-300 bg-yellow-900/40 border border-yellow-600/40";
 
   return (
     <div>
@@ -566,7 +588,12 @@ function CardListEditor({
           </div>
           <div className="space-y-2">
             {cards.map((card, i) => (
-              <div key={i} className="flex gap-2">
+              <div key={i} className="flex gap-2 items-center">
+                {packBadge && (
+                  <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium leading-tight max-w-[80px] truncate ${badgeClass}`}>
+                    {packBadge.name}
+                  </span>
+                )}
                 <input
                   type="text"
                   placeholder={placeholder(i)}
