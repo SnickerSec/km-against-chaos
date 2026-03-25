@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore, getAuthHeaders } from "@/lib/auth";
@@ -268,7 +269,7 @@ export default function AdminPage() {
             className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-sm transition-colors"
           >
             Manage on Railway
-            <span className="text-purple-300">&#x2197;</span>
+            <Icon icon="mdi:open-in-new" className="text-purple-300" width={16} />
           </a>
         </div>
 
