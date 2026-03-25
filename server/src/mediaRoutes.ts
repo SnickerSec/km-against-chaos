@@ -24,7 +24,10 @@ router.get("/ping", (_req, res) => {
 router.get("/find", async (req, res) => {
   const { q = "", type = "gif", page = "" } = req.query as Record<string, string>;
   const key = getKey();
-  console.log(`[media] search q="${q}" type="${type}" hasKey=${!!key}`);
+  console.log(`[media] find q="${q}" type="${type}" hasKey=${!!key}`);
+  // Stub for debugging: return empty results immediately
+  res.json({ results: [], next: "", debug: "stub" });
+  return;
   if (!key) { res.status(503).json({ error: "Media API not configured" }); return; }
 
   const endpoint = type === "sticker" ? "stickers" : "gifs";
