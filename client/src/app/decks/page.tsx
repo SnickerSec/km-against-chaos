@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { fetchDecks, deleteDeck, importDeck, fetchPacks, createDeckFromPacks, DeckSummary, DeckExport, PackSummary, API_URL } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { fetchDecks, fetchDeck, createDeck, deleteDeck, importDeck, fetchPacks, createDeckFromPacks, DeckSummary, DeckExport, PackSummary } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
@@ -31,8 +32,11 @@ export default function DecksPage() {
   const [buildError, setBuildError] = useState<string | null>(null);
   const [showBuildForm, setShowBuildForm] = useState(false);
 
+  const [remixingId, setRemixingId] = useState<string | null>(null);
+
   const user = useAuthStore((s) => s.user);
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  const router = useRouter();
 
   const load = async () => {
     try {
@@ -63,6 +67,25 @@ export default function DecksPage() {
   const handleTabChange = (t: Tab) => {
     setTab(t);
     if (t === "browse-packs") loadPacks();
+  };
+
+  const handleRemix = async (id: string, deckName: string) => {
+    if (!user) { setError("Sign in to remix a deck"); return; }
+    setRemixingId(id);
+    try {
+      const source = await fetchDeck(id);
+      const copy = await createDeck({
+        name: `Remix of ${deckName}`,
+        description: source.description,
+        chaosCards: source.chaosCards.map((c) => ({ text: c.text, pick: c.pick })),
+        knowledgeCards: source.knowledgeCards.map((c) => ({ text: c.text })),
+        winCondition: source.winCondition,
+      });
+      router.push(`/decks/edit?id=${copy.id}`);
+    } catch (e: any) {
+      setError(e.message);
+      setRemixingId(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -301,12 +324,15 @@ export default function DecksPage() {
                     </p>
                   </div>
                   <div className="flex gap-2 ml-4">
-                    <a
-                      href={`${API_URL}/api/decks/${deck.id}/export`}
-                      className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors"
-                    >
-                      Export
-                    </a>
+                    {user && !isOwner(deck) && (
+                      <button
+                        onClick={() => handleRemix(deck.id, deck.name)}
+                        disabled={remixingId === deck.id}
+                        className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 disabled:opacity-50 rounded border border-gray-600 transition-colors"
+                      >
+                        {remixingId === deck.id ? "Cloning..." : "Remix"}
+                      </button>
+                    )}
                     {isOwner(deck) && (
                       <button
                         onClick={() => handleDelete(deck.id)}
