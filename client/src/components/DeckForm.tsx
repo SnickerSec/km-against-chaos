@@ -177,34 +177,38 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         </select>
         <p className="text-gray-500 text-xs mt-1">More game types coming soon</p>
 
-        {/* Card counts — game type options */}
-        <div className="grid grid-cols-2 gap-3 mt-3">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Prompt cards to generate</label>
-            <input
-              type="number"
-              value={chaosCount}
-              onChange={(e) => handleChaosCount(parseInt(e.target.value) || 10)}
-              min={5}
-              max={30}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Answer cards to generate</label>
-            <input
-              type="number"
-              value={knowledgeCount}
-              onChange={(e) => handleKnowledgeCount(parseInt(e.target.value) || 25)}
-              min={chaosCount + 1}
-              max={50}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-            />
-          </div>
-        </div>
-        <p className="text-gray-600 text-xs mt-1">
-          Answer cards must outnumber prompt cards. Max 30 prompts, 50 answers.
-        </p>
+        {/* Card counts — only on create */}
+        {!initial && (
+          <>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Prompt cards to generate</label>
+                <input
+                  type="number"
+                  value={chaosCount}
+                  onChange={(e) => handleChaosCount(parseInt(e.target.value) || 10)}
+                  min={5}
+                  max={30}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Answer cards to generate</label>
+                <input
+                  type="number"
+                  value={knowledgeCount}
+                  onChange={(e) => handleKnowledgeCount(parseInt(e.target.value) || 25)}
+                  min={chaosCount + 1}
+                  max={50}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            </div>
+            <p className="text-gray-600 text-xs mt-1">
+              Answer cards must outnumber prompt cards. Max 30 prompts, 50 answers.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Top-level AI Deck Generator (create mode) / Add packs (edit mode) */}
