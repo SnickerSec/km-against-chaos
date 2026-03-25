@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { generateCardsAI } from "@/lib/api";
+import { generateCardsAI, generateDeckAI } from "@/lib/api";
 
 interface CardInput {
   text: string;
@@ -125,6 +125,24 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
     }
   };
 
+  const handleGenerateDeck = async (theme: string) => {
+    const deck = await generateDeckAI(theme);
+    setName(deck.name);
+    setDescription(deck.description);
+    setPacks((prev) => {
+      const basePack = prev.find((p) => p.type === "base");
+      const rest = prev.filter((p) => p.type !== "base");
+      return [
+        {
+          ...(basePack || { id: "base", type: "base" as const, name: "Base Game", open: true }),
+          chaosCards: deck.chaosCards.map((c) => ({ text: c.text, pick: c.pick || 1 })),
+          knowledgeCards: deck.knowledgeCards.map((c) => ({ text: c.text })),
+        },
+        ...rest,
+      ];
+    });
+  };
+
   return (
     <div className="space-y-8">
       {/* Game Type */}
@@ -138,6 +156,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         </select>
         <p className="text-gray-500 text-xs mt-1">More game types coming soon</p>
       </div>
+
+      {/* Top-level AI Deck Generator */}
+      <DeckAIGenerate onGenerated={handleGenerateDeck} />
 
       {/* Deck info */}
       <div className="space-y-3">
@@ -568,7 +589,70 @@ function BulkAdd({
   );
 }
 
-/* ── AI Generate ── */
+/* ── Top-level AI Deck Generator ── */
+
+function DeckAIGenerate({
+  onGenerated,
+}: {
+  onGenerated: (theme: string) => Promise<void>;
+}) {
+  const [theme, setTheme] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGenerate = async () => {
+    if (!theme.trim()) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      await onGenerated(theme.trim());
+      setTheme("");
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 rounded-xl p-6 border border-purple-500/40">
+      <p className="text-xl font-bold text-purple-100 mb-1">
+        AI Deck Generator
+      </p>
+      <p className="text-gray-300 text-sm mb-4">
+        Describe a theme and AI will generate a deck name, description, and all the cards for you
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={theme}
+          onChange={(e) => {
+            setTheme(e.target.value);
+            setError(null);
+          }}
+          placeholder='e.g. "Corporate Buzzwords", "IT Service Desk", "Dad Jokes"'
+          className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+          onKeyDown={(e) => e.key === "Enter" && !generating && handleGenerate()}
+        />
+        <button
+          onClick={handleGenerate}
+          disabled={generating || !theme.trim()}
+          className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg font-semibold transition-colors whitespace-nowrap"
+        >
+          {generating ? "Generating..." : "Generate Deck"}
+        </button>
+      </div>
+      {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
+      {generating && (
+        <p className="text-purple-300 text-sm mt-3 animate-pulse">
+          AI is building your deck — generating name, description, and cards...
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── Pack-level AI Card Generator ── */
 
 function AIGenerate({
   packName,
@@ -600,12 +684,12 @@ function AIGenerate({
   };
 
   return (
-    <div className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 rounded-lg p-4 border border-purple-500/30">
+    <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg p-4 border border-purple-500/20">
       <p className="text-sm font-semibold text-purple-200 mb-1">
         AI Card Generator
       </p>
       <p className="text-gray-400 text-xs mb-3">
-        Generate cards for {packName}
+        Add more cards to {packName}
       </p>
       <div className="flex gap-2">
         <input

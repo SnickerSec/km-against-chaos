@@ -92,6 +92,30 @@ export interface GeneratedCards {
   knowledgeCards: { text: string }[];
 }
 
+export interface GeneratedDeck {
+  name: string;
+  description: string;
+  chaosCards: { text: string; pick: number }[];
+  knowledgeCards: { text: string }[];
+}
+
+export async function generateDeckAI(
+  theme: string,
+  chaosCount?: number,
+  knowledgeCount?: number
+): Promise<GeneratedDeck> {
+  const res = await fetch(`${API_URL}/api/decks/generate-deck`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ theme, chaosCount, knowledgeCount }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to generate deck");
+  }
+  return res.json();
+}
+
 export async function generateCardsAI(
   theme: string,
   chaosCount?: number,

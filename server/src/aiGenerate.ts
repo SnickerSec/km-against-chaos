@@ -8,6 +8,13 @@ interface GeneratedCards {
   knowledgeCards: { text: string }[];
 }
 
+interface GeneratedDeck {
+  name: string;
+  description: string;
+  chaosCards: { text: string; pick: number }[];
+  knowledgeCards: { text: string }[];
+}
+
 export type AiProvider = "anthropic" | "openai" | "deepseek" | "gemini";
 
 export interface AiSettings {
@@ -114,17 +121,25 @@ async function callGemini(model: string, maxTokens: number, prompt: string): Pro
   return text;
 }
 
-function extractJson(text: string): GeneratedCards {
+function extractJson<T>(text: string, validate: (obj: any) => boolean): T {
   let jsonStr = text.trim();
   const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) {
     jsonStr = jsonMatch[1].trim();
   }
-  const parsed = JSON.parse(jsonStr) as GeneratedCards;
-  if (!Array.isArray(parsed.chaosCards) || !Array.isArray(parsed.knowledgeCards)) {
+  const parsed = JSON.parse(jsonStr) as T;
+  if (!validate(parsed)) {
     throw new Error("Invalid response structure");
   }
   return parsed;
+}
+
+function isValidCards(obj: any): boolean {
+  return Array.isArray(obj.chaosCards) && Array.isArray(obj.knowledgeCards);
+}
+
+function isValidDeck(obj: any): boolean {
+  return typeof obj.name === "string" && typeof obj.description === "string" && isValidCards(obj);
 }
 
 export async function generateCards(
@@ -159,5 +174,63 @@ export async function generateCards(
       break;
   }
 
-  return extractJson(responseText);
+  return extractJson<GeneratedCards>(responseText, isValidCards);
+}
+
+const DECK_PROMPT = `Create a complete "Cards Against Humanity" style card game deck based on this theme:
+
+Theme: "{{theme}}"
+
+Generate a creative deck name, a short description (1-2 sentences), exactly {{chaosCount}} "Chaos" cards (prompts/black cards) and {{knowledgeCount}} "Knowledge" cards (answer/white cards).
+
+Rules:
+- Chaos cards are fill-in-the-blank prompts. Use ___ for the blank.
+- Most Chaos cards should have pick:1 (one blank). 2-3 can have pick:2 (two blanks).
+- Knowledge cards are short, funny answers (2-10 words).
+- Be clever, funny, and a bit edgy but not offensive.
+- Cards should be specific to the theme, not generic.
+- The deck name should be catchy and related to the theme.
+- The description should explain what the deck is about in a fun way.
+
+Respond ONLY with valid JSON in this exact format, no other text:
+{
+  "name": "Deck Name Here",
+  "description": "A short, fun description of the deck.",
+  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
+  "knowledgeCards": [{"text": "A rogue spreadsheet"}]
+}`;
+
+export async function generateDeck(
+  theme: string,
+  chaosCount?: number,
+  knowledgeCount?: number
+): Promise<GeneratedDeck> {
+  const settings = await getAiSettings();
+  const cc = chaosCount || settings.defaultChaosCount;
+  const kc = knowledgeCount || settings.defaultKnowledgeCount;
+
+  const prompt = DECK_PROMPT
+    .replace(/\{\{theme\}\}/g, theme)
+    .replace(/\{\{chaosCount\}\}/g, String(cc))
+    .replace(/\{\{knowledgeCount\}\}/g, String(kc));
+
+  let responseText: string;
+
+  switch (settings.provider) {
+    case "openai":
+      responseText = await callOpenAI(settings.model, settings.maxTokens, prompt);
+      break;
+    case "deepseek":
+      responseText = await callDeepSeek(settings.model, settings.maxTokens, prompt);
+      break;
+    case "gemini":
+      responseText = await callGemini(settings.model, settings.maxTokens, prompt);
+      break;
+    case "anthropic":
+    default:
+      responseText = await callAnthropic(settings.model, settings.maxTokens, prompt);
+      break;
+  }
+
+  return extractJson<GeneratedDeck>(responseText, isValidDeck);
 }
