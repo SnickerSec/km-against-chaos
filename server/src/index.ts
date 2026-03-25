@@ -11,6 +11,7 @@ import deckRoutes from "./deckRoutes.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from "./adminRoutes.js";
 import packRoutes from "./packRoutes.js";
+import mediaRoutes from "./mediaRoutes.js";
 import { getDeck, seedBuiltInDecks } from "./deckStore.js";
 import { initDb } from "./db.js";
 import {
@@ -82,6 +83,7 @@ app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin", apiLimiter, adminRoutes);
 app.use("/api/decks", apiLimiter, deckRoutes);
 app.use("/api/packs", apiLimiter, packRoutes);
+app.use("/api/media", staticLimiter, mediaRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [
@@ -123,9 +125,9 @@ if (clientDir) {
 }
 
 // Chat history per lobby (capped at 100 messages)
-const chatHistory = new Map<string, { id: string; playerName: string; text: string; timestamp: number }[]>();
+const chatHistory = new Map<string, { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }[]>();
 
-function addChatMessage(code: string, msg: { id: string; playerName: string; text: string; timestamp: number }) {
+function addChatMessage(code: string, msg: { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }) {
   let history = chatHistory.get(code);
   if (!history) {
     history = [];
@@ -432,6 +434,32 @@ io.on("connection", (socket) => {
     const msg = { id: `${socket.id}-${now}`, playerName, text, timestamp: now };
     addChatMessage(code, msg);
     io.to(code).emit("chat:message", msg);
+  });
+
+  let lastGifTime = 0;
+  socket.on("chat:gif", (gifUrl: string) => {
+    const now = Date.now();
+    if (now - lastGifTime < 1000) return;
+    lastGifTime = now;
+    if (typeof gifUrl !== "string" || !gifUrl.startsWith("http")) return;
+    const code = getLobbyForSocket(socket.id);
+    const playerName = getPlayerNameInLobby(code || "", socket.id);
+    if (!code || !playerName) return;
+    const msg = { id: `${Date.now()}-${Math.random()}`, playerName, text: "", gifUrl, timestamp: Date.now() };
+    addChatMessage(code, msg);
+    io.to(code).emit("chat:message", msg);
+  });
+
+  let lastStickerTime = 0;
+  socket.on("media:sticker", (url: string) => {
+    const now = Date.now();
+    if (now - lastStickerTime < 2000) return;
+    lastStickerTime = now;
+    if (typeof url !== "string" || !url.startsWith("http")) return;
+    const code = getLobbyForSocket(socket.id);
+    const playerName = getPlayerNameInLobby(code || "", socket.id);
+    if (!code || !playerName) return;
+    io.to(code).emit("media:sticker", url, playerName);
   });
 
   socket.on("disconnect", () => {

@@ -98,6 +98,8 @@ export interface ClientEvents {
   "game:next-round": () => void;
   "reaction:send": (emoji: string) => void;
   "chat:send": (message: string) => void;
+  "chat:gif": (gifUrl: string) => void;
+  "media:sticker": (url: string) => void;
 }
 
 // Server -> Client game events
@@ -112,7 +114,7 @@ export interface ServerEvents {
   "session:reconnected": (data: {
     lobby: LobbyState;
     gameView: PlayerGameView | null;
-    chatHistory: { id: string; playerName: string; text: string; timestamp: number }[];
+    chatHistory: { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }[];
     screen: "lobby" | "game";
   }) => void;
   "game:round-start": (view: PlayerGameView) => void;
@@ -121,6 +123,7 @@ export interface ServerEvents {
   "game:round-winner": (winnerId: string, winnerName: string, cards: KnowledgeCard[], scores: Record<string, number>) => void;
   "game:over": (scores: Record<string, number>) => void;
   "reaction:broadcast": (emoji: string, playerName: string) => void;
-  "chat:message": (message: { id: string; playerName: string; text: string; timestamp: number }) => void;
+  "chat:message": (message: { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }) => void;
+  "media:sticker": (url: string, playerName: string) => void;
   "error": (message: string) => void;
 }

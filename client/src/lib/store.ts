@@ -60,6 +60,7 @@ export interface ChatMessage {
   id: string;
   playerName: string;
   text: string;
+  gifUrl?: string;
   timestamp: number;
 }
 
@@ -89,6 +90,9 @@ interface GameStore {
   chatOpen: boolean;
   unreadCount: number;
 
+  // Sticker overlay
+  activeSticker: { url: string; playerName: string } | null;
+
   // Actions
   setPlayerName: (name: string) => void;
   setLobby: (lobby: LobbyState | null) => void;
@@ -105,6 +109,7 @@ interface GameStore {
   setScores: (scores: Record<string, number>) => void;
   addChatMessage: (msg: ChatMessage) => void;
   setChatOpen: (open: boolean) => void;
+  setActiveSticker: (sticker: { url: string; playerName: string } | null) => void;
   reset: () => void;
 }
 
@@ -126,6 +131,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   chatMessages: [],
   chatOpen: false,
   unreadCount: 0,
+  activeSticker: null,
 
   setPlayerName: (name) => set({ playerName: name }),
   setLobby: (lobby) => set({ lobby }),
@@ -194,6 +200,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setChatOpen: (open) => set({ chatOpen: open, unreadCount: open ? 0 : get().unreadCount }),
 
+  setActiveSticker: (sticker) => set({ activeSticker: sticker }),
+
   reset: () =>
     set({
       playerName: "",
@@ -212,5 +220,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       chatMessages: [],
       chatOpen: false,
       unreadCount: 0,
+      activeSticker: null,
     }),
 }));

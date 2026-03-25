@@ -26,6 +26,7 @@ export function useSocket() {
     setWinnerInfo,
     setScores,
     addChatMessage,
+    setActiveSticker,
   } = useGameStore();
 
   useEffect(() => {
@@ -103,6 +104,11 @@ export function useSocket() {
       addChatMessage(msg);
     });
 
+    socket.on("media:sticker" as any, (url: string, playerName: string) => {
+      setActiveSticker({ url, playerName });
+      setTimeout(() => setActiveSticker(null), 1800);
+    });
+
     return () => {
       // Don't disconnect — the socket is a singleton that persists across screen changes
     };
@@ -117,6 +123,7 @@ export function useSocket() {
     setWinnerInfo,
     setScores,
     addChatMessage,
+    setActiveSticker,
   ]);
 
   const createLobby = (playerName: string, deckId?: string) => {
@@ -225,6 +232,18 @@ export function useSocket() {
     socket.emit("chat:send", message);
   };
 
+  const sendGif = (gifUrl: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("chat:gif" as any, gifUrl);
+  };
+
+  const sendSticker = (url: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("media:sticker" as any, url);
+  };
+
   return {
     socket: socketRef.current,
     createLobby,
@@ -235,5 +254,7 @@ export function useSocket() {
     pickWinner,
     nextRound,
     sendChat,
+    sendGif,
+    sendSticker,
   };
 }

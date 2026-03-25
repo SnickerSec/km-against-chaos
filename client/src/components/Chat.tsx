@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Icon } from "@iconify/react";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
+import { API_URL } from "@/lib/api";
 
 const NAME_COLORS = [
   "text-purple-400",
@@ -26,12 +27,57 @@ function nameToColor(name: string): string {
   return NAME_COLORS[Math.abs(hash) % NAME_COLORS.length];
 }
 
+interface MediaResult {
+  id: string;
+  url: string;
+  previewUrl: string;
+  description: string;
+}
+
 export default function Chat() {
   const { chatMessages, chatOpen, unreadCount, setChatOpen } = useGameStore();
-  const { sendChat } = useSocket();
+  const { sendChat, sendGif, sendSticker } = useSocket();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // GIF/Sticker picker state
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerTab, setPickerTab] = useState<"gif" | "sticker">("gif");
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerResults, setPickerResults] = useState<MediaResult[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+
+  const fetchMedia = useCallback(async (query: string, tab: "gif" | "sticker") => {
+    setPickerLoading(true);
+    try {
+      const params = new URLSearchParams({ q: query, type: tab });
+      const res = await fetch(`${API_URL}/api/media/search?${params}`);
+      if (!res.ok) { setPickerResults([]); return; }
+      const data = await res.json();
+      setPickerResults(data.results || []);
+    } catch {
+      setPickerResults([]);
+    } finally {
+      setPickerLoading(false);
+    }
+  }, []);
+
+  // Debounce search when pickerQuery changes
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const timer = setTimeout(() => {
+      fetchMedia(pickerQuery, pickerTab);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [pickerQuery, pickerTab, pickerOpen, fetchMedia]);
+
+  // Re-fetch when picker opens or tab changes (with empty debounce)
+  useEffect(() => {
+    if (!pickerOpen) return;
+    fetchMedia(pickerQuery, pickerTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickerOpen, pickerTab]);
 
   useEffect(() => {
     if (chatOpen) {
@@ -100,7 +146,16 @@ export default function Chat() {
         {chatMessages.map((msg) => (
           <div key={msg.id} className="text-sm">
             <span className={`font-semibold ${nameToColor(msg.playerName)}`}>{msg.playerName}</span>{" "}
-            <span className="text-gray-300">{msg.text}</span>
+            {msg.gifUrl ? (
+              <img
+                src={msg.gifUrl}
+                alt={msg.playerName}
+                className="max-w-full rounded-lg mt-1"
+                style={{ maxHeight: "150px" }}
+              />
+            ) : (
+              <span className="text-gray-300">{msg.text}</span>
+            )}
           </div>
         ))}
         <div ref={messagesEndRef} />
@@ -108,7 +163,80 @@ export default function Chat() {
 
       {/* Input */}
       <div className="px-3 py-2 border-t border-gray-700">
+        {/* GIF Picker */}
+        {pickerOpen && (
+          <div className="mb-2 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+            {/* Tabs */}
+            <div className="flex border-b border-gray-700">
+              <button
+                onClick={() => setPickerTab("gif")}
+                className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${pickerTab === "gif" ? "text-purple-400 border-b-2 border-purple-500" : "text-gray-500 hover:text-gray-300"}`}
+              >
+                GIFs
+              </button>
+              <button
+                onClick={() => setPickerTab("sticker")}
+                className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${pickerTab === "sticker" ? "text-cyan-400 border-b-2 border-cyan-500" : "text-gray-500 hover:text-gray-300"}`}
+              >
+                Stickers
+              </button>
+            </div>
+            {/* Search */}
+            <div className="px-2 py-1.5">
+              <input
+                type="text"
+                value={pickerQuery}
+                onChange={(e) => setPickerQuery(e.target.value)}
+                placeholder="Search..."
+                className="w-full px-2 py-1 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-xs"
+              />
+            </div>
+            {/* Results grid */}
+            <div className="h-40 overflow-y-auto px-2 pb-2">
+              {pickerLoading ? (
+                <p className="text-gray-500 text-xs text-center py-4">Loading...</p>
+              ) : pickerResults.length === 0 ? (
+                <p className="text-gray-600 text-xs text-center py-4">No results</p>
+              ) : (
+                <div className="grid grid-cols-4 gap-1">
+                  {pickerResults.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (pickerTab === "gif") {
+                          sendGif(item.url);
+                        } else {
+                          sendSticker(item.url);
+                        }
+                        setPickerOpen(false);
+                        setPickerQuery("");
+                      }}
+                      className="aspect-square rounded overflow-hidden bg-gray-900 hover:ring-2 hover:ring-purple-500 transition-all"
+                    >
+                      <img
+                        src={item.previewUrl}
+                        alt={item.description}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Powered by Klipy */}
+            <div className="px-2 pb-1.5 flex justify-end">
+              <span className="text-gray-600 text-[10px]">Powered by Klipy</span>
+            </div>
+          </div>
+        )}
+        {/* Input row */}
         <div className="flex gap-2">
+          <button
+            onClick={() => setPickerOpen(!pickerOpen)}
+            className={`p-1.5 rounded-lg border transition-colors ${pickerOpen ? "bg-purple-600 border-purple-500 text-white" : "bg-gray-800 border-gray-700 text-gray-400 hover:text-white"}`}
+          >
+            <Icon icon="mdi:gif" width={20} />
+          </button>
           <input
             ref={inputRef}
             type="text"

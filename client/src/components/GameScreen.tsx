@@ -9,6 +9,7 @@ import RoundWinner from "./RoundWinner";
 import ScoreBar from "./ScoreBar";
 import ReactionBar from "./ReactionBar";
 import ReactionOverlay from "./ReactionOverlay";
+import StickerOverlay from "./StickerOverlay";
 import Chat from "./Chat";
 
 export default function GameScreen() {
@@ -32,6 +33,7 @@ export default function GameScreen() {
   return (
     <div className="flex flex-col min-h-screen">
       <ReactionOverlay />
+      <StickerOverlay />
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800">
