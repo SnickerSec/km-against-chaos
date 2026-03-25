@@ -4,6 +4,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import pool from "./db.js";
 
 interface GeneratedCards {
+  name?: string;
+  description?: string;
   chaosCards: { text: string; pick: number }[];
   knowledgeCards: { text: string }[];
 }
@@ -103,12 +105,18 @@ ${packDesc}
 Generate exactly ${cc} "Chaos" cards (prompts) and ${kc} "Knowledge" cards (answers).
 
 ${rules}
+${ctx.packType !== "base" ? `- Also generate a short, catchy pack name and a 1-2 sentence description for this pack.` : ""}
 
 Respond ONLY with valid JSON in this exact format, no other text:
-{
+${ctx.packType !== "base" ? `{
+  "name": "Pack Name Here",
+  "description": "A short description of this pack.",
   "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
   "knowledgeCards": [{"text": "A rogue spreadsheet"}]
-}`;
+}` : `{
+  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
+  "knowledgeCards": [{"text": "A rogue spreadsheet"}]
+}`}`;
 }
 
 function buildDeckPrompt(ctx: GenerateContext, cc: number, kc: number): string {

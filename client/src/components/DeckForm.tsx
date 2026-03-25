@@ -422,17 +422,7 @@ function CardPackEditor({
           >
             {pack.open ? "▲" : "▼"}
           </button>
-          {isBase ? (
-            <h3 className={`font-semibold ${style.color}`}>{pack.name}</h3>
-          ) : (
-            <input
-              type="text"
-              value={pack.name}
-              onChange={(e) => onUpdate((p) => ({ ...p, name: e.target.value }))}
-              className={`bg-transparent font-semibold ${style.color} focus:outline-none border-b border-transparent focus:border-gray-600 text-sm`}
-              placeholder="Pack name..."
-            />
-          )}
+          <h3 className={`font-semibold ${style.color}`}>{pack.name || (pack.type === "expansion" ? "Expansion Box" : "Themed Pack")}</h3>
           <span className="text-gray-500 text-xs whitespace-nowrap">
             {chaosCardCount} prompts · {knowledgeCardCount} answers
           </span>
@@ -450,17 +440,6 @@ function CardPackEditor({
 
       {pack.open && (
         <div className="px-4 pb-4 space-y-5">
-          {/* Description field for expansion/themed packs */}
-          {!isBase && (
-            <textarea
-              value={pack.description}
-              onChange={(e) => onUpdate((p) => ({ ...p, description: e.target.value }))}
-              placeholder="Pack description (optional)..."
-              rows={2}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 text-sm resize-none"
-            />
-          )}
-
           {/* AI Generator for expansion/themed packs (base uses top-level generator) */}
           {!isBase && (
             <AIGenerate
@@ -469,14 +448,36 @@ function CardPackEditor({
               gameType={gameType}
               deckName={deckName}
               deckDescription={pack.description || deckDescription}
-              onGenerated={(chaos, knowledge) => {
+              onGenerated={(chaos, knowledge, generatedName, generatedDescription) => {
                 onUpdate((p) => ({
                   ...p,
+                  ...(generatedName ? { name: generatedName } : {}),
+                  ...(generatedDescription ? { description: generatedDescription } : {}),
                   chaosCards: [...p.chaosCards, ...chaos],
                   knowledgeCards: [...p.knowledgeCards, ...knowledge],
                 }));
               }}
             />
+          )}
+
+          {/* Name and description fields for expansion/themed packs */}
+          {!isBase && (
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={pack.name}
+                onChange={(e) => onUpdate((p) => ({ ...p, name: e.target.value }))}
+                placeholder="Pack name..."
+                className={`w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg font-semibold ${style.color} focus:outline-none focus:border-gray-500 text-sm`}
+              />
+              <textarea
+                value={pack.description}
+                onChange={(e) => onUpdate((p) => ({ ...p, description: e.target.value }))}
+                placeholder="Pack description (optional)..."
+                rows={2}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-gray-500 text-sm resize-none"
+              />
+            </div>
           )}
 
           {/* Chaos Cards */}
@@ -791,7 +792,7 @@ function AIGenerate({
   gameType: string;
   deckName: string;
   deckDescription: string;
-  onGenerated: (chaos: CardInput[], knowledge: CardInput[]) => void;
+  onGenerated: (chaos: CardInput[], knowledge: CardInput[], name?: string, description?: string) => void;
 }) {
   const defaultPrompts = packType === "themed" ? 2 : 5;
   const defaultAnswers = packType === "themed" ? 6 : 12;
@@ -819,7 +820,9 @@ function AIGenerate({
       });
       onGenerated(
         cards.chaosCards.map((c) => ({ text: c.text, pick: c.pick || 1 })),
-        cards.knowledgeCards.map((c) => ({ text: c.text }))
+        cards.knowledgeCards.map((c) => ({ text: c.text })),
+        cards.name,
+        cards.description,
       );
       setTheme("");
     } catch (e: any) {

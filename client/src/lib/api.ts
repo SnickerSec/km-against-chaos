@@ -88,6 +88,8 @@ export async function deleteDeck(id: string): Promise<void> {
 }
 
 export interface GeneratedCards {
+  name?: string;
+  description?: string;
   chaosCards: { text: string; pick: number }[];
   knowledgeCards: { text: string }[];
 }
