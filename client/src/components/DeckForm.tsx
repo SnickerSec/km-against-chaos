@@ -203,8 +203,27 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         </p>
       </div>
 
-      {/* Top-level AI Deck Generator */}
-      <DeckAIGenerate onGenerated={handleGenerateDeck} />
+      {/* Top-level AI Deck Generator (create mode) / Add packs (edit mode) */}
+      {!initial ? (
+        <DeckAIGenerate onGenerated={handleGenerateDeck} />
+      ) : (
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => addPack("expansion")}
+            className="flex-1 py-3 bg-yellow-600/10 hover:bg-yellow-600/20 border border-yellow-600/40 rounded-xl text-yellow-400 font-semibold text-sm transition-colors"
+          >
+            + Add Expansion Box
+          </button>
+          <button
+            type="button"
+            onClick={() => addPack("themed")}
+            className="flex-1 py-3 bg-cyan-600/10 hover:bg-cyan-600/20 border border-cyan-600/40 rounded-xl text-cyan-400 font-semibold text-sm transition-colors"
+          >
+            + Add Themed Pack
+          </button>
+        </div>
+      )}
 
       {/* Deck info */}
       <div className="space-y-3">
@@ -295,8 +314,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         />
       ))}
 
-      {/* Add expansion / themed pack buttons */}
-      {baseHasCards && (
+      {/* Add expansion / themed pack buttons (create mode only, after base has cards) */}
+      {!initial && baseHasCards && (
         <div className="flex gap-3">
           <button
             type="button"
@@ -315,7 +334,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         </div>
       )}
 
-      {!baseHasCards && packs.length === 1 && (
+      {!initial && !baseHasCards && packs.length === 1 && (
         <p className="text-gray-500 text-xs text-center">
           Add at least 5 prompt cards and 15 answer cards to the Base Game to unlock Expansion Boxes and Themed Packs
         </p>
