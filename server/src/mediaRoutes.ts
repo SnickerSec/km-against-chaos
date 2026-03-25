@@ -24,6 +24,7 @@ router.get("/ping", (_req, res) => {
 router.get("/search", async (req, res) => {
   const { q = "", type = "gif", page = "" } = req.query as Record<string, string>;
   const key = getKey();
+  console.log(`[media] search q="${q}" type="${type}" hasKey=${!!key}`);
   if (!key) { res.status(503).json({ error: "Media API not configured" }); return; }
 
   const endpoint = type === "sticker" ? "stickers" : "gifs";
@@ -32,12 +33,22 @@ router.get("/search", async (req, res) => {
   if (q.trim()) params.set("q", q.trim());
   if (page) params.set("page", page);
 
+  const url = `${KLIPY_BASE}/${endpoint}/${action}?${params}`;
+  console.log(`[media] fetching ${url.replace(key, "***")}`);
+
   try {
-    const response = await fetch(`${KLIPY_BASE}/${endpoint}/${action}?${params}`);
-    if (!response.ok) { res.status(response.status).json({ error: "Upstream error" }); return; }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    console.log(`[media] klipy status=${response.status}`);
+    if (!response.ok) { res.status(response.status).json({ error: "Upstream error", status: response.status }); return; }
     const data: any = await response.json();
-    res.json({ results: normalize(data.results || []), next: data.next || "" });
+    const results = normalize(data.results || []);
+    console.log(`[media] returning ${results.length} results`);
+    res.json({ results, next: data.next || "" });
   } catch (e: any) {
+    console.error(`[media] error: ${e.message}`);
     res.status(500).json({ error: e.message });
   }
 });
