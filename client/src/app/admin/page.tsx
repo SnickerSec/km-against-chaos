@@ -26,13 +26,50 @@ Respond ONLY with valid JSON in this exact format, no other text:
   "knowledgeCards": [{"text": "A rogue spreadsheet"}]
 }`;
 
-const MODELS = [
-  "claude-sonnet-4-20250514",
-  "claude-haiku-4-5-20251001",
-  "claude-opus-4-20250514",
+type AiProvider = "anthropic" | "openai" | "deepseek" | "gemini";
+
+const PROVIDERS: { value: AiProvider; label: string; envVar: string }[] = [
+  { value: "anthropic", label: "Anthropic (Claude)", envVar: "ANTHROPIC_API_KEY" },
+  { value: "openai", label: "OpenAI (ChatGPT)", envVar: "OPENAI_API_KEY" },
+  { value: "deepseek", label: "DeepSeek", envVar: "DEEPSEEK_API_KEY" },
+  { value: "gemini", label: "Google (Gemini)", envVar: "GEMINI_API_KEY" },
 ];
 
+const MODELS_BY_PROVIDER: Record<AiProvider, string[]> = {
+  anthropic: [
+    "claude-sonnet-4-20250514",
+    "claude-haiku-4-5-20251001",
+    "claude-opus-4-20250514",
+  ],
+  openai: [
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "o3-mini",
+  ],
+  deepseek: [
+    "deepseek-chat",
+    "deepseek-reasoner",
+  ],
+  gemini: [
+    "gemini-2.5-flash-preview-05-20",
+    "gemini-2.5-pro-preview-05-06",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+  ],
+};
+
+const DEFAULT_MODEL: Record<AiProvider, string> = {
+  anthropic: "claude-sonnet-4-20250514",
+  openai: "gpt-4o",
+  deepseek: "deepseek-chat",
+  gemini: "gemini-2.0-flash",
+};
+
 interface AiSettings {
+  provider: AiProvider;
   model: string;
   maxTokens: number;
   prompt: string;
@@ -48,6 +85,7 @@ export default function AdminPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [provider, setProvider] = useState<AiProvider>("anthropic");
   const [model, setModel] = useState("claude-sonnet-4-20250514");
   const [maxTokens, setMaxTokens] = useState(2048);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
@@ -70,6 +108,7 @@ export default function AdminPage() {
       .then((settings) => {
         if (settings.ai) {
           const ai = settings.ai as AiSettings;
+          if (ai.provider) setProvider(ai.provider);
           if (ai.model) setModel(ai.model);
           if (ai.maxTokens) setMaxTokens(ai.maxTokens);
           if (ai.prompt) setPrompt(ai.prompt);
@@ -81,12 +120,18 @@ export default function AdminPage() {
       .finally(() => setLoading(false));
   }, [user, isAdmin]);
 
+  const handleProviderChange = (newProvider: AiProvider) => {
+    setProvider(newProvider);
+    setModel(DEFAULT_MODEL[newProvider]);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
     setError(null);
     try {
       await updateAdminSetting("ai", {
+        provider,
         model,
         maxTokens,
         prompt,
@@ -114,6 +159,8 @@ export default function AdminPage() {
     );
   }
 
+  const currentProviderInfo = PROVIDERS.find((p) => p.value === provider);
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
@@ -133,7 +180,7 @@ export default function AdminPage() {
       <div className="bg-gray-900 rounded-xl p-6">
         <h2 className="text-xl font-semibold mb-4">AI Card Generation</h2>
         <p className="text-gray-400 text-sm mb-6">
-          Configure the AI model and prompt used when users generate cards for new decks.
+          Configure the AI provider, model, and prompt used when users generate cards for new decks.
           Use {"{{theme}}"}, {"{{chaosCount}}"}, and {"{{knowledgeCount}}"} as placeholders in the prompt.
         </p>
 
@@ -141,6 +188,23 @@ export default function AdminPage() {
           <p className="text-gray-400">Loading settings...</p>
         ) : (
           <div className="space-y-5">
+            {/* Provider */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Provider</label>
+              <select
+                value={provider}
+                onChange={(e) => handleProviderChange(e.target.value as AiProvider)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+              >
+                {PROVIDERS.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+              <p className="text-gray-500 text-xs mt-1">
+                Requires <code className="text-gray-400">{currentProviderInfo?.envVar}</code> environment variable on the server
+              </p>
+            </div>
+
             {/* Model */}
             <div>
               <label className="block text-sm font-medium mb-1">Model</label>
@@ -149,7 +213,7 @@ export default function AdminPage() {
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
               >
-                {MODELS.map((m) => (
+                {MODELS_BY_PROVIDER[provider].map((m) => (
                   <option key={m} value={m}>{m}</option>
                 ))}
               </select>

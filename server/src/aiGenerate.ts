@@ -1,14 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import pool from "./db.js";
-
-const client = new Anthropic();
 
 interface GeneratedCards {
   chaosCards: { text: string; pick: number }[];
   knowledgeCards: { text: string }[];
 }
 
-interface AiSettings {
+export type AiProvider = "anthropic" | "openai" | "deepseek" | "gemini";
+
+export interface AiSettings {
+  provider: AiProvider;
   model: string;
   maxTokens: number;
   prompt: string;
@@ -36,6 +39,7 @@ Respond ONLY with valid JSON in this exact format, no other text:
 }`;
 
 const DEFAULTS: AiSettings = {
+  provider: "anthropic",
   model: "claude-sonnet-4-20250514",
   maxTokens: 2048,
   prompt: DEFAULT_PROMPT,
@@ -57,6 +61,72 @@ async function getAiSettings(): Promise<AiSettings> {
   return DEFAULTS;
 }
 
+async function callAnthropic(model: string, maxTokens: number, prompt: string): Promise<string> {
+  const client = new Anthropic();
+  const message = await client.messages.create({
+    model,
+    max_tokens: maxTokens,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const content = message.content[0];
+  if (content.type !== "text") throw new Error("Unexpected response type");
+  return content.text;
+}
+
+async function callOpenAI(model: string, maxTokens: number, prompt: string): Promise<string> {
+  const client = new OpenAI();
+  const response = await client.chat.completions.create({
+    model,
+    max_tokens: maxTokens,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const text = response.choices[0]?.message?.content;
+  if (!text) throw new Error("Empty response from OpenAI");
+  return text;
+}
+
+async function callDeepSeek(model: string, maxTokens: number, prompt: string): Promise<string> {
+  const client = new OpenAI({
+    apiKey: process.env.DEEPSEEK_API_KEY,
+    baseURL: "https://api.deepseek.com",
+  });
+  const response = await client.chat.completions.create({
+    model,
+    max_tokens: maxTokens,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const text = response.choices[0]?.message?.content;
+  if (!text) throw new Error("Empty response from DeepSeek");
+  return text;
+}
+
+async function callGemini(model: string, maxTokens: number, prompt: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY not set");
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const genModel = genAI.getGenerativeModel({
+    model,
+    generationConfig: { maxOutputTokens: maxTokens },
+  });
+  const result = await genModel.generateContent(prompt);
+  const text = result.response.text();
+  if (!text) throw new Error("Empty response from Gemini");
+  return text;
+}
+
+function extractJson(text: string): GeneratedCards {
+  let jsonStr = text.trim();
+  const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonMatch) {
+    jsonStr = jsonMatch[1].trim();
+  }
+  const parsed = JSON.parse(jsonStr) as GeneratedCards;
+  if (!Array.isArray(parsed.chaosCards) || !Array.isArray(parsed.knowledgeCards)) {
+    throw new Error("Invalid response structure");
+  }
+  return parsed;
+}
+
 export async function generateCards(
   theme: string,
   chaosCount?: number,
@@ -71,30 +141,23 @@ export async function generateCards(
     .replace(/\{\{chaosCount\}\}/g, String(cc))
     .replace(/\{\{knowledgeCount\}\}/g, String(kc));
 
-  const message = await client.messages.create({
-    model: settings.model,
-    max_tokens: settings.maxTokens,
-    messages: [{ role: "user", content: prompt }],
-  });
+  let responseText: string;
 
-  const content = message.content[0];
-  if (content.type !== "text") {
-    throw new Error("Unexpected response type");
+  switch (settings.provider) {
+    case "openai":
+      responseText = await callOpenAI(settings.model, settings.maxTokens, prompt);
+      break;
+    case "deepseek":
+      responseText = await callDeepSeek(settings.model, settings.maxTokens, prompt);
+      break;
+    case "gemini":
+      responseText = await callGemini(settings.model, settings.maxTokens, prompt);
+      break;
+    case "anthropic":
+    default:
+      responseText = await callAnthropic(settings.model, settings.maxTokens, prompt);
+      break;
   }
 
-  // Extract JSON from response (handle potential markdown code blocks)
-  let jsonStr = content.text.trim();
-  const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (jsonMatch) {
-    jsonStr = jsonMatch[1].trim();
-  }
-
-  const parsed = JSON.parse(jsonStr) as GeneratedCards;
-
-  // Validate structure
-  if (!Array.isArray(parsed.chaosCards) || !Array.isArray(parsed.knowledgeCards)) {
-    throw new Error("Invalid response structure");
-  }
-
-  return parsed;
+  return extractJson(responseText);
 }
