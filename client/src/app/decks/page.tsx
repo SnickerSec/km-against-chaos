@@ -285,7 +285,7 @@ export default function DecksPage() {
                     </p>
                   </div>
                   <div className="flex gap-2 ml-4">
-                    {user && !isOwner(deck) && !isAdmin && !isModerator && (
+                    {user && !isOwner(deck) && (
                       <button
                         onClick={() => handleRemix(deck.id)}
                         className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors"
