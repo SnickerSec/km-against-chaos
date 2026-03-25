@@ -69,6 +69,13 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many auth attempts, please try again later" },
 });
+const staticLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" },
+});
 
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin", apiLimiter, adminRoutes);
@@ -90,7 +97,7 @@ if (clientDir) {
     },
   }));
   // Serve Next.js static export pages, then fall back to index.html
-  app.get("*", (req, res, next) => {
+  app.get("*", staticLimiter, (req, res, next) => {
     if (req.path.startsWith("/api/") || req.path === "/health" || req.path.startsWith("/socket.io")) {
       return next();
     }
