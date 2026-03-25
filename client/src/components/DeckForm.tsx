@@ -91,6 +91,26 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
   return (
     <div className="space-y-8">
+      {/* Game Type */}
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-1">Game Type</label>
+        <select
+          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+          defaultValue="cards-against-humanity"
+        >
+          <option value="cards-against-humanity">Cards Against Humanity</option>
+        </select>
+        <p className="text-gray-500 text-xs mt-1">More game types coming soon</p>
+      </div>
+
+      {/* AI Generation — primary way to create a deck */}
+      <AIGenerate
+        onGenerated={(chaos, knowledge) => {
+          setChaosCards([...chaosCards, ...chaos]);
+          setKnowledgeCards([...knowledgeCards, ...knowledge]);
+        }}
+      />
+
       {/* Deck info */}
       <div className="space-y-3">
         <input
@@ -264,14 +284,6 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         )}
       </div>
 
-      {/* AI Generation */}
-      <AIGenerate
-        onGenerated={(chaos, knowledge) => {
-          setChaosCards([...chaosCards, ...chaos]);
-          setKnowledgeCards([...knowledgeCards, ...knowledge]);
-        }}
-      />
-
       {/* Bulk add helper */}
       <BulkAdd
         onAddChaos={(cards) => setChaosCards([...chaosCards, ...cards])}
@@ -394,12 +406,12 @@ function AIGenerate({
   };
 
   return (
-    <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-xl p-4 border border-purple-600/30">
-      <p className="text-sm font-semibold text-purple-300 mb-1">
+    <div className="bg-gradient-to-r from-purple-900/40 to-blue-900/40 rounded-xl p-5 border border-purple-500/40">
+      <p className="text-lg font-bold text-purple-200 mb-1">
         AI Card Generator
       </p>
-      <p className="text-gray-400 text-xs mb-3">
-        Describe a theme and AI will generate Chaos + Knowledge cards for you
+      <p className="text-gray-300 text-sm mb-4">
+        Describe a theme and AI will generate all your cards automatically
       </p>
       <div className="flex gap-2">
         <input
