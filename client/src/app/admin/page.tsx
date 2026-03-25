@@ -28,20 +28,14 @@ Respond ONLY with valid JSON in this exact format, no other text:
 
 type AiProvider = "anthropic" | "openai" | "deepseek" | "gemini";
 
-const PROVIDERS: { value: AiProvider; label: string }[] = [
-  { value: "anthropic", label: "Anthropic (Claude)" },
-  { value: "openai", label: "OpenAI (ChatGPT)" },
-  { value: "deepseek", label: "DeepSeek" },
-  { value: "gemini", label: "Google (Gemini)" },
+const PROVIDERS: { value: AiProvider; label: string; envVar: string }[] = [
+  { value: "anthropic", label: "Anthropic (Claude)", envVar: "ANTHROPIC_API_KEY" },
+  { value: "openai", label: "OpenAI (ChatGPT)", envVar: "OPENAI_API_KEY" },
+  { value: "deepseek", label: "DeepSeek", envVar: "DEEPSEEK_API_KEY" },
+  { value: "gemini", label: "Google (Gemini)", envVar: "GEMINI_API_KEY" },
 ];
 
-// Map OpenRouter provider prefixes to our SDK providers
-const PROVIDER_MAP: Record<string, AiProvider> = {
-  anthropic: "anthropic",
-  openai: "openai",
-  deepseek: "deepseek",
-  google: "gemini",
-};
+const RAILWAY_VARS_URL = "https://railway.com/project/fbd7e636-3d48-41ac-8f03-c19ba6acee7a/service/2d32eef1-13de-4cff-b6d3-17d900210555/variables?environmentId=fc67dbc0-1395-4790-9672-97548a47b1e0";
 
 interface AiSettings {
   provider: AiProvider;
@@ -73,17 +67,6 @@ export default function AdminPage() {
   const [allModels, setAllModels] = useState<ModelInfo[]>([]);
   const [modelSearch, setModelSearch] = useState("");
 
-  // API keys per provider
-  const [apiKeys, setApiKeys] = useState<Record<string, string>>({
-    anthropic: "",
-    openai: "",
-    deepseek: "",
-    gemini: "",
-  });
-  const [savingKeys, setSavingKeys] = useState(false);
-  const [savedKeys, setSavedKeys] = useState(false);
-  const [keyError, setKeyError] = useState<string | null>(null);
-
   useEffect(() => {
     restore();
   }, [restore]);
@@ -106,7 +89,6 @@ export default function AdminPage() {
           if (ai.provider) setProvider(ai.provider);
           if (ai.model) {
             setModel(ai.model);
-            // Check if the saved model is in the fetched list
             const found = models.some((m) => m.id === ai.model);
             if (!found && ai.model) {
               setUseCustomModel(true);
@@ -117,9 +99,6 @@ export default function AdminPage() {
           if (ai.prompt) setPrompt(ai.prompt);
           if (ai.defaultChaosCount) setDefaultChaosCount(ai.defaultChaosCount);
           if (ai.defaultKnowledgeCount) setDefaultKnowledgeCount(ai.defaultKnowledgeCount);
-        }
-        if (settings.api_keys) {
-          setApiKeys((prev) => ({ ...prev, ...settings.api_keys }));
         }
       })
       .catch((e) => setError(e.message))
@@ -155,7 +134,6 @@ export default function AdminPage() {
     setUseCustomModel(false);
     setCustomModel("");
     setModelSearch("");
-    // Auto-select first model for this provider
     const prefix = { anthropic: "anthropic", openai: "openai", deepseek: "deepseek", gemini: "google" }[newProvider];
     const first = allModels.find((m) => m.provider === prefix);
     if (first) setModel(first.id);
@@ -185,21 +163,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleSaveKeys = async () => {
-    setSavingKeys(true);
-    setSavedKeys(false);
-    setKeyError(null);
-    try {
-      await updateAdminSetting("api_keys", apiKeys);
-      setSavedKeys(true);
-      setTimeout(() => setSavedKeys(false), 3000);
-    } catch (e: any) {
-      setKeyError(e.message);
-    } finally {
-      setSavingKeys(false);
-    }
-  };
-
   const handleResetPrompt = () => {
     setPrompt(DEFAULT_PROMPT);
   };
@@ -211,6 +174,8 @@ export default function AdminPage() {
       </div>
     );
   }
+
+  const currentProviderInfo = PROVIDERS.find((p) => p.value === provider);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -228,46 +193,31 @@ export default function AdminPage() {
       </div>
 
       <div className="space-y-6">
-        {/* API Keys */}
+        {/* API Keys info */}
         <div className="bg-gray-900 rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-2">API Keys</h2>
-          <p className="text-gray-400 text-sm mb-5">
-            Set API keys for each provider. Keys set here override environment variables.
-            Existing keys are masked — enter a new value to replace.
+          <p className="text-gray-400 text-sm mb-3">
+            API keys are managed as environment variables on Railway. Set the key for the provider you want to use:
           </p>
-
-          {loading ? (
-            <p className="text-gray-400">Loading...</p>
-          ) : (
-            <div className="space-y-4">
+          <div className="bg-gray-800 rounded-lg p-3 mb-4">
+            <ul className="text-sm text-gray-300 space-y-1 font-mono">
               {PROVIDERS.map((p) => (
-                <div key={p.value}>
-                  <label className="block text-sm font-medium mb-1">{p.label}</label>
-                  <input
-                    type="text"
-                    value={apiKeys[p.value] || ""}
-                    onChange={(e) =>
-                      setApiKeys((prev) => ({ ...prev, [p.value]: e.target.value }))
-                    }
-                    placeholder="Paste API key here..."
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500"
-                  />
-                </div>
+                <li key={p.value}>
+                  <span className="text-gray-500">{p.label}:</span>{" "}
+                  <span className="text-purple-300">{p.envVar}</span>
+                </li>
               ))}
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSaveKeys}
-                  disabled={savingKeys}
-                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
-                >
-                  {savingKeys ? "Saving..." : "Save Keys"}
-                </button>
-                {savedKeys && <span className="text-green-400 text-sm">Keys saved</span>}
-                {keyError && <span className="text-red-400 text-sm">{keyError}</span>}
-              </div>
-            </div>
-          )}
+            </ul>
+          </div>
+          <a
+            href={RAILWAY_VARS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-sm transition-colors"
+          >
+            Manage on Railway
+            <span className="text-purple-300">&#x2197;</span>
+          </a>
         </div>
 
         {/* AI Settings */}
@@ -294,6 +244,9 @@ export default function AdminPage() {
                     <option key={p.value} value={p.value}>{p.label}</option>
                   ))}
                 </select>
+                <p className="text-gray-500 text-xs mt-1">
+                  Requires <code className="text-gray-400">{currentProviderInfo?.envVar}</code> to be set on Railway
+                </p>
               </div>
 
               {/* Model */}
