@@ -68,8 +68,34 @@ async function getAiSettings(): Promise<AiSettings> {
   return DEFAULTS;
 }
 
+async function getApiKey(provider: AiProvider): Promise<string | undefined> {
+  // Env vars take priority
+  const envMap: Record<AiProvider, string> = {
+    anthropic: "ANTHROPIC_API_KEY",
+    openai: "OPENAI_API_KEY",
+    deepseek: "DEEPSEEK_API_KEY",
+    gemini: "GEMINI_API_KEY",
+  };
+  const envKey = process.env[envMap[provider]];
+  if (envKey) return envKey;
+
+  // Fall back to DB-stored keys
+  try {
+    const { rows } = await pool.query(
+      "SELECT value FROM settings WHERE key = 'api_keys'"
+    );
+    if (rows.length > 0 && rows[0].value[provider]) {
+      return rows[0].value[provider];
+    }
+  } catch {
+    // DB not available
+  }
+  return undefined;
+}
+
 async function callAnthropic(model: string, maxTokens: number, prompt: string): Promise<string> {
-  const client = new Anthropic();
+  const apiKey = await getApiKey("anthropic");
+  const client = new Anthropic(apiKey ? { apiKey } : undefined);
   const message = await client.messages.create({
     model,
     max_tokens: maxTokens,
@@ -81,7 +107,9 @@ async function callAnthropic(model: string, maxTokens: number, prompt: string): 
 }
 
 async function callOpenAI(model: string, maxTokens: number, prompt: string): Promise<string> {
-  const client = new OpenAI();
+  const apiKey = await getApiKey("openai");
+  if (!apiKey) throw new Error("OpenAI API key not configured");
+  const client = new OpenAI({ apiKey });
   const response = await client.chat.completions.create({
     model,
     max_tokens: maxTokens,
@@ -93,8 +121,10 @@ async function callOpenAI(model: string, maxTokens: number, prompt: string): Pro
 }
 
 async function callDeepSeek(model: string, maxTokens: number, prompt: string): Promise<string> {
+  const apiKey = await getApiKey("deepseek");
+  if (!apiKey) throw new Error("DeepSeek API key not configured");
   const client = new OpenAI({
-    apiKey: process.env.DEEPSEEK_API_KEY,
+    apiKey,
     baseURL: "https://api.deepseek.com",
   });
   const response = await client.chat.completions.create({
@@ -108,8 +138,8 @@ async function callDeepSeek(model: string, maxTokens: number, prompt: string): P
 }
 
 async function callGemini(model: string, maxTokens: number, prompt: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY not set");
+  const apiKey = await getApiKey("gemini");
+  if (!apiKey) throw new Error("Gemini API key not configured");
   const genAI = new GoogleGenerativeAI(apiKey);
   const genModel = genAI.getGenerativeModel({
     model,
