@@ -356,17 +356,19 @@ function CardPackEditor({
 
       {pack.open && (
         <div className="px-4 pb-4 space-y-5">
-          {/* AI Generator for this pack */}
-          <AIGenerate
-            packName={pack.name}
-            onGenerated={(chaos, knowledge) => {
-              onUpdate((p) => ({
-                ...p,
-                chaosCards: [...p.chaosCards, ...chaos],
-                knowledgeCards: [...p.knowledgeCards, ...knowledge],
-              }));
-            }}
-          />
+          {/* AI Generator for expansion/themed packs (base uses top-level generator) */}
+          {!isBase && (
+            <AIGenerate
+              packName={pack.name}
+              onGenerated={(chaos, knowledge) => {
+                onUpdate((p) => ({
+                  ...p,
+                  chaosCards: [...p.chaosCards, ...chaos],
+                  knowledgeCards: [...p.knowledgeCards, ...knowledge],
+                }));
+              }}
+            />
+          )}
 
           {/* Chaos Cards */}
           <CardListEditor
