@@ -323,8 +323,6 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
             gameType={gameType}
             deckName={name}
             deckDescription={description}
-            chaosCount={chaosCount}
-            knowledgeCount={knowledgeCount}
             onUpdate={(updater) => updatePack(pack.id, updater)}
             onRemove={() => removePack(pack.id)}
           />
@@ -378,8 +376,6 @@ function CardPackEditor({
   gameType,
   deckName,
   deckDescription,
-  chaosCount,
-  knowledgeCount,
   onUpdate,
   onRemove,
 }: {
@@ -388,8 +384,6 @@ function CardPackEditor({
   gameType: string;
   deckName: string;
   deckDescription: string;
-  chaosCount: number;
-  knowledgeCount: number;
   onUpdate: (updater: (p: CardPack) => CardPack) => void;
   onRemove: () => void;
 }) {
@@ -461,8 +455,6 @@ function CardPackEditor({
               gameType={gameType}
               deckName={deckName}
               deckDescription={deckDescription}
-              chaosCount={chaosCount}
-              knowledgeCount={knowledgeCount}
               onGenerated={(chaos, knowledge) => {
                 onUpdate((p) => ({
                   ...p,
@@ -765,8 +757,6 @@ function AIGenerate({
   gameType,
   deckName,
   deckDescription,
-  chaosCount,
-  knowledgeCount,
   onGenerated,
 }: {
   packName: string;
@@ -774,13 +764,16 @@ function AIGenerate({
   gameType: string;
   deckName: string;
   deckDescription: string;
-  chaosCount: number;
-  knowledgeCount: number;
   onGenerated: (chaos: CardInput[], knowledge: CardInput[]) => void;
 }) {
+  const defaultPrompts = packType === "themed" ? 2 : 5;
+  const defaultAnswers = packType === "themed" ? 6 : 12;
+
   const [theme, setTheme] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [promptCount, setPromptCount] = useState(defaultPrompts);
+  const [answerCount, setAnswerCount] = useState(defaultAnswers);
 
   const handleGenerate = async () => {
     if (!theme.trim()) return;
@@ -794,8 +787,8 @@ function AIGenerate({
         packName,
         deckName,
         deckDescription,
-        chaosCount,
-        knowledgeCount,
+        chaosCount: promptCount,
+        knowledgeCount: answerCount,
       });
       onGenerated(
         cards.chaosCards.map((c) => ({ text: c.text, pick: c.pick || 1 })),
@@ -817,7 +810,7 @@ function AIGenerate({
       <p className="text-gray-400 text-xs mb-3">
         Add more cards to {packName}
       </p>
-      <div className="flex gap-2">
+      <div className="flex gap-2 mb-3">
         <input
           type="text"
           value={theme}
@@ -836,6 +829,30 @@ function AIGenerate({
         >
           {generating ? "Generating..." : "Generate"}
         </button>
+      </div>
+      <div className="flex gap-4">
+        <label className="flex items-center gap-2 text-xs text-gray-400">
+          <span>Prompts</span>
+          <input
+            type="number"
+            min={1}
+            max={30}
+            value={promptCount}
+            onChange={(e) => setPromptCount(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
+            className="w-14 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-white text-xs focus:outline-none focus:border-purple-500 text-center"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-gray-400">
+          <span>Answers</span>
+          <input
+            type="number"
+            min={1}
+            max={75}
+            value={answerCount}
+            onChange={(e) => setAnswerCount(Math.max(1, Math.min(75, parseInt(e.target.value) || 1)))}
+            className="w-14 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-white text-xs focus:outline-none focus:border-purple-500 text-center"
+          />
+        </label>
       </div>
       {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
       {generating && (
