@@ -64,29 +64,113 @@ router.put("/settings/:key", async (req, res) => {
   }
 });
 
-// Fetch models from OpenRouter (cached)
+// Fetch models — use native provider APIs when keys are available, OpenRouter as fallback
 router.get("/models", async (_req, res) => {
   try {
     if (modelsCache && Date.now() - modelsCache.fetchedAt < CACHE_TTL) {
       return res.json(modelsCache.data);
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/models");
-    if (!response.ok) throw new Error("Failed to fetch models from OpenRouter");
-    const json = await response.json();
+    const allModels: { id: string; name: string; provider: string; contextLength?: number }[] = [];
 
-    // Only include text-capable models
-    const models = (json.data as any[])
-      .filter((m: any) => m.architecture?.output_modalities?.includes("text"))
-      .map((m: any) => ({
-        id: m.id,
-        name: m.name,
-        provider: m.id.split("/")[0],
-        contextLength: m.context_length,
-      }));
+    // Fetch from native provider APIs in parallel
+    const fetches: Promise<void>[] = [];
 
-    modelsCache = { data: models, fetchedAt: Date.now() };
-    res.json(models);
+    // DeepSeek — OpenAI-compatible /models endpoint
+    if (process.env.DEEPSEEK_API_KEY) {
+      fetches.push(
+        fetch("https://api.deepseek.com/models", {
+          headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}` },
+        })
+          .then((r) => r.json())
+          .then((json: any) => {
+            for (const m of json.data || []) {
+              allModels.push({ id: m.id, name: m.id, provider: "deepseek" });
+            }
+          })
+          .catch(() => {})
+      );
+    }
+
+    // OpenAI — native /models endpoint
+    if (process.env.OPENAI_API_KEY) {
+      fetches.push(
+        fetch("https://api.openai.com/v1/models", {
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        })
+          .then((r) => r.json())
+          .then((json: any) => {
+            for (const m of json.data || []) {
+              // Filter to chat models (skip embeddings, whisper, dall-e, etc.)
+              if (m.id.startsWith("gpt-") || m.id.startsWith("o1") || m.id.startsWith("o3") || m.id.startsWith("o4")) {
+                allModels.push({ id: m.id, name: m.id, provider: "openai" });
+              }
+            }
+          })
+          .catch(() => {})
+      );
+    }
+
+    // Anthropic — no public list endpoint, use known models
+    if (process.env.ANTHROPIC_API_KEY) {
+      allModels.push(
+        { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "anthropic" },
+        { id: "claude-opus-4-20250514", name: "Claude Opus 4", provider: "anthropic" },
+        { id: "claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", provider: "anthropic" },
+      );
+    }
+
+    // Gemini — no simple list endpoint, use known models
+    if (process.env.GEMINI_API_KEY) {
+      allModels.push(
+        { id: "gemini-2.5-flash-preview-05-20", name: "Gemini 2.5 Flash", provider: "google" },
+        { id: "gemini-2.5-pro-preview-05-06", name: "Gemini 2.5 Pro", provider: "google" },
+        { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", provider: "google" },
+        { id: "gemini-2.0-flash-lite", name: "Gemini 2.0 Flash Lite", provider: "google" },
+      );
+    }
+
+    await Promise.all(fetches);
+
+    // Fall back to OpenRouter for providers without keys
+    const coveredProviders = new Set(allModels.map((m) => m.provider));
+    const needsFallback = !coveredProviders.has("anthropic") || !coveredProviders.has("openai")
+      || !coveredProviders.has("deepseek") || !coveredProviders.has("google");
+
+    if (needsFallback) {
+      try {
+        const response = await fetch("https://openrouter.ai/api/v1/models");
+        if (response.ok) {
+          const json = await response.json();
+          const providerMap: Record<string, string> = {
+            anthropic: "anthropic",
+            openai: "openai",
+            deepseek: "deepseek",
+            google: "google",
+          };
+          for (const m of json.data || []) {
+            const prefix = m.id.split("/")[0];
+            const mapped = providerMap[prefix];
+            if (mapped && !coveredProviders.has(mapped) && m.architecture?.output_modalities?.includes("text")) {
+              allModels.push({
+                id: m.id,
+                name: m.name,
+                provider: mapped,
+                contextLength: m.context_length,
+              });
+            }
+          }
+        }
+      } catch {
+        // OpenRouter unavailable, continue with what we have
+      }
+    }
+
+    // Sort by provider then name
+    allModels.sort((a, b) => a.provider.localeCompare(b.provider) || a.id.localeCompare(b.id));
+
+    modelsCache = { data: allModels, fetchedAt: Date.now() };
+    res.json(allModels);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
