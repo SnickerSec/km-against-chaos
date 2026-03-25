@@ -39,6 +39,7 @@ import {
 } from "./sessions.js";
 
 const app = express();
+app.set("trust proxy", 1); // trust Railway's proxy for correct client IP in rate limiting
 app.use(cors());
 
 const httpServer = createServer(app);
