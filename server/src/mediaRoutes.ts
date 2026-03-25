@@ -21,7 +21,7 @@ router.get("/ping", (_req, res) => {
   res.json({ ok: true, key: !!process.env.KLIPY_API_KEY });
 });
 
-router.get("/search", async (req, res) => {
+router.get("/find", async (req, res) => {
   const { q = "", type = "gif", page = "" } = req.query as Record<string, string>;
   const key = getKey();
   console.log(`[media] search q="${q}" type="${type}" hasKey=${!!key}`);
