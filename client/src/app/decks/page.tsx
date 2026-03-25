@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { fetchDecks, fetchDeck, createDeck, deleteDeck, importDeck, fetchPacks, createDeckFromPacks, DeckSummary, DeckExport, PackSummary } from "@/lib/api";
+import { fetchDecks, fetchDeck, createDeck, deleteDeck, fetchPacks, createDeckFromPacks, DeckSummary, PackSummary } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
@@ -96,25 +96,6 @@ export default function DecksPage() {
     } catch (e: any) {
       setError(e.message);
     }
-  };
-
-  const handleImport = async () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      try {
-        const text = await file.text();
-        const data: DeckExport = JSON.parse(text);
-        await importDeck(data);
-        load();
-      } catch (e: any) {
-        setError(e.message || "Invalid deck file");
-      }
-    };
-    input.click();
   };
 
   const isOwner = (deck: DeckSummary) => user && deck.ownerId === user.id;
@@ -271,12 +252,6 @@ export default function DecksPage() {
                   Admin
                 </Link>
               )}
-              <button
-                onClick={handleImport}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg font-semibold text-sm transition-colors"
-              >
-                Import JSON
-              </button>
             </div>
           )}
 
