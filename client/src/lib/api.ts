@@ -148,6 +148,21 @@ export async function importDeck(data: DeckExport): Promise<CustomDeck> {
 
 // Admin API
 
+export interface ModelInfo {
+  id: string;
+  name: string;
+  provider: string;
+  contextLength: number;
+}
+
+export async function fetchModels(): Promise<ModelInfo[]> {
+  const res = await fetch(`${API_URL}/api/admin/models`, {
+    headers: { ...getAuthHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to fetch models");
+  return res.json();
+}
+
 export async function fetchAdminSettings(): Promise<Record<string, any>> {
   const res = await fetch(`${API_URL}/api/admin/settings`, {
     headers: { ...getAuthHeaders() },

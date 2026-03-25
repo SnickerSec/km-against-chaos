@@ -2,6 +2,10 @@ import { Router } from "express";
 import pool from "./db.js";
 import { requireAuth, requireAdmin } from "./auth.js";
 
+// Cache OpenRouter models for 1 hour
+let modelsCache: { data: any[]; fetchedAt: number } | null = null;
+const CACHE_TTL = 60 * 60 * 1000;
+
 const router = Router();
 
 router.use((req, res, next) => {
@@ -87,6 +91,34 @@ router.put("/settings/:key", async (req, res) => {
       );
     }
     res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Fetch models from OpenRouter (cached)
+router.get("/models", async (_req, res) => {
+  try {
+    if (modelsCache && Date.now() - modelsCache.fetchedAt < CACHE_TTL) {
+      return res.json(modelsCache.data);
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/models");
+    if (!response.ok) throw new Error("Failed to fetch models from OpenRouter");
+    const json = await response.json();
+
+    // Group by provider, only include text-capable models
+    const models = (json.data as any[])
+      .filter((m: any) => m.architecture?.output_modalities?.includes("text"))
+      .map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        provider: m.id.split("/")[0],
+        contextLength: m.context_length,
+      }));
+
+    modelsCache = { data: models, fetchedAt: Date.now() };
+    res.json(models);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

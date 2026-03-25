@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/auth";
-import { fetchAdminSettings, updateAdminSetting } from "@/lib/api";
+import { fetchAdminSettings, updateAdminSetting, fetchModels, ModelInfo } from "@/lib/api";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
 const DEFAULT_PROMPT = `Generate cards for a "Cards Against Humanity" style party game about the following theme:
@@ -35,37 +35,12 @@ const PROVIDERS: { value: AiProvider; label: string }[] = [
   { value: "gemini", label: "Google (Gemini)" },
 ];
 
-const MODELS_BY_PROVIDER: Record<AiProvider, string[]> = {
-  anthropic: [
-    "claude-sonnet-4-20250514",
-    "claude-haiku-4-5-20251001",
-    "claude-opus-4-20250514",
-  ],
-  openai: [
-    "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-4.1",
-    "gpt-4.1-mini",
-    "gpt-4.1-nano",
-    "o3-mini",
-  ],
-  deepseek: [
-    "deepseek-chat",
-    "deepseek-reasoner",
-  ],
-  gemini: [
-    "gemini-2.5-flash-preview-05-20",
-    "gemini-2.5-pro-preview-05-06",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-  ],
-};
-
-const DEFAULT_MODEL: Record<AiProvider, string> = {
-  anthropic: "claude-sonnet-4-20250514",
-  openai: "gpt-4o",
-  deepseek: "deepseek-chat",
-  gemini: "gemini-2.0-flash",
+// Map OpenRouter provider prefixes to our SDK providers
+const PROVIDER_MAP: Record<string, AiProvider> = {
+  anthropic: "anthropic",
+  openai: "openai",
+  deepseek: "deepseek",
+  google: "gemini",
 };
 
 interface AiSettings {
@@ -94,6 +69,10 @@ export default function AdminPage() {
   const [defaultChaosCount, setDefaultChaosCount] = useState(10);
   const [defaultKnowledgeCount, setDefaultKnowledgeCount] = useState(25);
 
+  // Dynamic models from OpenRouter
+  const [allModels, setAllModels] = useState<ModelInfo[]>([]);
+  const [modelSearch, setModelSearch] = useState("");
+
   // API keys per provider
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({
     anthropic: "",
@@ -117,21 +96,21 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!user || !isAdmin) return;
-    fetchAdminSettings()
-      .then((settings) => {
+
+    Promise.all([fetchAdminSettings(), fetchModels().catch(() => [])])
+      .then(([settings, models]) => {
+        setAllModels(models);
+
         if (settings.ai) {
           const ai = settings.ai as AiSettings;
           if (ai.provider) setProvider(ai.provider);
           if (ai.model) {
-            // Check if model is in the preset list
-            const presets = MODELS_BY_PROVIDER[ai.provider || "anthropic"];
-            if (presets.includes(ai.model)) {
-              setModel(ai.model);
-              setUseCustomModel(false);
-            } else {
-              setCustomModel(ai.model);
+            setModel(ai.model);
+            // Check if the saved model is in the fetched list
+            const found = models.some((m) => m.id === ai.model);
+            if (!found && ai.model) {
               setUseCustomModel(true);
-              setModel(presets[0]);
+              setCustomModel(ai.model);
             }
           }
           if (ai.maxTokens) setMaxTokens(ai.maxTokens);
@@ -147,11 +126,39 @@ export default function AdminPage() {
       .finally(() => setLoading(false));
   }, [user, isAdmin]);
 
+  // Filter models by selected provider
+  const providerPrefixes = useMemo(() => {
+    const map: Record<AiProvider, string[]> = {
+      anthropic: ["anthropic"],
+      openai: ["openai"],
+      deepseek: ["deepseek"],
+      gemini: ["google"],
+    };
+    return map[provider] || [];
+  }, [provider]);
+
+  const filteredModels = useMemo(() => {
+    let models = allModels.filter((m) =>
+      providerPrefixes.some((prefix) => m.provider === prefix)
+    );
+    if (modelSearch.trim()) {
+      const q = modelSearch.toLowerCase();
+      models = models.filter(
+        (m) => m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q)
+      );
+    }
+    return models;
+  }, [allModels, providerPrefixes, modelSearch]);
+
   const handleProviderChange = (newProvider: AiProvider) => {
     setProvider(newProvider);
-    setModel(DEFAULT_MODEL[newProvider]);
     setUseCustomModel(false);
     setCustomModel("");
+    setModelSearch("");
+    // Auto-select first model for this provider
+    const prefix = { anthropic: "anthropic", openai: "openai", deepseek: "deepseek", gemini: "google" }[newProvider];
+    const first = allModels.find((m) => m.provider === prefix);
+    if (first) setModel(first.id);
   };
 
   const effectiveModel = useCustomModel ? customModel : model;
@@ -301,7 +308,7 @@ export default function AdminPage() {
                     }}
                     className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
                   >
-                    {useCustomModel ? "Use preset" : "Use custom model"}
+                    {useCustomModel ? "Browse models" : "Enter custom model ID"}
                   </button>
                 </div>
                 {useCustomModel ? (
@@ -309,19 +316,42 @@ export default function AdminPage() {
                     type="text"
                     value={customModel}
                     onChange={(e) => setCustomModel(e.target.value)}
-                    placeholder="Enter model name, e.g. gpt-4o-2024-08-06"
+                    placeholder="Enter model ID, e.g. anthropic/claude-sonnet-4"
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500"
                   />
                 ) : (
-                  <select
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                  >
-                    {MODELS_BY_PROVIDER[provider].map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
+                  <>
+                    {allModels.length > 0 && (
+                      <input
+                        type="text"
+                        value={modelSearch}
+                        onChange={(e) => setModelSearch(e.target.value)}
+                        placeholder="Search models..."
+                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
+                      />
+                    )}
+                    <select
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      size={Math.min(filteredModels.length, 8)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-sm focus:outline-none focus:border-purple-500"
+                    >
+                      {filteredModels.length > 0 ? (
+                        filteredModels.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({m.id})
+                          </option>
+                        ))
+                      ) : (
+                        <option disabled>
+                          {allModels.length === 0 ? "Loading models..." : "No models match"}
+                        </option>
+                      )}
+                    </select>
+                    <p className="text-gray-500 text-xs mt-1">
+                      {filteredModels.length} models available from {providerPrefixes.join(", ")}
+                    </p>
+                  </>
                 )}
               </div>
 
