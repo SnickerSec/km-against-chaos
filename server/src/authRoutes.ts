@@ -1,6 +1,6 @@
 import { Router } from "express";
 import pool from "./db.js";
-import { verifyGoogleToken, signJwt, requireAuth, type AuthUser } from "./auth.js";
+import { verifyGoogleToken, signJwt, requireAuth, isAdmin, type AuthUser } from "./auth.js";
 import { randomUUID } from "crypto";
 
 const router = Router();
@@ -51,7 +51,7 @@ router.post("/google", async (req, res) => {
     };
 
     const token = signJwt(user);
-    res.json({ token, user });
+    res.json({ token, user, isAdmin: isAdmin(user.email) });
   } catch (e: any) {
     console.error("Google auth error:", e.message);
     res.status(401).json({ error: "Google authentication failed" });
@@ -60,7 +60,8 @@ router.post("/google", async (req, res) => {
 
 // Get current user info
 router.get("/me", requireAuth, (req, res) => {
-  res.json({ user: (req as any).user });
+  const user = (req as any).user;
+  res.json({ user, isAdmin: isAdmin(user.email) });
 });
 
 export default router;

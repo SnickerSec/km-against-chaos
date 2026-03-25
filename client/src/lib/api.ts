@@ -121,3 +121,22 @@ export async function importDeck(data: DeckExport): Promise<CustomDeck> {
   }
   return res.json();
 }
+
+// Admin API
+
+export async function fetchAdminSettings(): Promise<Record<string, any>> {
+  const res = await fetch(`${API_URL}/api/admin/settings`, {
+    headers: { ...getAuthHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to fetch settings");
+  return res.json();
+}
+
+export async function updateAdminSetting(key: string, value: any): Promise<void> {
+  const res = await fetch(`${API_URL}/api/admin/settings/${key}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ value }),
+  });
+  if (!res.ok) throw new Error("Failed to update setting");
+}

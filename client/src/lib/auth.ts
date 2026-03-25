@@ -18,6 +18,7 @@ export interface AuthUser {
 interface AuthState {
   user: AuthUser | null;
   token: string | null;
+  isAdmin: boolean;
   loading: boolean;
   login: (credential: string) => Promise<void>;
   logout: () => void;
@@ -27,6 +28,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
+  isAdmin: false,
   loading: true,
 
   login: async (credential: string) => {
@@ -36,14 +38,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       body: JSON.stringify({ credential }),
     });
     if (!res.ok) throw new Error("Authentication failed");
-    const { token, user } = await res.json();
+    const { token, user, isAdmin } = await res.json();
     localStorage.setItem("km-auth-token", token);
-    set({ token, user, loading: false });
+    set({ token, user, isAdmin: !!isAdmin, loading: false });
   },
 
   logout: () => {
     localStorage.removeItem("km-auth-token");
-    set({ user: null, token: null, loading: false });
+    set({ user: null, token: null, isAdmin: false, loading: false });
   },
 
   restore: async () => {
@@ -57,8 +59,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
-      const { user } = await res.json();
-      set({ token, user, loading: false });
+      const { user, isAdmin } = await res.json();
+      set({ token, user, isAdmin: !!isAdmin, loading: false });
     } catch {
       localStorage.removeItem("km-auth-token");
       set({ loading: false });

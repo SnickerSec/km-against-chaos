@@ -2,12 +2,14 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
-import { join } from "path";
+import rateLimit from "express-rate-limit";
+import { join, resolve, normalize } from "path";
 import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
 import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
 import authRoutes from "./authRoutes.js";
+import adminRoutes from "./adminRoutes.js";
 import { getDeck, seedBuiltInDecks } from "./deckStore.js";
 import { initDb } from "./db.js";
 import {
@@ -52,9 +54,25 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// Deck CRUD API
-app.use("/api/auth", authRoutes);
-app.use("/api/decks", deckRoutes);
+// Rate limiting for API routes
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" },
+});
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many auth attempts, please try again later" },
+});
+
+app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/admin", apiLimiter, adminRoutes);
+app.use("/api/decks", apiLimiter, deckRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [
@@ -77,14 +95,17 @@ if (clientDir) {
       return next();
     }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    // Sanitize path to prevent directory traversal
+    const safePath = normalize(req.path).replace(/^(\.\.[\/\\])+/, "");
+    const resolvedBase = resolve(clientDir);
     // Try exact path as .html (e.g. /decks/edit -> /decks/edit.html)
-    const htmlFile = join(clientDir, req.path + ".html");
-    if (existsSync(htmlFile)) {
+    const htmlFile = resolve(clientDir, "." + safePath + ".html");
+    if (htmlFile.startsWith(resolvedBase) && existsSync(htmlFile)) {
       return res.sendFile(htmlFile);
     }
     // Try as directory index (e.g. /decks -> /decks.html or /decks/index.html)
-    const indexFile = join(clientDir, req.path, "index.html");
-    if (existsSync(indexFile)) {
+    const indexFile = resolve(clientDir, "." + safePath, "index.html");
+    if (indexFile.startsWith(resolvedBase) && existsSync(indexFile)) {
       return res.sendFile(indexFile);
     }
     // SPA fallback

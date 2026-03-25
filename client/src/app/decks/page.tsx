@@ -11,6 +11,7 @@ export default function DecksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const user = useAuthStore((s) => s.user);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
 
   const load = async () => {
     try {
@@ -78,6 +79,14 @@ export default function DecksPage() {
           >
             Create New Deck
           </Link>
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg font-semibold text-sm transition-colors"
+            >
+              Admin
+            </Link>
+          )}
           <button
             onClick={handleImport}
             className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg font-semibold text-sm transition-colors"
