@@ -166,6 +166,23 @@ export async function fetchModels(): Promise<ModelInfo[]> {
   return res.json();
 }
 
+export async function fetchApiKeysStatus(): Promise<Record<string, boolean>> {
+  const res = await fetch(`${API_URL}/api/admin/api-keys-status`, {
+    headers: { ...getAuthHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to fetch API key status");
+  return res.json();
+}
+
+export async function testProvider(provider: string, model: string): Promise<{ success: boolean; response?: string; error?: string }> {
+  const res = await fetch(`${API_URL}/api/admin/test-provider`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ provider, model }),
+  });
+  return res.json();
+}
+
 export async function fetchAdminSettings(): Promise<Record<string, any>> {
   const res = await fetch(`${API_URL}/api/admin/settings`, {
     headers: { ...getAuthHeaders() },

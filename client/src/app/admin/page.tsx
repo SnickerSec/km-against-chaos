@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/auth";
-import { fetchAdminSettings, updateAdminSetting, fetchModels, ModelInfo } from "@/lib/api";
+import { fetchAdminSettings, updateAdminSetting, fetchModels, fetchApiKeysStatus, testProvider, ModelInfo } from "@/lib/api";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
 type AiProvider = "anthropic" | "openai" | "deepseek" | "gemini";
@@ -46,6 +46,11 @@ export default function AdminPage() {
   const [allModels, setAllModels] = useState<ModelInfo[]>([]);
   const [modelSearch, setModelSearch] = useState("");
 
+  // API key status per provider
+  const [keyStatus, setKeyStatus] = useState<Record<string, boolean>>({});
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
   useEffect(() => {
     restore();
   }, [restore]);
@@ -59,8 +64,9 @@ export default function AdminPage() {
   useEffect(() => {
     if (!user || !isAdmin) return;
 
-    Promise.all([fetchAdminSettings(), fetchModels().catch(() => [])])
-      .then(([settings, models]) => {
+    Promise.all([fetchAdminSettings(), fetchModels().catch(() => []), fetchApiKeysStatus().catch(() => ({}))])
+      .then(([settings, models, keys]) => {
+        setKeyStatus(keys);
         setAllModels(models);
 
         if (settings.ai) {
@@ -119,6 +125,23 @@ export default function AdminPage() {
 
   const effectiveModel = useCustomModel ? customModel : model;
 
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await testProvider(provider, effectiveModel);
+      if (result.success) {
+        setTestResult({ success: true, message: `Connected — response: ${result.response}` });
+      } else {
+        setTestResult({ success: false, message: result.error || "Connection failed" });
+      }
+    } catch (e: any) {
+      setTestResult({ success: false, message: e.message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
@@ -170,14 +193,24 @@ export default function AdminPage() {
         <div className="bg-gray-900 rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-2">API Keys</h2>
           <p className="text-gray-400 text-sm mb-3">
-            API keys are managed as environment variables on Railway. Set the key for the provider you want to use:
+            API keys are managed as environment variables on Railway.
           </p>
           <div className="bg-gray-800 rounded-lg p-3 mb-4">
-            <ul className="text-sm text-gray-300 space-y-1 font-mono">
+            <ul className="text-sm space-y-2">
               {PROVIDERS.map((p) => (
-                <li key={p.value}>
-                  <span className="text-gray-500">{p.label}:</span>{" "}
-                  <span className="text-purple-300">{p.envVar}</span>
+                <li key={p.value} className="flex items-center gap-2">
+                  {keyStatus[p.value] ? (
+                    <span className="text-green-400 text-xs">●</span>
+                  ) : (
+                    <span className="text-gray-600 text-xs">●</span>
+                  )}
+                  <span className="text-gray-300">{p.label}</span>
+                  <code className="text-purple-300 text-xs">{p.envVar}</code>
+                  {keyStatus[p.value] ? (
+                    <span className="text-green-400 text-xs ml-auto">configured</span>
+                  ) : (
+                    <span className="text-gray-600 text-xs ml-auto">not set</span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -210,16 +243,27 @@ export default function AdminPage() {
                 <label className="block text-sm font-medium mb-1">Provider</label>
                 <select
                   value={provider}
-                  onChange={(e) => handleProviderChange(e.target.value as AiProvider)}
+                  onChange={(e) => { handleProviderChange(e.target.value as AiProvider); setTestResult(null); }}
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
                 >
                   {PROVIDERS.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
+                    <option key={p.value} value={p.value}>
+                      {p.label} {keyStatus[p.value] ? "●" : ""}
+                    </option>
                   ))}
                 </select>
-                <p className="text-gray-500 text-xs mt-1">
-                  Requires <code className="text-gray-400">{currentProviderInfo?.envVar}</code> to be set on Railway
-                </p>
+                {keyStatus[provider] ? (
+                  <p className="text-green-400 text-xs mt-1">
+                    <code className="text-green-300">{currentProviderInfo?.envVar}</code> is configured
+                  </p>
+                ) : (
+                  <p className="text-yellow-400 text-xs mt-1">
+                    <code className="text-yellow-300">{currentProviderInfo?.envVar}</code> is not set —{" "}
+                    <a href={RAILWAY_VARS_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-200">
+                      add it on Railway
+                    </a>
+                  </p>
+                )}
               </div>
 
               {/* Model */}
@@ -321,17 +365,35 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Save */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
-                >
-                  {saving ? "Saving..." : "Save Settings"}
-                </button>
-                {saved && <span className="text-green-400 text-sm">Settings saved</span>}
-                {error && <span className="text-red-400 text-sm">{error}</span>}
+              {/* Test & Save */}
+              <div className="space-y-3">
+                {keyStatus[provider] && (
+                  <div>
+                    <button
+                      onClick={handleTest}
+                      disabled={testing || !effectiveModel}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
+                    >
+                      {testing ? "Testing..." : "Test Connection"}
+                    </button>
+                    {testResult && (
+                      <span className={`text-sm ml-3 ${testResult.success ? "text-green-400" : "text-red-400"}`}>
+                        {testResult.message}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
+                  >
+                    {saving ? "Saving..." : "Save Settings"}
+                  </button>
+                  {saved && <span className="text-green-400 text-sm">Settings saved</span>}
+                  {error && <span className="text-red-400 text-sm">{error}</span>}
+                </div>
               </div>
             </div>
           )}

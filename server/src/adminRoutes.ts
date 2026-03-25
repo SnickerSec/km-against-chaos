@@ -92,4 +92,78 @@ router.get("/models", async (_req, res) => {
   }
 });
 
+// Check which provider API keys are configured
+router.get("/api-keys-status", (_req, res) => {
+  const keys: Record<string, boolean> = {
+    anthropic: !!process.env.ANTHROPIC_API_KEY,
+    openai: !!process.env.OPENAI_API_KEY,
+    deepseek: !!process.env.DEEPSEEK_API_KEY,
+    gemini: !!process.env.GEMINI_API_KEY,
+  };
+  res.json(keys);
+});
+
+// Test connection to an AI provider
+router.post("/test-provider", async (req, res) => {
+  const { provider, model } = (req as any).body;
+  if (!provider || !model) {
+    res.status(400).json({ error: "Provider and model are required" });
+    return;
+  }
+
+  const envMap: Record<string, string> = {
+    anthropic: "ANTHROPIC_API_KEY",
+    openai: "OPENAI_API_KEY",
+    deepseek: "DEEPSEEK_API_KEY",
+    gemini: "GEMINI_API_KEY",
+  };
+
+  const apiKey = process.env[envMap[provider]];
+  if (!apiKey) {
+    res.status(400).json({ error: `${envMap[provider]} is not set` });
+    return;
+  }
+
+  const testPrompt = 'Respond with exactly: {"status":"ok"}';
+
+  try {
+    let responseText = "";
+
+    if (provider === "anthropic") {
+      const { default: Anthropic } = await import("@anthropic-ai/sdk");
+      const client = new Anthropic({ apiKey });
+      const message = await client.messages.create({
+        model,
+        max_tokens: 32,
+        messages: [{ role: "user", content: testPrompt }],
+      });
+      const content = message.content[0];
+      responseText = content.type === "text" ? content.text : "";
+    } else if (provider === "gemini") {
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const genModel = genAI.getGenerativeModel({ model, generationConfig: { maxOutputTokens: 32 } });
+      const result = await genModel.generateContent(testPrompt);
+      responseText = result.response.text();
+    } else {
+      // openai or deepseek (both use OpenAI SDK)
+      const { default: OpenAI } = await import("openai");
+      const client = new OpenAI({
+        apiKey,
+        ...(provider === "deepseek" ? { baseURL: "https://api.deepseek.com" } : {}),
+      });
+      const response = await client.chat.completions.create({
+        model,
+        max_tokens: 32,
+        messages: [{ role: "user", content: testPrompt }],
+      });
+      responseText = response.choices[0]?.message?.content || "";
+    }
+
+    res.json({ success: true, response: responseText.trim().slice(0, 100) });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || "Connection failed" });
+  }
+});
+
 export default router;
