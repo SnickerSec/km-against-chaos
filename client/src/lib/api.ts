@@ -99,15 +99,22 @@ export interface GeneratedDeck {
   knowledgeCards: { text: string }[];
 }
 
-export async function generateDeckAI(
-  theme: string,
-  chaosCount?: number,
-  knowledgeCount?: number
-): Promise<GeneratedDeck> {
+export interface GenerateContext {
+  theme: string;
+  gameType: string;
+  packType?: string;
+  packName?: string;
+  deckName?: string;
+  deckDescription?: string;
+  chaosCount?: number;
+  knowledgeCount?: number;
+}
+
+export async function generateDeckAI(ctx: GenerateContext): Promise<GeneratedDeck> {
   const res = await fetch(`${API_URL}/api/decks/generate-deck`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ theme, chaosCount, knowledgeCount }),
+    body: JSON.stringify(ctx),
   });
   if (!res.ok) {
     const err = await res.json();
@@ -116,15 +123,11 @@ export async function generateDeckAI(
   return res.json();
 }
 
-export async function generateCardsAI(
-  theme: string,
-  chaosCount?: number,
-  knowledgeCount?: number
-): Promise<GeneratedCards> {
+export async function generateCardsAI(ctx: GenerateContext): Promise<GeneratedCards> {
   const res = await fetch(`${API_URL}/api/decks/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ theme, chaosCount, knowledgeCount }),
+    body: JSON.stringify(ctx),
   });
   if (!res.ok) {
     const err = await res.json();

@@ -105,10 +105,10 @@ router.post("/import", requireAuth, async (req, res) => {
   }
 });
 
-// AI-generate cards for a theme
+// AI-generate cards for a pack
 router.post("/generate", requireAuth, async (req, res) => {
   const body = (req as any).body;
-  const { theme, chaosCount, knowledgeCount } = body;
+  const { theme, gameType, packType, packName, deckName, deckDescription, chaosCount, knowledgeCount } = body;
 
   if (!theme || typeof theme !== "string" || theme.trim().length === 0) {
     res.status(400).json({ error: "Theme is required" });
@@ -116,22 +116,31 @@ router.post("/generate", requireAuth, async (req, res) => {
   }
 
   try {
-    const cards = await generateCards(theme.trim(), chaosCount || 10, knowledgeCount || 25);
+    const cards = await generateCards({
+      theme: theme.trim(),
+      gameType: gameType || "cards-against-humanity",
+      packType: packType || "base",
+      packName,
+      deckName,
+      deckDescription,
+      chaosCount,
+      knowledgeCount,
+    });
     res.json(cards);
   } catch (e: any) {
     console.error("AI generation error:", e.message);
     res.status(500).json({
-      error: e.message?.includes("API")
-        ? "AI service unavailable. Check your ANTHROPIC_API_KEY."
+      error: e.message?.includes("API") || e.message?.includes("key")
+        ? "AI service unavailable. Check your API key."
         : "Failed to generate cards. Try again.",
     });
   }
 });
 
-// AI-generate a full deck (name, description, cards) for a theme
+// AI-generate a full deck (name, description, cards)
 router.post("/generate-deck", requireAuth, async (req, res) => {
   const body = (req as any).body;
-  const { theme, chaosCount, knowledgeCount } = body;
+  const { theme, gameType, chaosCount, knowledgeCount } = body;
 
   if (!theme || typeof theme !== "string" || theme.trim().length === 0) {
     res.status(400).json({ error: "Theme is required" });
@@ -139,12 +148,18 @@ router.post("/generate-deck", requireAuth, async (req, res) => {
   }
 
   try {
-    const deck = await generateDeck(theme.trim(), chaosCount || 10, knowledgeCount || 25);
+    const deck = await generateDeck({
+      theme: theme.trim(),
+      gameType: gameType || "cards-against-humanity",
+      packType: "base",
+      chaosCount,
+      knowledgeCount,
+    });
     res.json(deck);
   } catch (e: any) {
     console.error("AI deck generation error:", e.message);
     res.status(500).json({
-      error: e.message?.includes("API")
+      error: e.message?.includes("API") || e.message?.includes("key")
         ? "AI service unavailable. Check your API key."
         : "Failed to generate deck. Try again.",
     });

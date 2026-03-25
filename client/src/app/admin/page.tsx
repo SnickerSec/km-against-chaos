@@ -7,25 +7,6 @@ import { useAuthStore } from "@/lib/auth";
 import { fetchAdminSettings, updateAdminSetting, fetchModels, ModelInfo } from "@/lib/api";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
-const DEFAULT_PROMPT = `Generate cards for a "Cards Against Humanity" style party game about the following theme:
-
-Theme: "{{theme}}"
-
-Generate exactly {{chaosCount}} "Chaos" cards (prompts/black cards) and {{knowledgeCount}} "Knowledge" cards (answer/white cards).
-
-Rules:
-- Chaos cards are fill-in-the-blank prompts. Use ___ for the blank.
-- Most Chaos cards should have pick:1 (one blank). 2-3 can have pick:2 (two blanks).
-- Knowledge cards are short, funny answers (2-10 words).
-- Be clever, funny, and a bit edgy but not offensive.
-- Cards should be specific to the theme, not generic.
-
-Respond ONLY with valid JSON in this exact format, no other text:
-{
-  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
-  "knowledgeCards": [{"text": "A rogue spreadsheet"}]
-}`;
-
 type AiProvider = "anthropic" | "openai" | "deepseek" | "gemini";
 
 const PROVIDERS: { value: AiProvider; label: string; envVar: string }[] = [
@@ -41,7 +22,6 @@ interface AiSettings {
   provider: AiProvider;
   model: string;
   maxTokens: number;
-  prompt: string;
   defaultChaosCount: number;
   defaultKnowledgeCount: number;
 }
@@ -59,7 +39,6 @@ export default function AdminPage() {
   const [useCustomModel, setUseCustomModel] = useState(false);
   const [customModel, setCustomModel] = useState("");
   const [maxTokens, setMaxTokens] = useState(2048);
-  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [defaultChaosCount, setDefaultChaosCount] = useState(10);
   const [defaultKnowledgeCount, setDefaultKnowledgeCount] = useState(25);
 
@@ -96,7 +75,6 @@ export default function AdminPage() {
             }
           }
           if (ai.maxTokens) setMaxTokens(ai.maxTokens);
-          if (ai.prompt) setPrompt(ai.prompt);
           if (ai.defaultChaosCount) setDefaultChaosCount(ai.defaultChaosCount);
           if (ai.defaultKnowledgeCount) setDefaultKnowledgeCount(ai.defaultKnowledgeCount);
         }
@@ -150,7 +128,6 @@ export default function AdminPage() {
         provider,
         model: effectiveModel,
         maxTokens,
-        prompt,
         defaultChaosCount,
         defaultKnowledgeCount,
       });
@@ -161,10 +138,6 @@ export default function AdminPage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleResetPrompt = () => {
-    setPrompt(DEFAULT_PROMPT);
   };
 
   if (authLoading || !user || !isAdmin) {
@@ -224,8 +197,8 @@ export default function AdminPage() {
         <div className="bg-gray-900 rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-2">AI Card Generation</h2>
           <p className="text-gray-400 text-sm mb-5">
-            Configure the AI provider, model, and prompt used when users generate cards for new decks.
-            Use {"{{theme}}"}, {"{{chaosCount}}"}, and {"{{knowledgeCount}}"} as placeholders in the prompt.
+            Configure the AI provider and model used when users generate cards for new decks.
+            Prompts are built automatically based on the game type, pack type, and user theme.
           </p>
 
           {loading ? (
@@ -346,28 +319,6 @@ export default function AdminPage() {
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
                   />
                 </div>
-              </div>
-
-              {/* Prompt */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium">Generation Prompt</label>
-                  <button
-                    onClick={handleResetPrompt}
-                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-                  >
-                    Reset to default
-                  </button>
-                </div>
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  rows={14}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
-                />
-                <p className="text-gray-500 text-xs mt-1">
-                  Available placeholders: {"{{theme}}"}, {"{{chaosCount}}"}, {"{{knowledgeCount}}"}
-                </p>
               </div>
 
               {/* Save */}

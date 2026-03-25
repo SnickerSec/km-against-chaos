@@ -16,40 +16,31 @@ interface GeneratedDeck {
 }
 
 export type AiProvider = "anthropic" | "openai" | "deepseek" | "gemini";
+export type PackType = "base" | "expansion" | "themed";
 
 export interface AiSettings {
   provider: AiProvider;
   model: string;
   maxTokens: number;
-  prompt: string;
   defaultChaosCount: number;
   defaultKnowledgeCount: number;
 }
 
-const DEFAULT_PROMPT = `Generate cards for a "Cards Against Humanity" style party game about the following theme:
-
-Theme: "{{theme}}"
-
-Generate exactly {{chaosCount}} "Chaos" cards (prompts/black cards) and {{knowledgeCount}} "Knowledge" cards (answer/white cards).
-
-Rules:
-- Chaos cards are fill-in-the-blank prompts. Use ___ for the blank.
-- Most Chaos cards should have pick:1 (one blank). 2-3 can have pick:2 (two blanks).
-- Knowledge cards are short, funny answers (2-10 words).
-- Be clever, funny, and a bit edgy but not offensive.
-- Cards should be specific to the theme, not generic.
-
-Respond ONLY with valid JSON in this exact format, no other text:
-{
-  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
-  "knowledgeCards": [{"text": "A rogue spreadsheet"}]
-}`;
+export interface GenerateContext {
+  theme: string;
+  gameType: string;
+  packType: PackType;
+  packName?: string;
+  deckName?: string;
+  deckDescription?: string;
+  chaosCount?: number;
+  knowledgeCount?: number;
+}
 
 const DEFAULTS: AiSettings = {
   provider: "anthropic",
   model: "claude-sonnet-4-20250514",
   maxTokens: 2048,
-  prompt: DEFAULT_PROMPT,
   defaultChaosCount: 10,
   defaultKnowledgeCount: 25,
 };
@@ -77,6 +68,76 @@ function getApiKey(provider: AiProvider): string | undefined {
   };
   return process.env[envMap[provider]];
 }
+
+// ── Prompt builders ──
+
+function buildCardRules(gameType: string): string {
+  if (gameType === "cards-against-humanity") {
+    return `Rules for this Cards Against Humanity style game:
+- Chaos cards are fill-in-the-blank prompts. Use ___ for the blank.
+- Most Chaos cards should have pick:1 (one blank). 2-3 can have pick:2 (two blanks).
+- Knowledge cards are short, funny answers (2-10 words).
+- Be clever, funny, and a bit edgy but not offensive.
+- Cards should be specific to the theme, not generic.`;
+  }
+  // Future game types can be added here
+  return "Generate prompt cards and answer cards appropriate for the game type.";
+}
+
+function buildCardsPrompt(ctx: GenerateContext, cc: number, kc: number): string {
+  const rules = buildCardRules(ctx.gameType);
+
+  const packDesc = ctx.packType === "expansion"
+    ? `This is an EXPANSION BOX called "${ctx.packName || "Expansion"}" for an existing deck. It should add mid-sized variety — new prompts and answers that complement but don't repeat the base game.`
+    : ctx.packType === "themed"
+    ? `This is a small THEMED PACK called "${ctx.packName || "Themed Pack"}" for an existing deck. It should be tightly focused on a single sub-topic within the theme — a concentrated set of cards around one specific angle.`
+    : `This is the BASE GAME — the core set of cards that defines the deck.`;
+
+  const deckContext = ctx.deckName
+    ? `\nExisting deck: "${ctx.deckName}"${ctx.deckDescription ? ` — ${ctx.deckDescription}` : ""}`
+    : "";
+
+  return `Generate cards for a "${ctx.gameType}" style party game.
+
+Theme: "${ctx.theme}"
+${deckContext}
+
+${packDesc}
+
+Generate exactly ${cc} "Chaos" cards (prompts) and ${kc} "Knowledge" cards (answers).
+
+${rules}
+
+Respond ONLY with valid JSON in this exact format, no other text:
+{
+  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
+  "knowledgeCards": [{"text": "A rogue spreadsheet"}]
+}`;
+}
+
+function buildDeckPrompt(ctx: GenerateContext, cc: number, kc: number): string {
+  const rules = buildCardRules(ctx.gameType);
+
+  return `Create a complete "${ctx.gameType}" style card game deck based on this theme:
+
+Theme: "${ctx.theme}"
+
+Generate a creative deck name, a short description (1-2 sentences), exactly ${cc} "Chaos" cards (prompts) and ${kc} "Knowledge" cards (answers).
+
+${rules}
+- The deck name should be catchy and related to the theme.
+- The description should explain what the deck is about in a fun way.
+
+Respond ONLY with valid JSON in this exact format, no other text:
+{
+  "name": "Deck Name Here",
+  "description": "A short, fun description of the deck.",
+  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
+  "knowledgeCards": [{"text": "A rogue spreadsheet"}]
+}`;
+}
+
+// ── Provider calls ──
 
 async function callAnthropic(model: string, maxTokens: number, prompt: string): Promise<string> {
   const apiKey = getApiKey("anthropic");
@@ -136,6 +197,22 @@ async function callGemini(model: string, maxTokens: number, prompt: string): Pro
   return text;
 }
 
+// ── Shared helpers ──
+
+async function callProvider(settings: AiSettings, prompt: string): Promise<string> {
+  switch (settings.provider) {
+    case "openai":
+      return callOpenAI(settings.model, settings.maxTokens, prompt);
+    case "deepseek":
+      return callDeepSeek(settings.model, settings.maxTokens, prompt);
+    case "gemini":
+      return callGemini(settings.model, settings.maxTokens, prompt);
+    case "anthropic":
+    default:
+      return callAnthropic(settings.model, settings.maxTokens, prompt);
+  }
+}
+
 function extractJson<T>(text: string, validate: (obj: any) => boolean): T {
   let jsonStr = text.trim();
   const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -157,95 +234,22 @@ function isValidDeck(obj: any): boolean {
   return typeof obj.name === "string" && typeof obj.description === "string" && isValidCards(obj);
 }
 
-export async function generateCards(
-  theme: string,
-  chaosCount?: number,
-  knowledgeCount?: number
-): Promise<GeneratedCards> {
+// ── Public API ──
+
+export async function generateCards(ctx: GenerateContext): Promise<GeneratedCards> {
   const settings = await getAiSettings();
-  const cc = chaosCount || settings.defaultChaosCount;
-  const kc = knowledgeCount || settings.defaultKnowledgeCount;
-
-  const prompt = settings.prompt
-    .replace(/\{\{theme\}\}/g, theme)
-    .replace(/\{\{chaosCount\}\}/g, String(cc))
-    .replace(/\{\{knowledgeCount\}\}/g, String(kc));
-
-  let responseText: string;
-
-  switch (settings.provider) {
-    case "openai":
-      responseText = await callOpenAI(settings.model, settings.maxTokens, prompt);
-      break;
-    case "deepseek":
-      responseText = await callDeepSeek(settings.model, settings.maxTokens, prompt);
-      break;
-    case "gemini":
-      responseText = await callGemini(settings.model, settings.maxTokens, prompt);
-      break;
-    case "anthropic":
-    default:
-      responseText = await callAnthropic(settings.model, settings.maxTokens, prompt);
-      break;
-  }
-
+  const cc = ctx.chaosCount || settings.defaultChaosCount;
+  const kc = ctx.knowledgeCount || settings.defaultKnowledgeCount;
+  const prompt = buildCardsPrompt(ctx, cc, kc);
+  const responseText = await callProvider(settings, prompt);
   return extractJson<GeneratedCards>(responseText, isValidCards);
 }
 
-const DECK_PROMPT = `Create a complete "Cards Against Humanity" style card game deck based on this theme:
-
-Theme: "{{theme}}"
-
-Generate a creative deck name, a short description (1-2 sentences), exactly {{chaosCount}} "Chaos" cards (prompts/black cards) and {{knowledgeCount}} "Knowledge" cards (answer/white cards).
-
-Rules:
-- Chaos cards are fill-in-the-blank prompts. Use ___ for the blank.
-- Most Chaos cards should have pick:1 (one blank). 2-3 can have pick:2 (two blanks).
-- Knowledge cards are short, funny answers (2-10 words).
-- Be clever, funny, and a bit edgy but not offensive.
-- Cards should be specific to the theme, not generic.
-- The deck name should be catchy and related to the theme.
-- The description should explain what the deck is about in a fun way.
-
-Respond ONLY with valid JSON in this exact format, no other text:
-{
-  "name": "Deck Name Here",
-  "description": "A short, fun description of the deck.",
-  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
-  "knowledgeCards": [{"text": "A rogue spreadsheet"}]
-}`;
-
-export async function generateDeck(
-  theme: string,
-  chaosCount?: number,
-  knowledgeCount?: number
-): Promise<GeneratedDeck> {
+export async function generateDeck(ctx: GenerateContext): Promise<GeneratedDeck> {
   const settings = await getAiSettings();
-  const cc = chaosCount || settings.defaultChaosCount;
-  const kc = knowledgeCount || settings.defaultKnowledgeCount;
-
-  const prompt = DECK_PROMPT
-    .replace(/\{\{theme\}\}/g, theme)
-    .replace(/\{\{chaosCount\}\}/g, String(cc))
-    .replace(/\{\{knowledgeCount\}\}/g, String(kc));
-
-  let responseText: string;
-
-  switch (settings.provider) {
-    case "openai":
-      responseText = await callOpenAI(settings.model, settings.maxTokens, prompt);
-      break;
-    case "deepseek":
-      responseText = await callDeepSeek(settings.model, settings.maxTokens, prompt);
-      break;
-    case "gemini":
-      responseText = await callGemini(settings.model, settings.maxTokens, prompt);
-      break;
-    case "anthropic":
-    default:
-      responseText = await callAnthropic(settings.model, settings.maxTokens, prompt);
-      break;
-  }
-
+  const cc = ctx.chaosCount || settings.defaultChaosCount;
+  const kc = ctx.knowledgeCount || settings.defaultKnowledgeCount;
+  const prompt = buildDeckPrompt(ctx, cc, kc);
+  const responseText = await callProvider(settings, prompt);
   return extractJson<GeneratedDeck>(responseText, isValidDeck);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { generateCardsAI, generateDeckAI } from "@/lib/api";
+import { generateCardsAI, generateDeckAI, type GenerateContext } from "@/lib/api";
 
 interface CardInput {
   text: string;
@@ -53,6 +53,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [description, setDescription] = useState(initial?.description || "");
   const [winMode, setWinMode] = useState<"rounds" | "points">(initial?.winCondition?.mode || "rounds");
   const [winValue, setWinValue] = useState(initial?.winCondition?.value || 10);
+  const [gameType, setGameType] = useState("cards-against-humanity");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -126,7 +127,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   };
 
   const handleGenerateDeck = async (theme: string) => {
-    const deck = await generateDeckAI(theme);
+    const deck = await generateDeckAI({ theme, gameType });
     setName(deck.name);
     setDescription(deck.description);
     setPacks((prev) => {
@@ -150,7 +151,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         <label className="block text-sm font-medium text-gray-300 mb-1">Game Type</label>
         <select
           className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-          defaultValue="cards-against-humanity"
+          value={gameType}
+          onChange={(e) => setGameType(e.target.value)}
         >
           <option value="cards-against-humanity">Cards Against Humanity</option>
         </select>
@@ -239,6 +241,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           key={pack.id}
           pack={pack}
           isBase={pack.type === "base"}
+          gameType={gameType}
+          deckName={name}
+          deckDescription={description}
           onUpdate={(updater) => updatePack(pack.id, updater)}
           onRemove={() => removePack(pack.id)}
         />
@@ -288,11 +293,17 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 function CardPackEditor({
   pack,
   isBase,
+  gameType,
+  deckName,
+  deckDescription,
   onUpdate,
   onRemove,
 }: {
   pack: CardPack;
   isBase: boolean;
+  gameType: string;
+  deckName: string;
+  deckDescription: string;
   onUpdate: (updater: (p: CardPack) => CardPack) => void;
   onRemove: () => void;
 }) {
@@ -360,6 +371,10 @@ function CardPackEditor({
           {!isBase && (
             <AIGenerate
               packName={pack.name}
+              packType={pack.type}
+              gameType={gameType}
+              deckName={deckName}
+              deckDescription={deckDescription}
               onGenerated={(chaos, knowledge) => {
                 onUpdate((p) => ({
                   ...p,
@@ -658,9 +673,17 @@ function DeckAIGenerate({
 
 function AIGenerate({
   packName,
+  packType,
+  gameType,
+  deckName,
+  deckDescription,
   onGenerated,
 }: {
   packName: string;
+  packType: string;
+  gameType: string;
+  deckName: string;
+  deckDescription: string;
   onGenerated: (chaos: CardInput[], knowledge: CardInput[]) => void;
 }) {
   const [theme, setTheme] = useState("");
@@ -672,7 +695,14 @@ function AIGenerate({
     setGenerating(true);
     setError(null);
     try {
-      const cards = await generateCardsAI(theme.trim());
+      const cards = await generateCardsAI({
+        theme: theme.trim(),
+        gameType,
+        packType,
+        packName,
+        deckName,
+        deckDescription,
+      });
       onGenerated(
         cards.chaosCards.map((c) => ({ text: c.text, pick: c.pick || 1 })),
         cards.knowledgeCards.map((c) => ({ text: c.text }))
