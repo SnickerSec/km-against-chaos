@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { fetchDecks, fetchDeck, createDeck, deleteDeck, fetchPacks, createDeckFromPacks, DeckSummary, PackSummary } from "@/lib/api";
+import { fetchDecks, deleteDeck, fetchPacks, createDeckFromPacks, DeckSummary, PackSummary } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
@@ -31,8 +31,6 @@ export default function DecksPage() {
   const [building, setBuilding] = useState(false);
   const [buildError, setBuildError] = useState<string | null>(null);
   const [showBuildForm, setShowBuildForm] = useState(false);
-
-  const [remixingId, setRemixingId] = useState<string | null>(null);
 
   const user = useAuthStore((s) => s.user);
   const isAdmin = useAuthStore((s) => s.isAdmin);
@@ -69,23 +67,9 @@ export default function DecksPage() {
     if (t === "browse-packs") loadPacks();
   };
 
-  const handleRemix = async (id: string, deckName: string) => {
+  const handleRemix = (id: string) => {
     if (!user) { setError("Sign in to remix a deck"); return; }
-    setRemixingId(id);
-    try {
-      const source = await fetchDeck(id);
-      const copy = await createDeck({
-        name: `Remix of ${deckName}`,
-        description: source.description,
-        chaosCards: source.chaosCards.map((c) => ({ text: c.text, pick: c.pick })),
-        knowledgeCards: source.knowledgeCards.map((c) => ({ text: c.text })),
-        winCondition: source.winCondition,
-      });
-      router.push(`/decks/edit?id=${copy.id}`);
-    } catch (e: any) {
-      setError(e.message);
-      setRemixingId(null);
-    }
+    router.push(`/decks/new?remixOf=${id}`);
   };
 
   const handleDelete = async (id: string) => {
@@ -301,11 +285,10 @@ export default function DecksPage() {
                   <div className="flex gap-2 ml-4">
                     {user && !isOwner(deck) && (
                       <button
-                        onClick={() => handleRemix(deck.id, deck.name)}
-                        disabled={remixingId === deck.id}
-                        className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 disabled:opacity-50 rounded border border-gray-600 transition-colors"
+                        onClick={() => handleRemix(deck.id)}
+                        className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors"
                       >
-                        {remixingId === deck.id ? "Cloning..." : "Remix"}
+                        Remix
                       </button>
                     )}
                     {isOwner(deck) && (
