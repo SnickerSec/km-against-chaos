@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { generateCardsAI, generateDeckAI, type GenerateContext } from "@/lib/api";
 
 interface CardInput {
@@ -87,12 +87,16 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
     setPacks(packs.filter((p) => p.id !== packId));
   };
 
+  const newPackRef = useRef<string | null>(null);
+
   const addPack = (type: PackType) => {
     const defaultName = type === "expansion" ? "Expansion Box" : "Themed Pack";
+    const id = makeId();
+    newPackRef.current = id;
     setPacks([
       ...packs,
       {
-        id: makeId(),
+        id,
         type,
         name: defaultName,
         chaosCards: [{ text: "", pick: 1 }],
@@ -300,18 +304,27 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
       {/* Card Packs */}
       {packs.map((pack) => (
-        <CardPackEditor
+        <div
           key={pack.id}
-          pack={pack}
-          isBase={pack.type === "base"}
-          gameType={gameType}
-          deckName={name}
-          deckDescription={description}
-          chaosCount={chaosCount}
-          knowledgeCount={knowledgeCount}
-          onUpdate={(updater) => updatePack(pack.id, updater)}
-          onRemove={() => removePack(pack.id)}
-        />
+          ref={(el) => {
+            if (el && newPackRef.current === pack.id) {
+              newPackRef.current = null;
+              setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+            }
+          }}
+        >
+          <CardPackEditor
+            pack={pack}
+            isBase={pack.type === "base"}
+            gameType={gameType}
+            deckName={name}
+            deckDescription={description}
+            chaosCount={chaosCount}
+            knowledgeCount={knowledgeCount}
+            onUpdate={(updater) => updatePack(pack.id, updater)}
+            onRemove={() => removePack(pack.id)}
+          />
+        </div>
       ))}
 
       {/* Add expansion / themed pack buttons (create mode only, after base has cards) */}
