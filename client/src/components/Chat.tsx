@@ -52,7 +52,7 @@ export default function Chat() {
     setPickerLoading(true);
     try {
       const params = new URLSearchParams({ q: query, type: tab });
-      const res = await fetch(`${API_URL}/api/media/search?${params}`);
+      const res = await fetch(`${API_URL}/api/gifs/search?${params}`);
       if (!res.ok) { setPickerResults([]); return; }
       const data = await res.json();
       setPickerResults(data.results || []);

@@ -84,7 +84,7 @@ app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin", apiLimiter, adminRoutes);
 app.use("/api/decks", apiLimiter, deckRoutes);
 app.use("/api/packs", apiLimiter, packRoutes);
-app.use("/api/media", staticLimiter, mediaRoutes);
+app.use("/api/gifs", staticLimiter, mediaRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [
