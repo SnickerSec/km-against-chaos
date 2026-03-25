@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import { Icon } from "@iconify/react";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 
@@ -85,9 +86,9 @@ export default function Chat() {
         <span className="font-semibold text-sm">Chat</span>
         <button
           onClick={() => setChatOpen(false)}
-          className="text-gray-400 hover:text-white text-lg leading-none"
+          className="text-gray-400 hover:text-white"
         >
-          &times;
+          <Icon icon="mdi:close" width={20} />
         </button>
       </div>
 

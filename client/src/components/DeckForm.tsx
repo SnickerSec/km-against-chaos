@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { Icon } from "@iconify/react";
 import { generateCardsAI, generateDeckAI, type GenerateContext } from "@/lib/api";
 
 interface CardInput {
@@ -428,9 +429,9 @@ function CardPackEditor({
           <button
             type="button"
             onClick={() => onUpdate((p) => ({ ...p, open: !p.open }))}
-            className="text-gray-400 text-sm"
+            className="text-gray-400"
           >
-            {pack.open ? "▲" : "▼"}
+            <Icon icon={pack.open ? "mdi:chevron-up" : "mdi:chevron-down"} width={18} />
           </button>
           <h3 className={`font-semibold ${style.color}`}>{pack.name || (pack.type === "expansion" ? "Expansion Box" : "Themed Pack")}</h3>
           <span className="text-gray-500 text-xs whitespace-nowrap">
@@ -584,7 +585,7 @@ function CardListEditor({
         <h4 className={`text-sm font-semibold ${labelColor}`}>
           {label} — {count}
         </h4>
-        <span className="text-gray-500 text-xs">{open ? "▲" : "▼"}</span>
+        <Icon icon={open ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-500" width={16} />
       </button>
       {open && (
         <>
@@ -625,9 +626,9 @@ function CardListEditor({
                 {cards.length > 1 && (
                   <button
                     onClick={() => onRemove(i)}
-                    className="px-2 text-gray-500 hover:text-red-400 transition-colors"
+                    className="p-1 text-gray-500 hover:text-red-400 transition-colors"
                   >
-                    ×
+                    <Icon icon="mdi:close" width={16} />
                   </button>
                 )}
               </div>
@@ -675,7 +676,8 @@ function BulkAdd({
         onClick={() => setOpen(!open)}
         className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
       >
-        {open ? "▲ Hide" : "▼ Show"} Bulk Add
+        <Icon icon={open ? "mdi:chevron-up" : "mdi:chevron-down"} width={14} className="inline" />
+        {open ? " Hide" : " Show"} Bulk Add
       </button>
       {open && (
         <div className="mt-2 bg-gray-800/50 rounded-lg p-3">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fetchDecks, deleteDeck, fetchPacks, createDeckFromPacks, DeckSummary, PackSummary } from "@/lib/api";
@@ -173,7 +174,7 @@ export default function DecksPage() {
         <div className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center ${
           selected ? `${borderClass} bg-current` : "border-gray-600"
         }`}>
-          {selected && <span className="text-white text-xs">✓</span>}
+          {selected && <Icon icon="mdi:check" className="text-white" width={14} />}
         </div>
       </div>
     </button>
