@@ -3,9 +3,23 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuthStore } from "@/lib/auth";
+import { useAuthStore, getAuthHeaders } from "@/lib/auth";
 import { fetchAdminSettings, updateAdminSetting, fetchModels, fetchApiKeysStatus, testProvider, ModelInfo } from "@/lib/api";
 import GoogleSignIn from "@/components/GoogleSignIn";
+
+const API_URL =
+  process.env.NEXT_PUBLIC_SERVER_URL ||
+  (typeof window !== "undefined" && window.location.hostname !== "localhost"
+    ? ""
+    : "http://localhost:3001");
+
+interface UserRow {
+  id: string;
+  name: string;
+  email: string;
+  picture: string | null;
+  role: string | null;
+}
 
 type AiProvider = "anthropic" | "openai" | "deepseek" | "gemini";
 
@@ -47,6 +61,12 @@ export default function AdminPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // User roles management
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [roleStatus, setRoleStatus] = useState<Record<string, { success?: boolean; error?: string }>>({});
+
   useEffect(() => {
     restore();
   }, [restore]);
@@ -56,6 +76,17 @@ export default function AdminPage() {
       router.replace("/");
     }
   }, [authLoading, user, isAdmin, router]);
+
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+
+    // Fetch users for role management
+    setUsersLoading(true);
+    fetch(`${API_URL}/api/admin/users`, { headers: getAuthHeaders() })
+      .then((r) => r.json())
+      .then((data) => { setUsers(data); setUsersLoading(false); })
+      .catch((e) => { setUsersError(e.message); setUsersLoading(false); });
+  }, [user, isAdmin]);
 
   useEffect(() => {
     if (!user || !isAdmin) return;
@@ -152,6 +183,29 @@ export default function AdminPage() {
       setError(e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    const role = newRole === "" ? null : newRole;
+    setRoleStatus((prev) => ({ ...prev, [userId]: {} }));
+    try {
+      const res = await fetch(`${API_URL}/api/admin/users/${userId}/role`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setRoleStatus((prev) => ({ ...prev, [userId]: { error: data.error || "Failed" } }));
+        return;
+      }
+      const updated: UserRow = await res.json();
+      setUsers((prev) => prev.map((u) => (u.id === userId ? updated : u)));
+      setRoleStatus((prev) => ({ ...prev, [userId]: { success: true } }));
+      setTimeout(() => setRoleStatus((prev) => ({ ...prev, [userId]: {} })), 2000);
+    } catch (e: any) {
+      setRoleStatus((prev) => ({ ...prev, [userId]: { error: e.message } }));
     }
   };
 
@@ -362,6 +416,57 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
+          )}
+        </div>
+        {/* User Roles */}
+        <div className="bg-gray-900 rounded-xl p-6">
+          <h2 className="text-xl font-semibold mb-2">User Roles</h2>
+          <p className="text-gray-400 text-sm mb-5">
+            Assign moderator or admin roles to users. Moderators can edit and delete any deck. Admins have full access including this page.
+          </p>
+
+          {usersLoading && <p className="text-gray-400 text-sm">Loading users...</p>}
+          {usersError && <p className="text-red-400 text-sm">{usersError}</p>}
+
+          {!usersLoading && users.length > 0 && (
+            <div className="space-y-2">
+              {users.map((u) => (
+                <div key={u.id} className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3">
+                  {u.picture ? (
+                    <img src={u.picture} alt={u.name} className="w-8 h-8 rounded-full flex-shrink-0" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-600 flex-shrink-0 flex items-center justify-center text-gray-300 text-xs font-bold">
+                      {u.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{u.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <select
+                      value={u.role ?? ""}
+                      onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                      className="bg-gray-700 border border-gray-600 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-purple-500 text-white"
+                    >
+                      <option value="">None</option>
+                      <option value="moderator">Moderator</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    {roleStatus[u.id]?.success && (
+                      <span className="text-green-400 text-xs">Saved</span>
+                    )}
+                    {roleStatus[u.id]?.error && (
+                      <span className="text-red-400 text-xs">{roleStatus[u.id].error}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!usersLoading && users.length === 0 && !usersError && (
+            <p className="text-gray-500 text-sm">No users found.</p>
           )}
         </div>
       </div>

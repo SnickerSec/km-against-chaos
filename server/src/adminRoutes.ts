@@ -250,4 +250,32 @@ router.post("/test-provider", async (req, res) => {
   }
 });
 
+// List all users (for role management)
+router.get("/users", requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, name, email, picture, role FROM users ORDER BY name ASC"
+    );
+    res.json(rows.map((r: any) => ({ id: r.id, name: r.name, email: r.email, picture: r.picture, role: r.role || null })));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Set a user's role
+router.put("/users/:id/role", requireAuth, requireAdmin, async (req, res) => {
+  const body = (req as any).body;
+  const role = body.role === "admin" || body.role === "moderator" ? body.role : null;
+  try {
+    const { rows } = await pool.query(
+      "UPDATE users SET role = $1 WHERE id = $2 RETURNING id, name, email, picture, role",
+      [role, req.params.id]
+    );
+    if (rows.length === 0) { res.status(404).json({ error: "User not found" }); return; }
+    res.json({ id: rows[0].id, name: rows[0].name, email: rows[0].email, picture: rows[0].picture, role: rows[0].role || null });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;

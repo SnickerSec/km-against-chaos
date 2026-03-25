@@ -11,7 +11,7 @@ import {
   type PackInput,
 } from "./deckStore.js";
 import { generateCards, generateDeck } from "./aiGenerate.js";
-import { requireAuth } from "./auth.js";
+import { requireAuth, requireModeratorOrAdmin } from "./auth.js";
 
 const router = Router();
 router.use((req, res, next) => {
@@ -195,6 +195,7 @@ router.post("/generate-deck", requireAuth, async (req, res) => {
 // Update a deck
 router.put("/:id", requireAuth, async (req, res) => {
   const body = (req as any).body;
+  const reqUser = (req as any).user;
 
   if (body.chaosCards && body.knowledgeCards) {
     const error = validateDeck({ name: body.name || "placeholder", chaosCards: body.chaosCards, knowledgeCards: body.knowledgeCards });
@@ -204,14 +205,18 @@ router.put("/:id", requireAuth, async (req, res) => {
     }
   }
 
+  const isMod = reqUser.isAdmin || reqUser.role === "moderator" || reqUser.role === "admin";
+
   try {
-    const deck = await updateDeck(req.params.id, body, (req as any).user.id);
+    const deck = isMod
+      ? await updateDeck(req.params.id, body, undefined, true)
+      : await updateDeck(req.params.id, body, reqUser.id);
     if (!deck) {
       res.status(404).json({ error: "Deck not found or not owned by you" });
       return;
     }
     if (body.packs && Array.isArray(body.packs) && deck) {
-      await upsertPacksForDeck(deck.id, body.packs as PackInput[], (req as any).user.id, false);
+      await upsertPacksForDeck(deck.id, body.packs as PackInput[], reqUser.id, false);
     }
     res.json(deck);
   } catch (e: any) {
@@ -221,8 +226,13 @@ router.put("/:id", requireAuth, async (req, res) => {
 
 // Delete a deck
 router.delete("/:id", requireAuth, async (req, res) => {
+  const reqUser = (req as any).user;
+  const isMod = reqUser.isAdmin || reqUser.role === "moderator" || reqUser.role === "admin";
+
   try {
-    const deleted = await deleteDeck(req.params.id, (req as any).user.id);
+    const deleted = isMod
+      ? await deleteDeck(req.params.id, undefined, true)
+      : await deleteDeck(req.params.id, reqUser.id);
     if (!deleted) {
       res.status(404).json({ error: "Deck not found or not owned by you" });
       return;

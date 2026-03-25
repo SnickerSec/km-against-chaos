@@ -34,6 +34,7 @@ export default function DecksPage() {
 
   const user = useAuthStore((s) => s.user);
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  const isModerator = useAuthStore((s) => s.isModerator);
   const router = useRouter();
 
   const load = async () => {
@@ -264,7 +265,7 @@ export default function DecksPage() {
                   className="flex items-center justify-between bg-gray-900 rounded-xl p-4"
                 >
                   <div className="flex-1 min-w-0">
-                    {isOwner(deck) ? (
+                    {(isOwner(deck) || isAdmin || isModerator) ? (
                       <Link
                         href={`/decks/edit?id=${deck.id}`}
                         className="font-semibold text-lg hover:text-purple-400 transition-colors"
@@ -283,7 +284,7 @@ export default function DecksPage() {
                     </p>
                   </div>
                   <div className="flex gap-2 ml-4">
-                    {user && !isOwner(deck) && (
+                    {user && !isOwner(deck) && !isAdmin && !isModerator && (
                       <button
                         onClick={() => handleRemix(deck.id)}
                         className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors"
@@ -291,7 +292,7 @@ export default function DecksPage() {
                         Remix
                       </button>
                     )}
-                    {isOwner(deck) && (
+                    {(isOwner(deck) || isAdmin || isModerator) && (
                       <button
                         onClick={() => handleDelete(deck.id)}
                         className="px-3 py-1 text-xs text-red-400 hover:text-red-300 bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors"

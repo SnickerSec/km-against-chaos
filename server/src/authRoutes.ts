@@ -3,6 +3,7 @@ import pool from "./db.js";
 import { verifyGoogleToken, signJwt, requireAuth, isAdmin, type AuthUser } from "./auth.js";
 import { randomUUID } from "crypto";
 
+
 const router = Router();
 
 router.use((req, res, next) => {
@@ -48,10 +49,12 @@ router.post("/google", async (req, res) => {
       email: rows[0].email,
       name: rows[0].name,
       picture: rows[0].picture,
+      role: rows[0].role || null,
     };
 
+    const adminStatus = isAdmin(user.email, user.role ?? undefined);
     const token = signJwt(user);
-    res.json({ token, user, isAdmin: isAdmin(user.email) });
+    res.json({ token, user: { ...user, role: user.role ?? null }, isAdmin: adminStatus, role: user.role ?? null });
   } catch (e: any) {
     console.error("Google auth error:", e.message);
     res.status(401).json({ error: "Google authentication failed" });
@@ -60,8 +63,8 @@ router.post("/google", async (req, res) => {
 
 // Get current user info
 router.get("/me", requireAuth, (req, res) => {
-  const user = (req as any).user;
-  res.json({ user, isAdmin: isAdmin(user.email) });
+  const user = (req as any).user as AuthUser;
+  res.json({ user, isAdmin: isAdmin(user.email, user.role), role: user.role ?? null });
 });
 
 export default router;

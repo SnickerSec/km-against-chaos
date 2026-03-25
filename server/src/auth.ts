@@ -16,6 +16,8 @@ export interface AuthUser {
   email: string;
   name: string;
   picture: string;
+  role?: string;
+  isAdmin?: boolean;
 }
 
 export async function verifyGoogleToken(idToken: string) {
@@ -35,7 +37,7 @@ export async function verifyGoogleToken(idToken: string) {
 
 export function signJwt(user: AuthUser): string {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name, picture: user.picture },
+    { id: user.id, email: user.email, name: user.name, picture: user.picture, role: user.role ?? null },
     JWT_SECRET,
     { expiresIn: "7d" }
   );
@@ -62,13 +64,29 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const user = (req as any).user as AuthUser | undefined;
-  if (!user || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+  if (!user || (!ADMIN_EMAILS.includes(user.email.toLowerCase()) && user.role !== "admin")) {
     res.status(403).json({ error: "Admin access required" });
     return;
   }
   next();
 }
 
-export function isAdmin(email: string): boolean {
-  return ADMIN_EMAILS.includes(email.toLowerCase());
+export function requireModeratorOrAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user as AuthUser | undefined;
+  if (!user) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+  const adminByEmail = ADMIN_EMAILS.includes(user.email.toLowerCase());
+  const adminByRole = user.role === "admin";
+  const moderator = user.role === "moderator";
+  if (!adminByEmail && !adminByRole && !moderator) {
+    res.status(403).json({ error: "Moderator or admin access required" });
+    return;
+  }
+  next();
+}
+
+export function isAdmin(email: string, role?: string): boolean {
+  return ADMIN_EMAILS.includes(email.toLowerCase()) || role === "admin";
 }

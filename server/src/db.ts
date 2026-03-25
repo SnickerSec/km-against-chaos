@@ -67,6 +67,9 @@ export async function initDb() {
   await pool.query(`
     ALTER TABLE packs ADD COLUMN IF NOT EXISTS built_in BOOLEAN DEFAULT FALSE
   `);
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT NULL
+  `);
 
   console.log("Database initialized");
 }

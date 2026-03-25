@@ -181,11 +181,12 @@ export async function updateDeck(
     knowledgeCards?: { text: string }[];
     winCondition?: WinCondition;
   },
-  ownerId?: string
+  ownerId?: string,
+  bypassOwnership?: boolean
 ): Promise<CustomDeck | null> {
   const existing = await getDeck(id);
   if (!existing) return null;
-  if (existing.ownerId && ownerId && existing.ownerId !== ownerId) return null;
+  if (!bypassOwnership && existing.ownerId && ownerId && existing.ownerId !== ownerId) return null;
 
   const name = input.name !== undefined ? input.name.trim() : existing.name;
   const description = input.description !== undefined ? input.description.trim() : existing.description;
@@ -197,21 +198,38 @@ export async function updateDeck(
     : existing.knowledgeCards;
   const winCondition = input.winCondition || existing.winCondition;
 
-  const { rows } = await pool.query(
-    `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5, updated_at = NOW()
-     WHERE id = $6 AND (owner_id = $7 OR owner_id IS NULL) RETURNING *`,
-    [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), id, ownerId]
-  );
+  let queryText: string;
+  let queryParams: any[];
+
+  if (bypassOwnership) {
+    queryText = `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5, updated_at = NOW()
+     WHERE id = $6 RETURNING *`;
+    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), id];
+  } else {
+    queryText = `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5, updated_at = NOW()
+     WHERE id = $6 AND (owner_id = $7 OR owner_id IS NULL) RETURNING *`;
+    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), id, ownerId];
+  }
+
+  const { rows } = await pool.query(queryText, queryParams);
 
   if (rows.length === 0) return null;
   return rowToDeck(rows[0]);
 }
 
-export async function deleteDeck(id: string, ownerId?: string): Promise<boolean> {
-  const { rowCount } = await pool.query(
-    "DELETE FROM decks WHERE id = $1 AND built_in = FALSE AND owner_id = $2",
-    [id, ownerId]
-  );
+export async function deleteDeck(id: string, ownerId?: string, bypassOwnership?: boolean): Promise<boolean> {
+  let queryText: string;
+  let queryParams: any[];
+
+  if (bypassOwnership) {
+    queryText = "DELETE FROM decks WHERE id = $1 AND built_in = FALSE";
+    queryParams = [id];
+  } else {
+    queryText = "DELETE FROM decks WHERE id = $1 AND built_in = FALSE AND owner_id = $2";
+    queryParams = [id, ownerId];
+  }
+
+  const { rowCount } = await pool.query(queryText, queryParams);
   return (rowCount ?? 0) > 0;
 }
 
