@@ -2,7 +2,7 @@
 
 import { getSocket } from "@/lib/socket";
 
-const EMOJIS = ["😂", "🔥", "💀", "👏", "😱", "🤮", "❤️", "🧠"];
+const EMOJIS = ["😂", "🔥", "💀", "👏", "😱", "🤮", "❤️", "🧠", "💩", "🖕"];
 
 export default function ReactionBar() {
   const handleReaction = (emoji: string) => {
