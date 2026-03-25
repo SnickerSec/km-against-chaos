@@ -5,4 +5,5 @@ client/out/
 .env
 .env.local
 *.log
+CLAUDE.md
 server/data/

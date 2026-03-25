@@ -6,14 +6,26 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import DeckForm from "@/components/DeckForm";
 import { fetchDeck, updateDeck, CustomDeck } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth";
 
 function EditDeckContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
   const router = useRouter();
+  const { user, loading: authLoading, restore } = useAuthStore();
   const [deck, setDeck] = useState<CustomDeck | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    restore();
+  }, [restore]);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/decks");
+    }
+  }, [authLoading, user, router]);
 
   useEffect(() => {
     if (!id) {
@@ -22,12 +34,17 @@ function EditDeckContent() {
       return;
     }
     fetchDeck(id)
-      .then(setDeck)
+      .then((d) => {
+        setDeck(d);
+        if (user && d.ownerId && d.ownerId !== user.id) {
+          setError("You don't own this deck");
+        }
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, user]);
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-gray-400">Loading deck...</p>

@@ -21,6 +21,7 @@ export interface CustomDeck {
   createdAt: string;
   updatedAt: string;
   builtIn?: boolean;
+  ownerId?: string | null;
 }
 
 export interface DeckSummary {
@@ -31,6 +32,7 @@ export interface DeckSummary {
   knowledgeCount: number;
   winCondition: WinCondition;
   builtIn?: boolean;
+  ownerId?: string | null;
 }
 
 const DEFAULT_WIN_CONDITION: WinCondition = { mode: "rounds", value: 10 };
@@ -79,6 +81,7 @@ function rowToDeck(row: any): CustomDeck {
     knowledgeCards: row.knowledge_cards,
     winCondition: row.win_condition || DEFAULT_WIN_CONDITION,
     builtIn: row.built_in,
+    ownerId: row.owner_id || null,
     createdAt: row.created_at?.toISOString?.() || row.created_at,
     updatedAt: row.updated_at?.toISOString?.() || row.updated_at,
   };
@@ -113,7 +116,7 @@ export function validateDeck(deck: {
 
 export async function listDecks(): Promise<DeckSummary[]> {
   const { rows } = await pool.query(
-    `SELECT id, name, description, built_in, win_condition,
+    `SELECT id, name, description, built_in, win_condition, owner_id,
             jsonb_array_length(chaos_cards) as chaos_count,
             jsonb_array_length(knowledge_cards) as knowledge_count
      FROM decks ORDER BY built_in DESC, created_at DESC`
@@ -126,6 +129,7 @@ export async function listDecks(): Promise<DeckSummary[]> {
     knowledgeCount: parseInt(r.knowledge_count),
     winCondition: r.win_condition || DEFAULT_WIN_CONDITION,
     builtIn: r.built_in,
+    ownerId: r.owner_id || null,
   }));
 }
 
@@ -141,6 +145,7 @@ export async function createDeck(input: {
   chaosCards: { text: string; pick?: number }[];
   knowledgeCards: { text: string }[];
   winCondition?: WinCondition;
+  ownerId?: string;
 }): Promise<CustomDeck> {
   const id = randomUUID().slice(0, 8);
   const now = new Date().toISOString();
@@ -158,10 +163,10 @@ export async function createDeck(input: {
   const winCondition = input.winCondition || DEFAULT_WIN_CONDITION;
 
   const { rows } = await pool.query(
-    `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, win_condition, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, win_condition, owner_id, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
-    [id, input.name.trim(), input.description?.trim() || "", JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), now, now]
+    [id, input.name.trim(), input.description?.trim() || "", JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), input.ownerId || null, now, now]
   );
 
   return rowToDeck(rows[0]);
@@ -175,10 +180,12 @@ export async function updateDeck(
     chaosCards?: { text: string; pick?: number }[];
     knowledgeCards?: { text: string }[];
     winCondition?: WinCondition;
-  }
+  },
+  ownerId?: string
 ): Promise<CustomDeck | null> {
   const existing = await getDeck(id);
   if (!existing) return null;
+  if (existing.ownerId && ownerId && existing.ownerId !== ownerId) return null;
 
   const name = input.name !== undefined ? input.name.trim() : existing.name;
   const description = input.description !== undefined ? input.description.trim() : existing.description;
@@ -192,15 +199,18 @@ export async function updateDeck(
 
   const { rows } = await pool.query(
     `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5, updated_at = NOW()
-     WHERE id = $6 RETURNING *`,
-    [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), id]
+     WHERE id = $6 AND (owner_id = $7 OR owner_id IS NULL) RETURNING *`,
+    [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), id, ownerId]
   );
 
   if (rows.length === 0) return null;
   return rowToDeck(rows[0]);
 }
 
-export async function deleteDeck(id: string): Promise<boolean> {
-  const { rowCount } = await pool.query("DELETE FROM decks WHERE id = $1 AND built_in = FALSE", [id]);
+export async function deleteDeck(id: string, ownerId?: string): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    "DELETE FROM decks WHERE id = $1 AND built_in = FALSE AND owner_id = $2",
+    [id, ownerId]
+  );
   return (rowCount ?? 0) > 0;
 }

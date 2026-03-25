@@ -7,6 +7,7 @@ import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
 import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
+import authRoutes from "./authRoutes.js";
 import { getDeck, seedBuiltInDecks } from "./deckStore.js";
 import { initDb } from "./db.js";
 import {
@@ -52,6 +53,7 @@ app.get("/health", (_req, res) => {
 });
 
 // Deck CRUD API
+app.use("/api/auth", authRoutes);
 app.use("/api/decks", deckRoutes);
 
 // Serve static Next.js export in production

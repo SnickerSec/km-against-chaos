@@ -3,11 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchDecks, deleteDeck, importDeck, DeckSummary, DeckExport } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth";
+import GoogleSignIn from "@/components/GoogleSignIn";
 
 export default function DecksPage() {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const user = useAuthStore((s) => s.user);
 
   const load = async () => {
     try {
@@ -50,6 +53,8 @@ export default function DecksPage() {
     input.click();
   };
 
+  const isOwner = (deck: DeckSummary) => user && deck.ownerId === user.id;
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
@@ -57,25 +62,36 @@ export default function DecksPage() {
           <h1 className="text-3xl font-bold">Deck Builder</h1>
           <p className="text-gray-400 text-sm mt-1">Create and manage custom card decks</p>
         </div>
-        <Link href="/" className="text-gray-400 hover:text-white text-sm">
-          Back to Decked
-        </Link>
+        <div className="flex items-center gap-4">
+          <GoogleSignIn />
+          <Link href="/" className="text-gray-400 hover:text-white text-sm">
+            Back to Decked
+          </Link>
+        </div>
       </div>
 
-      <div className="flex gap-3 mb-6">
-        <Link
-          href="/decks/new"
-          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-sm transition-colors"
-        >
-          Create New Deck
-        </Link>
-        <button
-          onClick={handleImport}
-          className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg font-semibold text-sm transition-colors"
-        >
-          Import JSON
-        </button>
-      </div>
+      {user && (
+        <div className="flex gap-3 mb-6">
+          <Link
+            href="/decks/new"
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-sm transition-colors"
+          >
+            Create New Deck
+          </Link>
+          <button
+            onClick={handleImport}
+            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg font-semibold text-sm transition-colors"
+          >
+            Import JSON
+          </button>
+        </div>
+      )}
+
+      {!user && (
+        <p className="text-gray-500 text-sm mb-6">
+          Sign in with Google to create and manage your own decks.
+        </p>
+      )}
 
       {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
@@ -85,7 +101,7 @@ export default function DecksPage() {
         <div className="text-center py-12 bg-gray-900 rounded-xl">
           <p className="text-gray-400 text-lg mb-2">No custom decks yet</p>
           <p className="text-gray-500 text-sm">
-            Create one or import a JSON file to get started
+            {user ? "Create one or import a JSON file to get started" : "Sign in to create decks"}
           </p>
         </div>
       ) : (
@@ -96,17 +112,22 @@ export default function DecksPage() {
               className="flex items-center justify-between bg-gray-900 rounded-xl p-4"
             >
               <div className="flex-1 min-w-0">
-                <Link
-                  href={`/decks/edit?id=${deck.id}`}
-                  className="font-semibold text-lg hover:text-purple-400 transition-colors"
-                >
-                  {deck.name}
-                </Link>
+                {isOwner(deck) ? (
+                  <Link
+                    href={`/decks/edit?id=${deck.id}`}
+                    className="font-semibold text-lg hover:text-purple-400 transition-colors"
+                  >
+                    {deck.name}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-lg">{deck.name}</span>
+                )}
                 {deck.description && (
                   <p className="text-gray-400 text-sm truncate">{deck.description}</p>
                 )}
                 <p className="text-gray-500 text-xs mt-1">
                   {deck.chaosCount} prompts · {deck.knowledgeCount} answers
+                  {deck.builtIn && " · Built-in"}
                 </p>
               </div>
               <div className="flex gap-2 ml-4">
@@ -116,12 +137,14 @@ export default function DecksPage() {
                 >
                   Export
                 </a>
-                <button
-                  onClick={() => handleDelete(deck.id)}
-                  className="px-3 py-1 text-xs text-red-400 hover:text-red-300 bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors"
-                >
-                  Delete
-                </button>
+                {isOwner(deck) && (
+                  <button
+                    onClick={() => handleDelete(deck.id)}
+                    className="px-3 py-1 text-xs text-red-400 hover:text-red-300 bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors"
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}

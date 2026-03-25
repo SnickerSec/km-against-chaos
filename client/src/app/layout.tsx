@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +14,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-gray-950 text-white min-h-screen">{children}</body>
+      <body className="bg-gray-950 text-white min-h-screen">
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          strategy="afterInteractive"
+        />
+        {children}
+      </body>
     </html>
   );
 }

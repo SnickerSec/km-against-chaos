@@ -8,6 +8,7 @@ import {
   validateDeck,
 } from "./deckStore.js";
 import { generateCards } from "./aiGenerate.js";
+import { requireAuth } from "./auth.js";
 
 const router = Router();
 router.use((req, res, next) => {
@@ -73,7 +74,7 @@ router.get("/:id/export", async (req, res) => {
 });
 
 // Create a new deck
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   const body = (req as any).body;
   const error = validateDeck(body);
   if (error) {
@@ -81,7 +82,7 @@ router.post("/", async (req, res) => {
     return;
   }
   try {
-    const deck = await createDeck(body);
+    const deck = await createDeck({ ...body, ownerId: (req as any).user.id });
     res.status(201).json(deck);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -89,7 +90,7 @@ router.post("/", async (req, res) => {
 });
 
 // Import a deck
-router.post("/import", async (req, res) => {
+router.post("/import", requireAuth, async (req, res) => {
   const body = (req as any).body;
   const error = validateDeck(body);
   if (error) {
@@ -97,7 +98,7 @@ router.post("/import", async (req, res) => {
     return;
   }
   try {
-    const deck = await createDeck(body);
+    const deck = await createDeck({ ...body, ownerId: (req as any).user.id });
     res.status(201).json(deck);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -105,7 +106,7 @@ router.post("/import", async (req, res) => {
 });
 
 // AI-generate cards for a theme
-router.post("/generate", async (req, res) => {
+router.post("/generate", requireAuth, async (req, res) => {
   const body = (req as any).body;
   const { theme, chaosCount, knowledgeCount } = body;
 
@@ -128,7 +129,7 @@ router.post("/generate", async (req, res) => {
 });
 
 // Update a deck
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireAuth, async (req, res) => {
   const body = (req as any).body;
 
   if (body.chaosCards && body.knowledgeCards) {
@@ -140,9 +141,9 @@ router.put("/:id", async (req, res) => {
   }
 
   try {
-    const deck = await updateDeck(req.params.id, body);
+    const deck = await updateDeck(req.params.id, body, (req as any).user.id);
     if (!deck) {
-      res.status(404).json({ error: "Deck not found" });
+      res.status(404).json({ error: "Deck not found or not owned by you" });
       return;
     }
     res.json(deck);
@@ -152,11 +153,11 @@ router.put("/:id", async (req, res) => {
 });
 
 // Delete a deck
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, async (req, res) => {
   try {
-    const deleted = await deleteDeck(req.params.id);
+    const deleted = await deleteDeck(req.params.id, (req as any).user.id);
     if (!deleted) {
-      res.status(404).json({ error: "Deck not found" });
+      res.status(404).json({ error: "Deck not found or not owned by you" });
       return;
     }
     res.json({ success: true });

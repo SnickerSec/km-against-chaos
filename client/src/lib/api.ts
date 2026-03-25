@@ -1,3 +1,5 @@
+import { getAuthHeaders } from "./auth";
+
 const API_URL = process.env.NEXT_PUBLIC_SERVER_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? "" : "http://localhost:3001");
 
 export interface WinCondition {
@@ -13,6 +15,7 @@ export interface DeckSummary {
   knowledgeCount: number;
   winCondition: WinCondition;
   builtIn?: boolean;
+  ownerId?: string | null;
 }
 
 export interface CustomDeck {
@@ -24,6 +27,7 @@ export interface CustomDeck {
   winCondition: WinCondition;
   createdAt: string;
   updatedAt: string;
+  ownerId?: string | null;
 }
 
 export interface DeckExport {
@@ -49,7 +53,7 @@ export async function fetchDeck(id: string): Promise<CustomDeck> {
 export async function createDeck(data: DeckExport): Promise<CustomDeck> {
   const res = await fetch(`${API_URL}/api/decks`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -65,7 +69,7 @@ export async function updateDeck(
 ): Promise<CustomDeck> {
   const res = await fetch(`${API_URL}/api/decks/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -76,7 +80,10 @@ export async function updateDeck(
 }
 
 export async function deleteDeck(id: string): Promise<void> {
-  const res = await fetch(`${API_URL}/api/decks/${id}`, { method: "DELETE" });
+  const res = await fetch(`${API_URL}/api/decks/${id}`, {
+    method: "DELETE",
+    headers: { ...getAuthHeaders() },
+  });
   if (!res.ok) throw new Error("Failed to delete deck");
 }
 
@@ -92,7 +99,7 @@ export async function generateCardsAI(
 ): Promise<GeneratedCards> {
   const res = await fetch(`${API_URL}/api/decks/generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ theme, chaosCount, knowledgeCount }),
   });
   if (!res.ok) {
@@ -105,7 +112,7 @@ export async function generateCardsAI(
 export async function importDeck(data: DeckExport): Promise<CustomDeck> {
   const res = await fetch(`${API_URL}/api/decks/import`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
