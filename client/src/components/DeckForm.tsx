@@ -54,6 +54,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [winMode, setWinMode] = useState<"rounds" | "points">(initial?.winCondition?.mode || "rounds");
   const [winValue, setWinValue] = useState(initial?.winCondition?.value || 10);
   const [gameType, setGameType] = useState("cards-against-humanity");
+  const [chaosCount, setChaosCount] = useState(10);
+  const [knowledgeCount, setKnowledgeCount] = useState(25);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -126,8 +128,21 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
     }
   };
 
+  const handleChaosCount = (val: number) => {
+    const clamped = Math.max(5, Math.min(30, val));
+    setChaosCount(clamped);
+    if (knowledgeCount <= clamped) {
+      setKnowledgeCount(clamped + 5);
+    }
+  };
+
+  const handleKnowledgeCount = (val: number) => {
+    const clamped = Math.max(chaosCount + 1, Math.min(50, val));
+    setKnowledgeCount(clamped);
+  };
+
   const handleGenerateDeck = async (theme: string) => {
-    const deck = await generateDeckAI({ theme, gameType });
+    const deck = await generateDeckAI({ theme, gameType, chaosCount, knowledgeCount });
     setName(deck.name);
     setDescription(deck.description);
     setPacks((prev) => {
@@ -157,6 +172,35 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           <option value="cards-against-humanity">Cards Against Humanity</option>
         </select>
         <p className="text-gray-500 text-xs mt-1">More game types coming soon</p>
+
+        {/* Card counts — game type options */}
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Prompt cards to generate</label>
+            <input
+              type="number"
+              value={chaosCount}
+              onChange={(e) => handleChaosCount(parseInt(e.target.value) || 10)}
+              min={5}
+              max={30}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Answer cards to generate</label>
+            <input
+              type="number"
+              value={knowledgeCount}
+              onChange={(e) => handleKnowledgeCount(parseInt(e.target.value) || 25)}
+              min={chaosCount + 1}
+              max={50}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+            />
+          </div>
+        </div>
+        <p className="text-gray-600 text-xs mt-1">
+          Answer cards must outnumber prompt cards. Max 30 prompts, 50 answers.
+        </p>
       </div>
 
       {/* Top-level AI Deck Generator */}
@@ -244,6 +288,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           gameType={gameType}
           deckName={name}
           deckDescription={description}
+          chaosCount={chaosCount}
+          knowledgeCount={knowledgeCount}
           onUpdate={(updater) => updatePack(pack.id, updater)}
           onRemove={() => removePack(pack.id)}
         />
@@ -296,6 +342,8 @@ function CardPackEditor({
   gameType,
   deckName,
   deckDescription,
+  chaosCount,
+  knowledgeCount,
   onUpdate,
   onRemove,
 }: {
@@ -304,12 +352,14 @@ function CardPackEditor({
   gameType: string;
   deckName: string;
   deckDescription: string;
+  chaosCount: number;
+  knowledgeCount: number;
   onUpdate: (updater: (p: CardPack) => CardPack) => void;
   onRemove: () => void;
 }) {
   const style = PACK_LABELS[pack.type];
-  const chaosCount = pack.chaosCards.filter((c) => c.text.trim()).length;
-  const knowledgeCount = pack.knowledgeCards.filter((c) => c.text.trim()).length;
+  const chaosCardCount = pack.chaosCards.filter((c) => c.text.trim()).length;
+  const knowledgeCardCount = pack.knowledgeCards.filter((c) => c.text.trim()).length;
 
   const updateChaos = (index: number, field: keyof CardInput, value: string | number) => {
     onUpdate((p) => {
@@ -351,7 +401,7 @@ function CardPackEditor({
             />
           )}
           <span className="text-gray-500 text-xs whitespace-nowrap">
-            {chaosCount} prompts · {knowledgeCount} answers
+            {chaosCardCount} prompts · {knowledgeCardCount} answers
           </span>
         </div>
         {!isBase && (
@@ -375,6 +425,8 @@ function CardPackEditor({
               gameType={gameType}
               deckName={deckName}
               deckDescription={deckDescription}
+              chaosCount={chaosCount}
+              knowledgeCount={knowledgeCount}
               onGenerated={(chaos, knowledge) => {
                 onUpdate((p) => ({
                   ...p,
@@ -677,6 +729,8 @@ function AIGenerate({
   gameType,
   deckName,
   deckDescription,
+  chaosCount,
+  knowledgeCount,
   onGenerated,
 }: {
   packName: string;
@@ -684,6 +738,8 @@ function AIGenerate({
   gameType: string;
   deckName: string;
   deckDescription: string;
+  chaosCount: number;
+  knowledgeCount: number;
   onGenerated: (chaos: CardInput[], knowledge: CardInput[]) => void;
 }) {
   const [theme, setTheme] = useState("");
@@ -702,6 +758,8 @@ function AIGenerate({
         packName,
         deckName,
         deckDescription,
+        chaosCount,
+        knowledgeCount,
       });
       onGenerated(
         cards.chaosCards.map((c) => ({ text: c.text, pick: c.pick || 1 })),

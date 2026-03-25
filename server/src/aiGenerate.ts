@@ -22,8 +22,6 @@ export interface AiSettings {
   provider: AiProvider;
   model: string;
   maxTokens: number;
-  defaultChaosCount: number;
-  defaultKnowledgeCount: number;
 }
 
 export interface GenerateContext {
@@ -41,8 +39,6 @@ const DEFAULTS: AiSettings = {
   provider: "anthropic",
   model: "claude-sonnet-4-20250514",
   maxTokens: 2048,
-  defaultChaosCount: 10,
-  defaultKnowledgeCount: 25,
 };
 
 async function getAiSettings(): Promise<AiSettings> {
@@ -238,8 +234,8 @@ function isValidDeck(obj: any): boolean {
 
 export async function generateCards(ctx: GenerateContext): Promise<GeneratedCards> {
   const settings = await getAiSettings();
-  const cc = ctx.chaosCount || settings.defaultChaosCount;
-  const kc = ctx.knowledgeCount || settings.defaultKnowledgeCount;
+  const cc = ctx.chaosCount || 10;
+  const kc = ctx.knowledgeCount || 25;
   const prompt = buildCardsPrompt(ctx, cc, kc);
   const responseText = await callProvider(settings, prompt);
   return extractJson<GeneratedCards>(responseText, isValidCards);
@@ -247,8 +243,8 @@ export async function generateCards(ctx: GenerateContext): Promise<GeneratedCard
 
 export async function generateDeck(ctx: GenerateContext): Promise<GeneratedDeck> {
   const settings = await getAiSettings();
-  const cc = ctx.chaosCount || settings.defaultChaosCount;
-  const kc = ctx.knowledgeCount || settings.defaultKnowledgeCount;
+  const cc = ctx.chaosCount || 10;
+  const kc = ctx.knowledgeCount || 25;
   const prompt = buildDeckPrompt(ctx, cc, kc);
   const responseText = await callProvider(settings, prompt);
   return extractJson<GeneratedDeck>(responseText, isValidDeck);

@@ -22,8 +22,6 @@ interface AiSettings {
   provider: AiProvider;
   model: string;
   maxTokens: number;
-  defaultChaosCount: number;
-  defaultKnowledgeCount: number;
 }
 
 export default function AdminPage() {
@@ -39,8 +37,6 @@ export default function AdminPage() {
   const [useCustomModel, setUseCustomModel] = useState(false);
   const [customModel, setCustomModel] = useState("");
   const [maxTokens, setMaxTokens] = useState(2048);
-  const [defaultChaosCount, setDefaultChaosCount] = useState(10);
-  const [defaultKnowledgeCount, setDefaultKnowledgeCount] = useState(25);
 
   // Dynamic models from OpenRouter
   const [allModels, setAllModels] = useState<ModelInfo[]>([]);
@@ -81,8 +77,6 @@ export default function AdminPage() {
             }
           }
           if (ai.maxTokens) setMaxTokens(ai.maxTokens);
-          if (ai.defaultChaosCount) setDefaultChaosCount(ai.defaultChaosCount);
-          if (ai.defaultKnowledgeCount) setDefaultKnowledgeCount(ai.defaultKnowledgeCount);
         }
       })
       .catch((e) => setError(e.message))
@@ -151,8 +145,6 @@ export default function AdminPage() {
         provider,
         model: effectiveModel,
         maxTokens,
-        defaultChaosCount,
-        defaultKnowledgeCount,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -337,32 +329,6 @@ export default function AdminPage() {
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
                 />
                 <p className="text-gray-500 text-xs mt-1">Max response length (256–8192)</p>
-              </div>
-
-              {/* Default Counts */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Default Chaos Cards</label>
-                  <input
-                    type="number"
-                    value={defaultChaosCount}
-                    onChange={(e) => setDefaultChaosCount(parseInt(e.target.value) || 10)}
-                    min={5}
-                    max={50}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Default Knowledge Cards</label>
-                  <input
-                    type="number"
-                    value={defaultKnowledgeCount}
-                    onChange={(e) => setDefaultKnowledgeCount(parseInt(e.target.value) || 25)}
-                    min={15}
-                    max={100}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                  />
-                </div>
               </div>
 
               {/* Test & Save */}
