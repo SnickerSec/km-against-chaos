@@ -50,6 +50,23 @@ app.use(
   })
 );
 
+// Set CSP header before Railway's CDN can inject a restrictive one.
+// Next.js static export requires 'unsafe-inline' for hydration scripts.
+app.use((_req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://accounts.google.com https://static.cloudflareinsights.com",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "connect-src 'self' wss: https:",
+      "frame-src https://accounts.google.com",
+    ].join("; ")
+  );
+  next();
+});
+
 const httpServer = createServer(app);
 const io = new Server<ClientEvents, ServerEvents>(httpServer, {
   cors: {
