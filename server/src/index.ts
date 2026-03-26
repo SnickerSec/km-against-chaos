@@ -2,6 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
+import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { join, resolve, normalize } from "path";
 import { existsSync } from "fs";
@@ -40,7 +41,14 @@ import {
 
 const app = express();
 app.set("trust proxy", 1); // trust Railway's proxy for correct client IP in rate limiting
-app.use(cors());
+app.use(helmet());
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 const httpServer = createServer(app);
 const io = new Server<ClientEvents, ServerEvents>(httpServer, {

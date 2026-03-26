@@ -3,8 +3,11 @@ import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
-const JWT_SECRET =
-  process.env.JWT_SECRET || "dev-secret-change-in-production";
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET environment variable is required");
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "cwilli.it@gmail.com")
   .split(",")
   .map((e) => e.trim().toLowerCase());
