@@ -91,7 +91,7 @@ export default function HomeScreen() {
     <div className="max-w-2xl mx-auto px-4 py-8 min-h-screen">
       {/* Header */}
       <div className="flex flex-col items-center mb-8">
-        <h1 className="mb-2">
+        <h1 className="mb-2 w-full">
           <svg viewBox="-2 0 268 58" className="w-64 h-auto block mx-auto" aria-label="Decked">
             {/* Back card */}
             <rect x="2" y="4" width="34" height="46" rx="5" fill="#6b21a8" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-12 19 27)"/>
