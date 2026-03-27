@@ -13,6 +13,7 @@ export default function HomeScreen() {
   const codeFromUrl = searchParams.get("code");
 
   const nameRef = useRef<HTMLInputElement>(null);
+  const roomCodeRef = useRef<HTMLInputElement>(null);
   const authUser = useAuthStore((s) => s.user);
 
   const [decks, setDecks] = useState<DeckSummary[]>([]);
@@ -65,6 +66,7 @@ export default function HomeScreen() {
     }
     if (!roomCode.trim()) {
       setError("Enter the room code");
+      roomCodeRef.current?.focus();
       return;
     }
     setPlayerName(name.trim());
@@ -106,6 +108,7 @@ export default function HomeScreen() {
       <div className="max-w-sm mx-auto mb-8">
         <div className="flex gap-2">
           <input
+            ref={roomCodeRef}
             type="text"
             placeholder="Room Code"
             value={roomCode}
