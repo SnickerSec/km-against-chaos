@@ -1,15 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
+import { useAuthStore } from "@/lib/auth";
 import { fetchDecks, DeckSummary } from "@/lib/api";
 
 export default function HomeScreen() {
   const searchParams = useSearchParams();
   const codeFromUrl = searchParams.get("code");
+
+  const nameRef = useRef<HTMLInputElement>(null);
+  const authUser = useAuthStore((s) => s.user);
 
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,9 +36,21 @@ export default function HomeScreen() {
     }
   }, [codeFromUrl]);
 
+  // Auto-populate name from Google sign-in
+  useEffect(() => {
+    if (authUser?.name && !name) {
+      setName(authUser.name.split(" ")[0]); // Use first name
+    }
+  }, [authUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const focusName = () => {
+    setError("Enter your name first");
+    nameRef.current?.focus();
+  };
+
   const handleCreate = (deckId: string) => {
     if (!name.trim()) {
-      setError("Enter your name first");
+      focusName();
       return;
     }
     setPlayerName(name.trim());
@@ -44,7 +60,7 @@ export default function HomeScreen() {
 
   const handleJoin = () => {
     if (!name.trim()) {
-      setError("Enter your name first");
+      focusName();
       return;
     }
     if (!roomCode.trim()) {
@@ -70,6 +86,7 @@ export default function HomeScreen() {
       {/* Name input — always visible */}
       <div className="max-w-sm mx-auto mb-6">
         <input
+          ref={nameRef}
           type="text"
           placeholder="Your name"
           value={name}
