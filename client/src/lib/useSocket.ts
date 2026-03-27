@@ -31,6 +31,7 @@ export function useSocket() {
     setActiveMetaEffect,
     setHandBlurred,
     setIconsRandomized,
+    setCountdown,
   } = useGameStore();
 
   useEffect(() => {
@@ -59,7 +60,12 @@ export function useSocket() {
       }
     });
 
+    socket.on("lobby:countdown" as any, (count: number) => {
+      setCountdown(count > 0 ? count : null);
+    });
+
     socket.on("lobby:started", () => {
+      setCountdown(null);
       setScreen("game");
     });
 
@@ -102,6 +108,22 @@ export function useSocket() {
     socket.on("game:over", (scores: Record<string, number>) => {
       setScores(scores);
       setScreen("gameover");
+    });
+
+    socket.on("game:rematch" as any, () => {
+      // Reset game state but keep lobby
+      useGameStore.setState({
+        hand: [],
+        round: null,
+        scores: {},
+        roundNumber: 0,
+        maxRounds: 0,
+        hasSubmitted: false,
+        submittedPlayers: new Set(),
+        selectedCards: [],
+        winnerInfo: null,
+      });
+      setScreen("lobby");
     });
 
     socket.on("game:meta-effect" as any, (payload: MetaEffectNotification) => {
@@ -162,6 +184,7 @@ export function useSocket() {
     setActiveMetaEffect,
     setHandBlurred,
     setIconsRandomized,
+    setCountdown,
   ]);
 
   const createLobby = (playerName: string, deckId?: string) => {
@@ -292,6 +315,16 @@ export function useSocket() {
     });
   };
 
+  const rematch = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("game:rematch" as any, (response: { success: boolean; error?: string }) => {
+      if (!response.success) {
+        setError(response.error || "Failed to start rematch");
+      }
+    });
+  };
+
   const spectateGame = (code: string, playerName: string) => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -346,5 +379,6 @@ export function useSocket() {
     removeBot,
     kickPlayer,
     spectateGame,
+    rematch,
   };
 }

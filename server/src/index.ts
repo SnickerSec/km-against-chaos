@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import { join, resolve, normalize } from "path";
 import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
-import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby, kickPlayer, joinAsSpectator, getActivePlayers } from "./lobby.js";
+import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby, kickPlayer, joinAsSpectator, getActivePlayers, resetLobbyForRematch } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from "./adminRoutes.js";
@@ -546,19 +546,28 @@ io.on("connection", (socket) => {
         }
       }
 
-      createGame(result.code, playerIds, customChaos, customKnowledge, winCondition);
-      const round = startRound(result.code);
-
       callback({ success: true });
-      io.to(result.code).emit("lobby:started");
 
-      if (round) {
-        sendRoundToPlayers(result.code);
-        triggerBotSubmissions(result.code);
-        scheduleRoundTimer(result.code);
-      }
+      // 3-2-1 countdown before game starts
+      const code = result.code;
+      io.to(code).emit("lobby:countdown" as any, 3);
+      setTimeout(() => io.to(code).emit("lobby:countdown" as any, 2), 1000);
+      setTimeout(() => io.to(code).emit("lobby:countdown" as any, 1), 2000);
+      setTimeout(() => {
+        createGame(code, playerIds, customChaos, customKnowledge, winCondition);
+        const round = startRound(code);
 
-      console.log(`Game started in lobby ${result.code}`);
+        io.to(code).emit("lobby:countdown" as any, 0);
+        io.to(code).emit("lobby:started");
+
+        if (round) {
+          sendRoundToPlayers(code);
+          triggerBotSubmissions(code);
+          scheduleRoundTimer(code);
+        }
+
+        console.log(`Game started in lobby ${code}`);
+      }, 3000);
     } catch (e: any) {
       callback({ success: false, error: "Server error" });
     }
@@ -732,6 +741,28 @@ io.on("connection", (socket) => {
       endGame(code);
       io.to(code).emit("game:over", scores || {});
     }
+  });
+
+  socket.on("game:rematch" as any, (callback: (response: { success: boolean; error?: string }) => void) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code) {
+      callback({ success: false, error: "Not in a lobby" });
+      return;
+    }
+
+    clearRoundTimer(code);
+    cleanupGame(code);
+
+    const result = resetLobbyForRematch(socket.id);
+    if ("error" in result) {
+      callback({ success: false, error: result.error });
+      return;
+    }
+
+    callback({ success: true });
+    io.to(result.code).emit("lobby:updated", result.lobby);
+    io.to(result.code).emit("game:rematch" as any);
+    console.log(`Rematch started in lobby ${result.code}`);
   });
 
   // ── Voice Chat Signaling ──

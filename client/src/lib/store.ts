@@ -117,6 +117,9 @@ interface GameStore {
   handBlurred: boolean;
   iconsRandomized: boolean;
 
+  // Lobby countdown
+  countdown: number | null;
+
   // Actions
   setPlayerName: (name: string) => void;
   setLobby: (lobby: LobbyState | null) => void;
@@ -137,6 +140,7 @@ interface GameStore {
   setActiveMetaEffect: (effect: MetaEffectNotification | null) => void;
   setHandBlurred: (v: boolean) => void;
   setIconsRandomized: (v: boolean) => void;
+  setCountdown: (v: number | null) => void;
   reset: () => void;
 }
 
@@ -162,6 +166,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   activeMetaEffect: null,
   handBlurred: false,
   iconsRandomized: false,
+  countdown: null,
 
   setPlayerName: (name) => set({ playerName: name }),
   setLobby: (lobby) => set({ lobby }),
@@ -235,6 +240,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setActiveMetaEffect: (effect) => set({ activeMetaEffect: effect }),
   setHandBlurred: (v) => set({ handBlurred: v }),
   setIconsRandomized: (v) => set({ iconsRandomized: v }),
+  setCountdown: (v) => set({ countdown: v }),
 
   reset: () =>
     set({
@@ -258,5 +264,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activeMetaEffect: null,
       handBlurred: false,
       iconsRandomized: false,
+      countdown: null,
     }),
 }));

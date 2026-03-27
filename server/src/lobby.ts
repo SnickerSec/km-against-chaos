@@ -322,6 +322,27 @@ export function startGame(socketId: string): { code: string } | { error: string 
   return { code };
 }
 
+export function resetLobbyForRematch(socketId: string): { code: string; lobby: LobbyState } | { error: string } {
+  const code = playerLobby.get(socketId);
+  if (!code) return { error: "You are not in a lobby" };
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return { error: "Lobby not found" };
+
+  if (lobby.hostId !== socketId) {
+    return { error: "Only the host can start a rematch" };
+  }
+
+  lobby.status = "waiting";
+
+  // Reset all player scores
+  for (const player of lobby.players.values()) {
+    player.score = 0;
+  }
+
+  return { code, lobby: lobbyToState(lobby) };
+}
+
 export function getLobbyForSocket(socketId: string): string | undefined {
   return playerLobby.get(socketId);
 }

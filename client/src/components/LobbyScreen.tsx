@@ -9,7 +9,7 @@ import VoiceChat from "./VoiceChat";
 import PlayerAvatar from "./PlayerAvatar";
 
 export default function LobbyScreen() {
-  const { lobby, error } = useGameStore();
+  const { lobby, error, countdown } = useGameStore();
   const { leaveLobby, startGame, addBot, removeBot, kickPlayer } = useSocket();
 
   if (!lobby) return null;
@@ -149,6 +149,15 @@ export default function LobbyScreen() {
       </div>
 
       <Chat />
+
+      {/* Countdown overlay */}
+      {countdown !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <span className="text-8xl font-bold text-purple-400 animate-bounce">
+            {countdown}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
