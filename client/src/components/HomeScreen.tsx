@@ -176,6 +176,12 @@ export default function HomeScreen() {
         >
           Manage Decks
         </Link>
+        <Link
+          href="/privacy"
+          className="text-gray-500 hover:text-gray-400 text-sm transition-colors"
+        >
+          Privacy Policy
+        </Link>
       </div>
     </div>
   );
