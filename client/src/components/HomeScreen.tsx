@@ -168,17 +168,21 @@ export default function HomeScreen() {
         )}
       </div>
 
-      {/* Footer links */}
-      <div className="flex justify-center gap-6 mt-10">
+      {/* Nav links */}
+      <div className="flex justify-center mt-10">
         <Link
           href="/decks"
           className="text-gray-500 hover:text-purple-400 text-sm transition-colors"
         >
           Manage Decks
         </Link>
+      </div>
+
+      {/* Legal footer */}
+      <div className="flex justify-center mt-6 pb-4">
         <Link
           href="/privacy"
-          className="text-gray-500 hover:text-gray-400 text-sm transition-colors"
+          className="text-gray-700 hover:text-gray-500 text-xs transition-colors"
         >
           Privacy Policy
         </Link>
