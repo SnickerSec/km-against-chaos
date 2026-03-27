@@ -413,6 +413,64 @@ export function removePlayerFromGame(lobbyCode: string, playerId: string): void 
   }
 }
 
+export function botSubmitCards(lobbyCode: string, botId: string): { success: boolean; allSubmitted: boolean } {
+  const game = games.get(lobbyCode);
+  if (!game) return { success: false, allSubmitted: false };
+
+  const round = game.currentRound;
+  if (!round || round.phase !== "submitting") return { success: false, allSubmitted: false };
+  if (botId === round.czarId) return { success: false, allSubmitted: false };
+  if (round.submissions.has(botId)) return { success: false, allSubmitted: false };
+
+  const hand = game.hands.get(botId);
+  if (!hand || hand.length === 0) return { success: false, allSubmitted: false };
+
+  // Pick random cards from hand
+  const pickCount = Math.min(round.chaosCard.pick, hand.length);
+  const indices = shuffled(hand.map((_, i) => i)).slice(0, pickCount);
+  indices.sort((a, b) => b - a); // reverse sort so splicing doesn't shift indices
+
+  const playedCards: KnowledgeCard[] = [];
+  for (const idx of indices) {
+    playedCards.push(hand.splice(idx, 1)[0]);
+  }
+
+  // Draw replacements
+  for (let i = 0; i < playedCards.length; i++) {
+    if (game.knowledgeDeck.length > 0) {
+      hand.push(game.knowledgeDeck.pop()!);
+    }
+  }
+
+  round.submissions.set(botId, playedCards);
+
+  const expectedCount = game.playerIds.filter(id => id !== round.czarId).length;
+  const allSubmitted = round.submissions.size >= expectedCount;
+  if (allSubmitted) {
+    round.phase = "judging";
+  }
+
+  return { success: true, allSubmitted };
+}
+
+export function botPickWinner(lobbyCode: string, botCzarId: string): { winnerId: string | null; metaEffect?: any } {
+  const game = games.get(lobbyCode);
+  if (!game?.currentRound || game.currentRound.phase !== "judging") return { winnerId: null };
+  if (game.currentRound.czarId !== botCzarId) return { winnerId: null };
+
+  // Pick a random submission
+  const submitters = Array.from(game.currentRound.submissions.keys());
+  if (submitters.length === 0) return { winnerId: null };
+
+  const winnerId = submitters[Math.floor(Math.random() * submitters.length)];
+  const result = pickWinner(lobbyCode, botCzarId, winnerId);
+
+  if (result.success) {
+    return { winnerId, metaEffect: result.metaEffect };
+  }
+  return { winnerId: null };
+}
+
 export function remapGamePlayer(
   lobbyCode: string,
   oldPlayerId: string,

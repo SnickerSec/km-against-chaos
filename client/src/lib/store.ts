@@ -8,6 +8,7 @@ export interface PlayerInfo {
   isHost: boolean;
   score: number;
   connected: boolean;
+  isBot?: boolean;
 }
 
 export interface LobbyState {

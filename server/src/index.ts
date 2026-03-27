@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import { join, resolve, normalize } from "path";
 import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
-import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer } from "./lobby.js";
+import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from "./adminRoutes.js";
@@ -34,6 +34,9 @@ import {
   removePlayerFromGame,
   resetPlayerHand,
   resolveMetaTargets,
+  botSubmitCards,
+  botPickWinner,
+  getCzarId,
 } from "./game.js";
 import {
   registerSession,
@@ -206,6 +209,96 @@ function sendRoundToPlayers(code: string) {
   }
 }
 
+// Bot auto-play: bots submit cards and pick winners with small delays
+function triggerBotSubmissions(code: string) {
+  const botIds = getBotsInLobby(code);
+  const czarId = getCzarId(code);
+
+  let delay = 1500; // stagger bot submissions
+  for (const botId of botIds) {
+    if (botId === czarId) continue;
+    setTimeout(() => {
+      const result = botSubmitCards(code, botId);
+      if (result.success) {
+        // Notify human players this bot submitted
+        io.to(code).emit("game:player-submitted", botId);
+
+        if (result.allSubmitted) {
+          const judgingData = getJudgingData(code);
+          if (judgingData) {
+            io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
+            // If czar is a bot, auto-pick winner
+            triggerBotCzarPick(code);
+          }
+        }
+      }
+    }, delay);
+    delay += 800 + Math.random() * 1200; // 0.8-2s between bots
+  }
+}
+
+function triggerBotCzarPick(code: string) {
+  const czarId = getCzarId(code);
+  if (!czarId?.startsWith("bot-")) return;
+
+  setTimeout(() => {
+    const result = botPickWinner(code, czarId);
+    if (!result.winnerId) return;
+
+    const scores = getScores(code);
+    const winnerCards = getWinnerCards(code);
+    const winnerName = getPlayerNameInLobby(code, result.winnerId);
+
+    io.to(code).emit(
+      "game:round-winner",
+      result.winnerId,
+      winnerName || "Unknown",
+      winnerCards || [],
+      scores || {}
+    );
+
+    // Handle meta effects (same as human czar path)
+    if (result.metaEffect) {
+      const { effect, winnerId: wId, czarId: cId, playerIds } = result.metaEffect;
+      const targets = resolveMetaTargets(effect.target, wId, cId, playerIds);
+
+      if (effect.type === "hand_reset") {
+        for (const pid of targets) {
+          const newHand = resetPlayerHand(code, pid);
+          io.to(pid).emit("game:hand-updated", newHand);
+        }
+      }
+
+      const affectedNames = targets.map((pid: string) => getPlayerNameInLobby(code, pid) || "???");
+      let description = "";
+      switch (effect.type) {
+        case "score_add":
+          description = `+${effect.value} point${effect.value !== 1 ? "s" : ""} for ${affectedNames.join(", ")}`;
+          break;
+        case "score_subtract":
+          description = `-${effect.value} point${effect.value !== 1 ? "s" : ""} from ${affectedNames.join(", ")}`;
+          break;
+        case "hide_cards":
+          description = `${affectedNames.join(", ")}'s cards are hidden for ${Math.round((effect.durationMs || 20000) / 1000)}s`;
+          break;
+        case "randomize_icons":
+          description = `Icons randomized for ${affectedNames.join(", ")} for ${Math.round((effect.durationMs || 15000) / 1000)}s`;
+          break;
+        case "hand_reset":
+          description = `${affectedNames.join(", ")} drew a fresh hand`;
+          break;
+      }
+
+      io.to(code).emit("game:meta-effect", {
+        effectType: effect.type,
+        value: effect.value,
+        affectedPlayerIds: targets,
+        description,
+      });
+    }
+  }, 2000 + Math.random() * 2000); // 2-4s delay for czar pick
+}
+
 io.on("connection", (socket) => {
   const sessionId: string = socket.handshake.auth?.sessionId || socket.id;
   const { isReconnect, oldSocketId } = registerSession(sessionId, socket.id);
@@ -348,12 +441,35 @@ io.on("connection", (socket) => {
 
       if (round) {
         sendRoundToPlayers(result.code);
+        triggerBotSubmissions(result.code);
       }
 
       console.log(`Game started in lobby ${result.code}`);
     } catch (e: any) {
       callback({ success: false, error: "Server error" });
     }
+  });
+
+  socket.on("lobby:add-bot" as any, (callback: (response: { success: boolean; error?: string }) => void) => {
+    const result = addBot(socket.id);
+    if ("error" in result) {
+      callback({ success: false, error: result.error });
+      return;
+    }
+    callback({ success: true });
+    io.to(result.lobby.code).emit("lobby:updated", result.lobby);
+    console.log(`Bot added to lobby ${result.lobby.code}`);
+  });
+
+  socket.on("lobby:remove-bot" as any, (botId: string, callback: (response: { success: boolean; error?: string }) => void) => {
+    const result = removeBot(socket.id, botId);
+    if ("error" in result) {
+      callback({ success: false, error: result.error });
+      return;
+    }
+    io.to(result.lobby.code).emit("lobby:updated", result.lobby);
+    callback({ success: true });
+    console.log(`Bot ${botId} removed from lobby`);
   });
 
   // ── Game Events ──
@@ -381,6 +497,8 @@ io.on("connection", (socket) => {
       const judgingData = getJudgingData(code);
       if (judgingData) {
         io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
+        // If czar is a bot, auto-pick winner
+        triggerBotCzarPick(code);
       }
     }
   });
@@ -473,6 +591,7 @@ io.on("connection", (socket) => {
     const round = startRound(code);
     if (round) {
       sendRoundToPlayers(code);
+      triggerBotSubmissions(code);
     } else {
       // No more rounds
       const scores = getScores(code);

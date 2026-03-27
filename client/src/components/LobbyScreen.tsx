@@ -9,7 +9,7 @@ import VoiceChat from "./VoiceChat";
 
 export default function LobbyScreen() {
   const { lobby, error } = useGameStore();
-  const { leaveLobby, startGame } = useSocket();
+  const { leaveLobby, startGame, addBot, removeBot } = useSocket();
 
   if (!lobby) return null;
 
@@ -48,7 +48,7 @@ export default function LobbyScreen() {
             <div
               key={player.id}
               className={`flex items-center justify-between bg-gray-800 px-4 py-3 rounded-lg ${
-                player.connected === false ? "opacity-50" : ""
+                player.connected === false && !player.isBot ? "opacity-50" : ""
               }`}
             >
               <span className="font-medium">
@@ -56,19 +56,41 @@ export default function LobbyScreen() {
                 {player.id === socket.id && (
                   <span className="text-gray-500 text-sm ml-2">(you)</span>
                 )}
-                {player.connected === false && (
+                {player.isBot && (
+                  <span className="text-blue-400 text-sm ml-2">BOT</span>
+                )}
+                {player.connected === false && !player.isBot && (
                   <span className="text-yellow-500 text-sm ml-2">reconnecting...</span>
                 )}
               </span>
-              {player.isHost && (
-                <span className="text-xs bg-purple-600 px-2 py-1 rounded font-semibold">
-                  HOST
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {player.isBot && isHost && (
+                  <button
+                    onClick={() => removeBot(player.id)}
+                    className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    Remove
+                  </button>
+                )}
+                {player.isHost && (
+                  <span className="text-xs bg-purple-600 px-2 py-1 rounded font-semibold">
+                    HOST
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
       </div>
+
+      {isHost && lobby.players.length < 10 && (
+        <button
+          onClick={addBot}
+          className="w-full max-w-sm mb-4 py-2 bg-gray-700 hover:bg-gray-600 text-blue-400 rounded-lg text-sm font-medium transition-colors"
+        >
+          + Add Bot Player
+        </button>
+      )}
 
       {error && (
         <p className="text-red-400 text-center text-sm mb-4">{error}</p>

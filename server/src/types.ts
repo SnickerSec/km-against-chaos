@@ -4,6 +4,7 @@ export interface Player {
   isHost: boolean;
   score: number;
   connected: boolean;
+  isBot?: boolean;
 }
 
 export interface Lobby {
@@ -38,6 +39,7 @@ export interface PlayerInfo {
   isHost: boolean;
   score: number;
   connected: boolean;
+  isBot?: boolean;
 }
 
 // ── Game Types ──

@@ -276,6 +276,26 @@ export function useSocket() {
     socket.emit("media:sticker" as any, url);
   };
 
+  const addBot = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("lobby:add-bot" as any, (response: { success: boolean; error?: string }) => {
+      if (!response.success) {
+        setError(response.error || "Failed to add bot");
+      }
+    });
+  };
+
+  const removeBot = (botId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("lobby:remove-bot" as any, botId, (response: { success: boolean; error?: string }) => {
+      if (!response.success) {
+        setError(response.error || "Failed to remove bot");
+      }
+    });
+  };
+
   return {
     socket: socketRef.current,
     createLobby,
@@ -288,5 +308,7 @@ export function useSocket() {
     sendChat,
     sendGif,
     sendSticker,
+    addBot,
+    removeBot,
   };
 }

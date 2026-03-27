@@ -33,6 +33,7 @@ function playerToInfo(player: Player): PlayerInfo {
     isHost: player.isHost,
     score: player.score,
     connected: player.connected,
+    isBot: player.isBot,
   };
 }
 
@@ -168,6 +169,73 @@ export function reconnectPlayer(socketId: string): { code: string; lobby: LobbyS
   player.connected = true;
 
   return { code, lobby: lobbyToState(lobby) };
+}
+
+const BOT_NAMES = [
+  "RoboPlayer", "CyberBot", "BotMcBotface", "DigitalDave",
+  "SiliconSam", "ByteBuddy", "ChipChamp", "PixelPal",
+  "NeonNinja", "LaserLlama", "TurboTron", "MegaBot",
+];
+
+export function addBot(socketId: string): { lobby: LobbyState; botId: string } | { error: string } {
+  const code = playerLobby.get(socketId);
+  if (!code) return { error: "You are not in a lobby" };
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return { error: "Lobby not found" };
+
+  if (lobby.hostId !== socketId) {
+    return { error: "Only the host can add bots" };
+  }
+
+  if (lobby.players.size >= lobby.maxPlayers) {
+    return { error: "Lobby is full" };
+  }
+
+  // Pick a bot name not already in use
+  const usedNames = new Set(Array.from(lobby.players.values()).map(p => p.name));
+  const name = BOT_NAMES.find(n => !usedNames.has(n)) || `Bot-${lobby.players.size}`;
+
+  const botId = `bot-${randomBytes(4).toString("hex")}`;
+  const player: Player = {
+    id: botId,
+    name,
+    isHost: false,
+    score: 0,
+    connected: true,
+    isBot: true,
+  };
+
+  lobby.players.set(botId, player);
+  // Don't add to playerLobby — bots don't have real sockets
+
+  return { lobby: lobbyToState(lobby), botId };
+}
+
+export function removeBot(socketId: string, botId: string): { lobby: LobbyState } | { error: string } {
+  const code = playerLobby.get(socketId);
+  if (!code) return { error: "You are not in a lobby" };
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return { error: "Lobby not found" };
+
+  if (lobby.hostId !== socketId) {
+    return { error: "Only the host can remove bots" };
+  }
+
+  const player = lobby.players.get(botId);
+  if (!player?.isBot) return { error: "Not a bot" };
+
+  lobby.players.delete(botId);
+  return { lobby: lobbyToState(lobby) };
+}
+
+export function getBotsInLobby(code: string): string[] {
+  const lobby = lobbies.get(code);
+  if (!lobby) return [];
+  return Array.from(lobby.players.values())
+    .filter(p => p.isBot)
+    .map(p => p.id);
 }
 
 export function startGame(socketId: string): { code: string } | { error: string } {
