@@ -952,8 +952,12 @@ const PORT = process.env.PORT || 3001;
 
 async function start() {
   if (process.env.DATABASE_URL) {
-    await initDb();
-    await seedBuiltInDecks();
+    try {
+      await initDb();
+      await seedBuiltInDecks();
+    } catch (err) {
+      console.error("Database initialization failed — continuing without DB:", err);
+    }
   } else {
     console.warn("No DATABASE_URL set — database features disabled");
   }

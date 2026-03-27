@@ -6,10 +6,21 @@ import { randomUUID } from "crypto";
 
 const router = Router();
 
+const AUTH_BODY_LIMIT = 100 * 1024; // 100 KB
+
 router.use((req, res, next) => {
   if (req.headers["content-type"]?.includes("application/json")) {
     let body = "";
-    req.on("data", (chunk: Buffer) => (body += chunk));
+    let size = 0;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > AUTH_BODY_LIMIT) {
+        res.status(413).json({ error: "Request body too large" });
+        req.destroy();
+        return;
+      }
+      body += chunk;
+    });
     req.on("end", () => {
       try {
         (req as any).body = JSON.parse(body);

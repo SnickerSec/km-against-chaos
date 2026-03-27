@@ -130,35 +130,57 @@ export function validateDeck(deck: {
   return null;
 }
 
-export async function listDecks(): Promise<DeckSummary[]> {
-  const { rows } = await pool.query(
-    `SELECT id, name, description, built_in, win_condition, owner_id,
-            maturity, flavor_themes, chaos_level, wildcard, remixed_from,
-            jsonb_array_length(chaos_cards) as chaos_count,
-            jsonb_array_length(knowledge_cards) as knowledge_count
-     FROM decks ORDER BY built_in DESC, created_at DESC`
-  );
-  return rows.map((r: any) => ({
-    id: r.id,
-    name: r.name,
-    description: r.description,
-    chaosCount: parseInt(r.chaos_count),
-    knowledgeCount: parseInt(r.knowledge_count),
-    winCondition: r.win_condition || DEFAULT_WIN_CONDITION,
-    builtIn: r.built_in,
-    ownerId: r.owner_id || null,
-    maturity: r.maturity || "adult",
-    flavorThemes: r.flavor_themes || [],
-    chaosLevel: r.chaos_level ?? 0,
-    wildcard: r.wildcard || "",
-    remixedFrom: r.remixed_from || null,
+function builtInDeckSummaries(): DeckSummary[] {
+  return BUILT_IN_DECKS.map((d) => ({
+    id: d.id,
+    name: d.name,
+    description: d.description,
+    chaosCount: d.chaosCards.length,
+    knowledgeCount: d.knowledgeCards.length,
+    winCondition: d.winCondition,
+    builtIn: true,
   }));
 }
 
+export async function listDecks(): Promise<DeckSummary[]> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, description, built_in, win_condition, owner_id,
+              maturity, flavor_themes, chaos_level, wildcard, remixed_from,
+              jsonb_array_length(chaos_cards) as chaos_count,
+              jsonb_array_length(knowledge_cards) as knowledge_count
+       FROM decks ORDER BY built_in DESC, created_at DESC`
+    );
+    return rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      chaosCount: parseInt(r.chaos_count),
+      knowledgeCount: parseInt(r.knowledge_count),
+      winCondition: r.win_condition || DEFAULT_WIN_CONDITION,
+      builtIn: r.built_in,
+      ownerId: r.owner_id || null,
+      maturity: r.maturity || "adult",
+      flavorThemes: r.flavor_themes || [],
+      chaosLevel: r.chaos_level ?? 0,
+      wildcard: r.wildcard || "",
+      remixedFrom: r.remixed_from || null,
+    }));
+  } catch (err) {
+    console.error("Database query failed in listDecks, returning built-in decks:", err);
+    return builtInDeckSummaries();
+  }
+}
+
 export async function getDeck(id: string): Promise<CustomDeck | null> {
-  const { rows } = await pool.query("SELECT * FROM decks WHERE id = $1", [id]);
-  if (rows.length === 0) return null;
-  return rowToDeck(rows[0]);
+  try {
+    const { rows } = await pool.query("SELECT * FROM decks WHERE id = $1", [id]);
+    if (rows.length === 0) return null;
+    return rowToDeck(rows[0]);
+  } catch (err) {
+    console.error("Database query failed in getDeck, checking built-in decks:", err);
+    return BUILT_IN_DECKS.find((d) => d.id === id) || null;
+  }
 }
 
 export async function createDeck(input: {
