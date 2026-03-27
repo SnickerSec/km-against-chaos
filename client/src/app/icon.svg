@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Back card -->
+  <rect x="4" y="2" width="20" height="26" rx="3" fill="#6b21a8" stroke="#a855f7" stroke-width="1.5" transform="rotate(-8 14 15)"/>
+  <!-- Front card -->
+  <rect x="8" y="4" width="20" height="26" rx="3" fill="#1f2937" stroke="#a855f7" stroke-width="1.5"/>
+  <!-- "D" letter on front card -->
+  <text x="18" y="22" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="16" fill="#a855f7">D</text>
+</svg>

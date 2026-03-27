@@ -5,6 +5,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Decked — Custom Card Games",
   description: "Create and play custom card games with friends",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
