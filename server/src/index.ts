@@ -154,6 +154,25 @@ if (clientDir) {
   });
 }
 
+// Voice chat participants per lobby: lobbyCode → Set<socketId>
+const voiceUsers = new Map<string, Set<string>>();
+
+function getVoiceUsers(code: string): Set<string> {
+  if (!voiceUsers.has(code)) voiceUsers.set(code, new Set());
+  return voiceUsers.get(code)!;
+}
+
+function removeFromVoice(socketId: string) {
+  for (const [code, users] of voiceUsers) {
+    if (users.has(socketId)) {
+      users.delete(socketId);
+      io.to(code).emit("voice:user-left", socketId);
+      if (users.size === 0) voiceUsers.delete(code);
+      break;
+    }
+  }
+}
+
 // Chat history per lobby (capped at 100 messages)
 const chatHistory = new Map<string, { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }[]>();
 
@@ -462,6 +481,43 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ── Voice Chat Signaling ──
+
+  socket.on("voice:join", (callback) => {
+    const code = getLobbyForSocket(socket.id);
+    if (!code) return;
+
+    const users = getVoiceUsers(code);
+    users.add(socket.id);
+
+    // Tell everyone else a new voice user joined
+    const name = getPlayerName(code, socket.id) || "???";
+    socket.to(code).emit("voice:user-joined", { id: socket.id, name });
+
+    // Return the current list of other voice participants to the joiner
+    const existing = Array.from(users)
+      .filter((id) => id !== socket.id)
+      .map((id) => ({ id, name: getPlayerName(code, id) || "???" }));
+    callback({ voiceUsers: existing });
+  });
+
+  socket.on("voice:leave", () => {
+    removeFromVoice(socket.id);
+  });
+
+  // Pure relay — server never touches SDP or ICE data
+  socket.on("voice:offer", (targetId, sdp) => {
+    io.to(targetId).emit("voice:offer", socket.id, sdp);
+  });
+
+  socket.on("voice:answer", (targetId, sdp) => {
+    io.to(targetId).emit("voice:answer", socket.id, sdp);
+  });
+
+  socket.on("voice:ice-candidate", (targetId, candidate) => {
+    io.to(targetId).emit("voice:ice-candidate", socket.id, candidate);
+  });
+
   // ── Reactions ──
 
   const reactionCooldowns = new Map<string, number>();
@@ -535,6 +591,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    removeFromVoice(socket.id);
     // Mark player as disconnected but keep them in the lobby.
     // The lobby persists until players explicitly leave.
     const result = disconnectPlayer(socket.id);
@@ -549,6 +606,7 @@ io.on("connection", (socket) => {
 });
 
 function handleLeave(socketId: string) {
+  removeFromVoice(socketId);
   const code = getLobbyForSocket(socketId);
 
   const result = leaveLobby(socketId);

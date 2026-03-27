@@ -11,6 +11,7 @@ import ReactionBar from "./ReactionBar";
 import ReactionOverlay from "./ReactionOverlay";
 import StickerOverlay from "./StickerOverlay";
 import MetaEffectOverlay from "./MetaEffectOverlay";
+import VoiceChat from "./VoiceChat";
 import Chat from "./Chat";
 
 export default function GameScreen() {
@@ -108,6 +109,11 @@ export default function GameScreen() {
         ) : round.phase === "judging" ? (
           <CzarView isCzar={isCzar} />
         ) : null}
+      </div>
+
+      {/* Voice chat — collapsed by default in game, user expands */}
+      <div className="px-4 pb-2">
+        <VoiceChat />
       </div>
 
       <Chat />

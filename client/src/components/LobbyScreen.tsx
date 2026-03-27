@@ -5,6 +5,7 @@ import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
 import Chat from "./Chat";
+import VoiceChat from "./VoiceChat";
 
 export default function LobbyScreen() {
   const { lobby, error } = useGameStore();
@@ -72,6 +73,10 @@ export default function LobbyScreen() {
       {error && (
         <p className="text-red-400 text-center text-sm mb-4">{error}</p>
       )}
+
+      <div className="w-full max-w-sm mb-4">
+        <VoiceChat />
+      </div>
 
       <div className="w-full max-w-sm space-y-3">
         {isHost && (

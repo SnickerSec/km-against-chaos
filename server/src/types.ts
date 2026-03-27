@@ -106,12 +106,24 @@ export interface PlayerGameView {
   hasSubmitted: boolean;
 }
 
+// ── Voice Chat (WebRTC signaling) ──
+
+export interface VoiceUser {
+  id: string;
+  name: string;
+}
+
 // Client -> Server game events
 export interface ClientEvents {
   "lobby:create": (playerName: string, deckId: string, callback: (response: LobbyResponse) => void) => void;
   "lobby:join": (code: string, playerName: string, callback: (response: LobbyResponse) => void) => void;
   "lobby:leave": () => void;
   "lobby:start": (callback: (response: { success: boolean; error?: string }) => void) => void;
+  "voice:join": (callback: (response: { voiceUsers: VoiceUser[] }) => void) => void;
+  "voice:leave": () => void;
+  "voice:offer": (targetId: string, sdp: RTCSessionDescriptionInit) => void;
+  "voice:answer": (targetId: string, sdp: RTCSessionDescriptionInit) => void;
+  "voice:ice-candidate": (targetId: string, candidate: RTCIceCandidateInit) => void;
   "game:submit": (cardIds: string[], callback: (response: { success: boolean; error?: string }) => void) => void;
   "game:pick-winner": (playerId: string, callback: (response: { success: boolean; error?: string }) => void) => void;
   "game:next-round": () => void;
@@ -143,6 +155,11 @@ export interface ServerEvents {
   "game:meta-effect": (payload: MetaEffectPayload) => void;
   "game:hand-updated": (hand: KnowledgeCard[]) => void;
   "game:over": (scores: Record<string, number>) => void;
+  "voice:user-joined": (user: VoiceUser) => void;
+  "voice:user-left": (userId: string) => void;
+  "voice:offer": (fromId: string, sdp: RTCSessionDescriptionInit) => void;
+  "voice:answer": (fromId: string, sdp: RTCSessionDescriptionInit) => void;
+  "voice:ice-candidate": (fromId: string, candidate: RTCIceCandidateInit) => void;
   "reaction:broadcast": (emoji: string, playerName: string) => void;
   "chat:message": (message: { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }) => void;
   "media:sticker": (url: string, playerName: string) => void;
