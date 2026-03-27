@@ -22,7 +22,7 @@ export default function HomeScreen() {
   const [roomCode, setRoomCode] = useState(codeFromUrl?.toUpperCase() || "");
   const [selectedDeck, setSelectedDeck] = useState<string | null>(null);
   const { error, setError, setPlayerName } = useGameStore();
-  const { createLobby, joinLobby } = useSocket();
+  const { createLobby, joinLobby, spectateGame } = useSocket();
 
   useEffect(() => {
     fetchDecks()
@@ -73,22 +73,36 @@ export default function HomeScreen() {
     joinLobby(roomCode.trim().toUpperCase(), name.trim());
   };
 
+  const handleSpectate = () => {
+    if (!name.trim()) {
+      focusName();
+      return;
+    }
+    if (!roomCode.trim()) {
+      setError("Enter the room code");
+      roomCodeRef.current?.focus();
+      return;
+    }
+    setPlayerName(name.trim());
+    spectateGame(roomCode.trim().toUpperCase(), name.trim());
+  };
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 min-h-screen">
       {/* Header */}
       <div className="flex flex-col items-center mb-8">
         <h1 className="mb-2">
-          <svg viewBox="0 0 280 64" className="w-64 h-auto" aria-label="Decked">
+          <svg viewBox="-2 0 268 58" className="w-64 h-auto block mx-auto" aria-label="Decked">
             {/* Back card */}
-            <rect x="4" y="6" width="34" height="46" rx="5" fill="#6b21a8" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-12 21 29)"/>
+            <rect x="2" y="4" width="34" height="46" rx="5" fill="#6b21a8" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-12 19 27)"/>
             {/* Middle card */}
-            <rect x="10" y="4" width="34" height="46" rx="5" fill="#4c1d95" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-4 27 27)"/>
+            <rect x="8" y="2" width="34" height="46" rx="5" fill="#4c1d95" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-4 25 25)"/>
             {/* Front card */}
-            <rect x="16" y="6" width="34" height="46" rx="5" fill="#1f2937" stroke="#a855f7" strokeWidth="2"/>
+            <rect x="14" y="4" width="34" height="46" rx="5" fill="#1f2937" stroke="#a855f7" strokeWidth="2"/>
             {/* D on front card */}
-            <text x="33" y="36" textAnchor="middle" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="24" fill="#a855f7">D</text>
+            <text x="31" y="34" textAnchor="middle" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="24" fill="#a855f7">D</text>
             {/* "ecked" text */}
-            <text x="62" y="44" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="42" fill="#c084fc" letterSpacing="2">ecked</text>
+            <text x="58" y="42" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="42" fill="#c084fc" letterSpacing="2">ecked</text>
           </svg>
         </h1>
         <p className="text-gray-400">
@@ -138,6 +152,13 @@ export default function HomeScreen() {
             className="shrink-0 px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors"
           >
             Join
+          </button>
+          <button
+            onClick={handleSpectate}
+            className="shrink-0 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm font-medium transition-colors"
+            title="Watch the game without playing"
+          >
+            Watch
           </button>
         </div>
       </div>

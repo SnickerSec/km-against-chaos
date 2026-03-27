@@ -34,6 +34,7 @@ function playerToInfo(player: Player): PlayerInfo {
     score: player.score,
     connected: player.connected,
     isBot: player.isBot,
+    isSpectator: player.isSpectator,
   };
 }
 
@@ -100,6 +101,45 @@ export function joinLobby(
   playerLobby.set(socketId, upperCode);
 
   return { lobby: lobbyToState(lobby), player: playerToInfo(player) };
+}
+
+export function joinAsSpectator(
+  socketId: string,
+  code: string,
+  playerName: string
+): { lobby: LobbyState; player: PlayerInfo } | { error: string } {
+  if (playerLobby.has(socketId)) {
+    return { error: "You are already in a lobby" };
+  }
+
+  const upperCode = code.toUpperCase();
+  const lobby = lobbies.get(upperCode);
+
+  if (!lobby) {
+    return { error: "Lobby not found" };
+  }
+
+  const player: Player = {
+    id: socketId,
+    name: playerName,
+    isHost: false,
+    score: 0,
+    connected: true,
+    isSpectator: true,
+  };
+
+  lobby.players.set(socketId, player);
+  playerLobby.set(socketId, upperCode);
+
+  return { lobby: lobbyToState(lobby), player: playerToInfo(player) };
+}
+
+export function getActivePlayers(code: string): string[] | null {
+  const lobby = lobbies.get(code);
+  if (!lobby) return null;
+  return Array.from(lobby.players.values())
+    .filter(p => !p.isSpectator)
+    .map(p => p.id);
 }
 
 // Explicit leave — actually removes the player from the lobby
@@ -230,6 +270,30 @@ export function removeBot(socketId: string, botId: string): { lobby: LobbyState 
   return { lobby: lobbyToState(lobby) };
 }
 
+export function kickPlayer(socketId: string, targetId: string): { lobby: LobbyState; code: string } | { error: string } {
+  const code = playerLobby.get(socketId);
+  if (!code) return { error: "You are not in a lobby" };
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return { error: "Lobby not found" };
+
+  if (lobby.hostId !== socketId) {
+    return { error: "Only the host can kick players" };
+  }
+
+  if (targetId === socketId) {
+    return { error: "You can't kick yourself" };
+  }
+
+  const target = lobby.players.get(targetId);
+  if (!target) return { error: "Player not found" };
+
+  lobby.players.delete(targetId);
+  playerLobby.delete(targetId);
+
+  return { lobby: lobbyToState(lobby), code };
+}
+
 export function getBotsInLobby(code: string): string[] {
   const lobby = lobbies.get(code);
   if (!lobby) return [];
@@ -249,8 +313,9 @@ export function startGame(socketId: string): { code: string } | { error: string 
     return { error: "Only the host can start the game" };
   }
 
-  if (lobby.players.size < 2) {
-    return { error: "Need at least 3 players to start" };
+  const activePlayers = Array.from(lobby.players.values()).filter(p => !p.isSpectator);
+  if (activePlayers.length < 2) {
+    return { error: "Need at least 2 players to start (spectators don't count)" };
   }
 
   lobby.status = "playing";

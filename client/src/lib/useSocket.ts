@@ -133,6 +133,12 @@ export function useSocket() {
       addChatMessage(msg);
     });
 
+    socket.on("lobby:kicked" as any, () => {
+      setLobby(null);
+      setError("You were removed from the lobby");
+      setScreen("home");
+    });
+
     socket.on("media:sticker" as any, (url: string, playerName: string) => {
       setActiveSticker({ url, playerName });
       setTimeout(() => setActiveSticker(null), 1500);
@@ -286,6 +292,34 @@ export function useSocket() {
     });
   };
 
+  const spectateGame = (code: string, playerName: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit(
+      "lobby:spectate" as any,
+      code,
+      playerName,
+      (response: { success: boolean; lobby?: LobbyState; error?: string }) => {
+        if (response.success && response.lobby) {
+          setLobby(response.lobby);
+          setScreen("lobby");
+        } else {
+          setError(response.error || "Failed to spectate");
+        }
+      }
+    );
+  };
+
+  const kickPlayer = (playerId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("lobby:kick" as any, playerId, (response: { success: boolean; error?: string }) => {
+      if (!response.success) {
+        setError(response.error || "Failed to kick player");
+      }
+    });
+  };
+
   const removeBot = (botId: string) => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -310,5 +344,7 @@ export function useSocket() {
     sendSticker,
     addBot,
     removeBot,
+    kickPlayer,
+    spectateGame,
   };
 }

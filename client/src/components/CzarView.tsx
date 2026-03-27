@@ -1,13 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
+import CardPreview from "./CardPreview";
 
 export default function CzarView({ isCzar }: { isCzar: boolean }) {
   const { round } = useGameStore();
   const { pickWinner } = useSocket();
   const [selected, setSelected] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+
+  const startLongPress = useCallback((text: string) => {
+    longPressTriggered.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      setPreviewText(text);
+    }, 500);
+  }, []);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
 
   if (!round || round.phase !== "judging") return null;
 
@@ -30,7 +49,16 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
           <button
             key={i}
             disabled={!isCzar}
-            onClick={() => isCzar && setSelected(sub.playerId)}
+            onClick={() => {
+              if (longPressTriggered.current) return;
+              if (isCzar) setSelected(sub.playerId);
+            }}
+            onTouchStart={() => startLongPress(sub.cards.map(c => c.text).join(" / "))}
+            onTouchEnd={cancelLongPress}
+            onTouchCancel={cancelLongPress}
+            onMouseDown={() => startLongPress(sub.cards.map(c => c.text).join(" / "))}
+            onMouseUp={cancelLongPress}
+            onMouseLeave={cancelLongPress}
             className={`p-4 rounded-xl text-left transition-all ${
               selected === sub.playerId
                 ? "bg-purple-600 border-2 border-purple-400"
@@ -60,6 +88,10 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
             Pick Winner
           </button>
         </div>
+      )}
+
+      {previewText && (
+        <CardPreview text={previewText} onClose={() => setPreviewText(null)} />
       )}
     </div>
   );

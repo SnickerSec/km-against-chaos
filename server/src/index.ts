@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import { join, resolve, normalize } from "path";
 import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
-import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby } from "./lobby.js";
+import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby, kickPlayer, joinAsSpectator, getActivePlayers } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from "./adminRoutes.js";
@@ -37,6 +37,8 @@ import {
   botSubmitCards,
   botPickWinner,
   getCzarId,
+  forceSubmitForMissing,
+  getPhaseDeadline,
 } from "./game.js";
 import {
   registerSession,
@@ -299,6 +301,92 @@ function triggerBotCzarPick(code: string) {
   }, 2000 + Math.random() * 2000); // 2-4s delay for czar pick
 }
 
+// ── Round Timer ──
+// Tracks active timers per lobby so we can cancel on phase change
+const roundTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleRoundTimer(code: string) {
+  // Clear any existing timer
+  clearRoundTimer(code);
+
+  const deadline = getPhaseDeadline(code);
+  if (!deadline) return;
+
+  const delay = Math.max(0, deadline - Date.now());
+  roundTimers.set(code, setTimeout(() => {
+    roundTimers.delete(code);
+    handleTimerExpiry(code);
+  }, delay));
+}
+
+function clearRoundTimer(code: string) {
+  const existing = roundTimers.get(code);
+  if (existing) {
+    clearTimeout(existing);
+    roundTimers.delete(code);
+  }
+}
+
+function handleTimerExpiry(code: string) {
+  const czarId = getCzarId(code);
+
+  // If still in submitting phase, force-submit for missing players
+  const forced = forceSubmitForMissing(code);
+  if (forced.length > 0) {
+    // Notify which players were auto-submitted
+    for (const pid of forced) {
+      io.to(code).emit("game:player-submitted", pid);
+    }
+    const judgingData = getJudgingData(code);
+    if (judgingData) {
+      io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
+      // Schedule judge timer
+      scheduleRoundTimer(code);
+      triggerBotCzarPick(code);
+    }
+    return;
+  }
+
+  // If in judging phase and czar hasn't picked, auto-pick random winner
+  if (czarId) {
+    const result = botPickWinner(code, czarId);
+    if (result.winnerId) {
+      const scores = getScores(code);
+      const winnerCards = getWinnerCards(code);
+      const winnerName = getPlayerNameInLobby(code, result.winnerId);
+
+      io.to(code).emit(
+        "game:round-winner",
+        result.winnerId,
+        winnerName || "Unknown",
+        winnerCards || [],
+        scores || {}
+      );
+
+      if (result.metaEffect) {
+        const { effect, winnerId: wId, czarId: cId, playerIds } = result.metaEffect;
+        const targets = resolveMetaTargets(effect.target, wId, cId, playerIds);
+        if (effect.type === "hand_reset") {
+          for (const pid of targets) {
+            const newHand = resetPlayerHand(code, pid);
+            io.to(pid).emit("game:hand-updated", newHand);
+          }
+        }
+        const affectedNames = targets.map((pid: string) => getPlayerNameInLobby(code, pid) || "???");
+        let description = "";
+        switch (effect.type) {
+          case "score_add": description = `+${effect.value} point${effect.value !== 1 ? "s" : ""} for ${affectedNames.join(", ")}`; break;
+          case "score_subtract": description = `-${effect.value} point${effect.value !== 1 ? "s" : ""} from ${affectedNames.join(", ")}`; break;
+          case "hide_cards": description = `${affectedNames.join(", ")}'s cards are hidden for ${Math.round((effect.durationMs || 20000) / 1000)}s`; break;
+          case "randomize_icons": description = `Icons randomized for ${affectedNames.join(", ")} for ${Math.round((effect.durationMs || 15000) / 1000)}s`; break;
+          case "hand_reset": description = `${affectedNames.join(", ")} drew a fresh hand`; break;
+        }
+        io.to(code).emit("game:meta-effect", { effectType: effect.type, value: effect.value, affectedPlayerIds: targets, description });
+      }
+    }
+  }
+}
+
 io.on("connection", (socket) => {
   const sessionId: string = socket.handshake.auth?.sessionId || socket.id;
   const { isReconnect, oldSocketId } = registerSession(sessionId, socket.id);
@@ -400,6 +488,31 @@ io.on("connection", (socket) => {
     console.log(`${playerName} joined lobby ${code}`);
   });
 
+  socket.on("lobby:spectate" as any, (code: string, playerName: string, callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
+    const result = joinAsSpectator(socket.id, code, playerName);
+    if ("error" in result) {
+      callback({ success: false, error: result.error });
+      return;
+    }
+
+    socket.join(result.lobby.code);
+    callback({ success: true, lobby: result.lobby });
+    socket.to(result.lobby.code).emit("lobby:player-joined", result.player);
+    io.to(result.lobby.code).emit("lobby:updated", result.lobby);
+
+    // If game in progress, send them a spectator view
+    if (result.lobby.status === "playing") {
+      // Spectators see round info but no hand
+      const spectatorView = getPlayerView(result.lobby.code, socket.id);
+      if (spectatorView) {
+        socket.emit("game:round-start", { ...spectatorView, hand: [] });
+        socket.emit("lobby:started");
+      }
+    }
+
+    console.log(`${playerName} joined lobby ${code} as spectator`);
+  });
+
   socket.on("lobby:leave", () => {
     handleLeave(socket.id);
   });
@@ -413,7 +526,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const playerIds = getLobbyPlayers(result.code);
+      const playerIds = getActivePlayers(result.code);
       if (!playerIds || playerIds.length < 2) {
         callback({ success: false, error: "Not enough players" });
         return;
@@ -442,6 +555,7 @@ io.on("connection", (socket) => {
       if (round) {
         sendRoundToPlayers(result.code);
         triggerBotSubmissions(result.code);
+        scheduleRoundTimer(result.code);
       }
 
       console.log(`Game started in lobby ${result.code}`);
@@ -472,6 +586,23 @@ io.on("connection", (socket) => {
     console.log(`Bot ${botId} removed from lobby`);
   });
 
+  socket.on("lobby:kick" as any, (targetId: string, callback: (response: { success: boolean; error?: string }) => void) => {
+    const result = kickPlayer(socket.id, targetId);
+    if ("error" in result) {
+      callback({ success: false, error: result.error });
+      return;
+    }
+    // Tell the kicked player
+    io.to(targetId).emit("lobby:kicked" as any);
+    // Make them leave the socket room
+    const targetSocket = io.sockets.sockets.get(targetId);
+    if (targetSocket) targetSocket.leave(result.code);
+    // Update everyone else
+    io.to(result.code).emit("lobby:updated", result.lobby);
+    callback({ success: true });
+    console.log(`Player ${targetId} kicked from lobby ${result.code}`);
+  });
+
   // ── Game Events ──
 
   socket.on("game:submit", (cardIds, callback) => {
@@ -497,6 +628,7 @@ io.on("connection", (socket) => {
       const judgingData = getJudgingData(code);
       if (judgingData) {
         io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
+        scheduleRoundTimer(code);
         // If czar is a bot, auto-pick winner
         triggerBotCzarPick(code);
       }
@@ -510,6 +642,7 @@ io.on("connection", (socket) => {
       return;
     }
 
+    clearRoundTimer(code);
     const result = pickWinner(code, socket.id, winnerId);
     if (!result.success) {
       callback({ success: false, error: result.error });
@@ -592,6 +725,7 @@ io.on("connection", (socket) => {
     if (round) {
       sendRoundToPlayers(code);
       triggerBotSubmissions(code);
+      scheduleRoundTimer(code);
     } else {
       // No more rounds
       const scores = getScores(code);

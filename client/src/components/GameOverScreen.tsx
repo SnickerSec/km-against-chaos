@@ -2,6 +2,7 @@
 
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
+import PlayerAvatar from "./PlayerAvatar";
 
 export default function GameOverScreen() {
   const { scores, lobby, reset } = useGameStore();
@@ -9,7 +10,7 @@ export default function GameOverScreen() {
 
   const sorted = lobby
     ? lobby.players
-        .map((p) => ({ name: p.name, score: scores[p.id] || 0 }))
+        .map((p) => ({ name: p.name, score: scores[p.id] || 0, isBot: p.isBot }))
         .sort((a, b) => b.score - a.score)
     : [];
 
@@ -39,7 +40,8 @@ export default function GameOverScreen() {
               i === 0 ? "bg-yellow-600/20 border border-yellow-600" : "bg-gray-800"
             }`}
           >
-            <span className="font-medium">
+            <span className="font-medium inline-flex items-center gap-2">
+              <PlayerAvatar name={p.name} isBot={p.isBot} size="lg" />
               {i === 0 ? "🏆 " : ""}
               {p.name}
             </span>

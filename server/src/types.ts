@@ -5,6 +5,7 @@ export interface Player {
   score: number;
   connected: boolean;
   isBot?: boolean;
+  isSpectator?: boolean;
 }
 
 export interface Lobby {
@@ -40,6 +41,7 @@ export interface PlayerInfo {
   score: number;
   connected: boolean;
   isBot?: boolean;
+  isSpectator?: boolean;
 }
 
 // ── Game Types ──
@@ -86,6 +88,7 @@ export interface RoundState {
   phase: "submitting" | "judging" | "revealing";
   submissions: Submission[];       // only visible during judging/revealing
   winnerId: string | null;
+  phaseDeadline?: number;          // Unix ms timestamp for countdown
 }
 
 export interface GameState {

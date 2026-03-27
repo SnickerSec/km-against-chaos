@@ -29,12 +29,16 @@ interface InternalGameState {
   gameOver: boolean;
 }
 
+const SUBMIT_TIME_MS = 60_000; // 60s for submissions
+const JUDGE_TIME_MS = 30_000;  // 30s for czar to pick
+
 interface InternalRound {
   chaosCard: ChaosCard;
   czarId: string;
   phase: "submitting" | "judging" | "revealing";
   submissions: Map<string, KnowledgeCard[]>;
   winnerId: string | null;
+  phaseDeadline: number; // Date.now() + time limit
 }
 
 const games = new Map<string, InternalGameState>();
@@ -91,12 +95,15 @@ export function startRound(lobbyCode: string): RoundState | null {
   const czarId = game.playerIds[game.czarIndex % game.playerIds.length];
   const chaosCard = game.chaosDeck.pop()!;
 
+  const phaseDeadline = Date.now() + SUBMIT_TIME_MS;
+
   game.currentRound = {
     chaosCard,
     czarId,
     phase: "submitting",
     submissions: new Map(),
     winnerId: null,
+    phaseDeadline,
   };
 
   return {
@@ -106,6 +113,7 @@ export function startRound(lobbyCode: string): RoundState | null {
     phase: "submitting",
     submissions: [],
     winnerId: null,
+    phaseDeadline,
   };
 }
 
@@ -131,6 +139,7 @@ export function getPlayerView(lobbyCode: string, playerId: string): PlayerGameVi
             })))
           : [],
       winnerId: round.winnerId,
+      phaseDeadline: round.phaseDeadline,
     };
   }
 
@@ -198,6 +207,7 @@ export function submitCards(
 
   if (allSubmitted) {
     round.phase = "judging";
+    round.phaseDeadline = Date.now() + JUDGE_TIME_MS;
   }
 
   return { success: true, allSubmitted };
@@ -448,9 +458,49 @@ export function botSubmitCards(lobbyCode: string, botId: string): { success: boo
   const allSubmitted = round.submissions.size >= expectedCount;
   if (allSubmitted) {
     round.phase = "judging";
+    round.phaseDeadline = Date.now() + JUDGE_TIME_MS;
   }
 
   return { success: true, allSubmitted };
+}
+
+export function forceSubmitForMissing(lobbyCode: string): string[] {
+  const game = games.get(lobbyCode);
+  if (!game?.currentRound || game.currentRound.phase !== "submitting") return [];
+
+  const round = game.currentRound;
+  const missing = game.playerIds.filter(id => id !== round.czarId && !round.submissions.has(id));
+
+  for (const pid of missing) {
+    const hand = game.hands.get(pid);
+    if (!hand || hand.length === 0) continue;
+
+    const pickCount = Math.min(round.chaosCard.pick, hand.length);
+    const indices = shuffled(hand.map((_, i) => i)).slice(0, pickCount);
+    indices.sort((a, b) => b - a);
+
+    const playedCards: KnowledgeCard[] = [];
+    for (const idx of indices) {
+      playedCards.push(hand.splice(idx, 1)[0]);
+    }
+
+    for (let i = 0; i < playedCards.length; i++) {
+      if (game.knowledgeDeck.length > 0) {
+        hand.push(game.knowledgeDeck.pop()!);
+      }
+    }
+
+    round.submissions.set(pid, playedCards);
+  }
+
+  round.phase = "judging";
+  round.phaseDeadline = Date.now() + JUDGE_TIME_MS;
+  return missing;
+}
+
+export function getPhaseDeadline(lobbyCode: string): number | null {
+  const game = games.get(lobbyCode);
+  return game?.currentRound?.phaseDeadline ?? null;
 }
 
 export function botPickWinner(lobbyCode: string, botCzarId: string): { winnerId: string | null; metaEffect?: any } {

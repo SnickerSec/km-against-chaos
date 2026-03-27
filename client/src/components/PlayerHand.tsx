@@ -3,7 +3,8 @@
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { Icon } from "@iconify/react";
-import { useMemo } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
+import CardPreview from "./CardPreview";
 
 // Icons used for randomized-icon chaos effect
 const CHAOS_ICONS = [
@@ -35,6 +36,25 @@ export default function PlayerHand({
     );
   }, [iconsRandomized, hand]);
 
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+
+  const startLongPress = useCallback((text: string) => {
+    longPressTriggered.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      setPreviewText(text);
+    }, 500);
+  }, []);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
   const handleSubmit = () => {
     if (selectedCards.length === pick) {
       submitCards(selectedCards);
@@ -61,7 +81,16 @@ export default function PlayerHand({
           return (
             <button
               key={card.id}
-              onClick={() => toggleCardSelection(card.id, pick)}
+              onClick={() => {
+                if (longPressTriggered.current) return;
+                toggleCardSelection(card.id, pick);
+              }}
+              onTouchStart={() => startLongPress(card.text)}
+              onTouchEnd={cancelLongPress}
+              onTouchCancel={cancelLongPress}
+              onMouseDown={() => startLongPress(card.text)}
+              onMouseUp={cancelLongPress}
+              onMouseLeave={cancelLongPress}
               className={`p-4 rounded-xl text-left transition-all relative ${
                 isSelected
                   ? "bg-purple-600 border-2 border-purple-400 scale-[1.02]"
@@ -95,6 +124,10 @@ export default function PlayerHand({
             Submit Card{pick > 1 ? "s" : ""}
           </button>
         </div>
+      )}
+
+      {previewText && (
+        <CardPreview text={previewText} onClose={() => setPreviewText(null)} />
       )}
     </div>
   );

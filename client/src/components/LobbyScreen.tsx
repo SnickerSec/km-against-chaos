@@ -6,15 +6,18 @@ import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
 import Chat from "./Chat";
 import VoiceChat from "./VoiceChat";
+import PlayerAvatar from "./PlayerAvatar";
 
 export default function LobbyScreen() {
   const { lobby, error } = useGameStore();
-  const { leaveLobby, startGame, addBot, removeBot } = useSocket();
+  const { leaveLobby, startGame, addBot, removeBot, kickPlayer } = useSocket();
 
   if (!lobby) return null;
 
   const socket = getSocket();
   const isHost = lobby.hostId === socket.id;
+  const activePlayers = lobby.players.filter(p => !p.isSpectator);
+  const isSpectator = lobby.players.find(p => p.id === socket.id)?.isSpectator;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4">
@@ -51,16 +54,20 @@ export default function LobbyScreen() {
                 player.connected === false && !player.isBot ? "opacity-50" : ""
               }`}
             >
-              <span className="font-medium">
+              <span className="font-medium inline-flex items-center gap-2">
+                <PlayerAvatar name={player.name} isBot={player.isBot} size="md" />
                 {player.name}
                 {player.id === socket.id && (
-                  <span className="text-gray-500 text-sm ml-2">(you)</span>
+                  <span className="text-gray-500 text-sm">(you)</span>
                 )}
                 {player.isBot && (
-                  <span className="text-blue-400 text-sm ml-2">BOT</span>
+                  <span className="text-blue-400 text-sm">BOT</span>
+                )}
+                {player.isSpectator && (
+                  <span className="text-yellow-400 text-sm">WATCHING</span>
                 )}
                 {player.connected === false && !player.isBot && (
-                  <span className="text-yellow-500 text-sm ml-2">reconnecting...</span>
+                  <span className="text-yellow-500 text-sm">reconnecting...</span>
                 )}
               </span>
               <div className="flex items-center gap-2">
@@ -70,6 +77,14 @@ export default function LobbyScreen() {
                     className="text-xs text-red-400 hover:text-red-300 transition-colors"
                   >
                     Remove
+                  </button>
+                )}
+                {!player.isBot && !player.isHost && isHost && player.id !== socket.id && (
+                  <button
+                    onClick={() => kickPlayer(player.id)}
+                    className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    Kick
                   </button>
                 )}
                 {player.isHost && (
@@ -104,18 +119,24 @@ export default function LobbyScreen() {
         {isHost && (
           <button
             onClick={startGame}
-            disabled={lobby.players.length < 2}
+            disabled={activePlayers.length < 2}
             className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg font-semibold text-lg transition-colors"
           >
-            {lobby.players.length < 2
-              ? `Need ${2 - lobby.players.length} more player${2 - lobby.players.length === 1 ? "" : "s"}`
+            {activePlayers.length < 2
+              ? `Need ${2 - activePlayers.length} more player${2 - activePlayers.length === 1 ? "" : "s"}`
               : "Start Game"}
           </button>
         )}
 
-        {!isHost && (
+        {!isHost && !isSpectator && (
           <p className="text-gray-400 text-center text-sm">
             Waiting for host to start the game...
+          </p>
+        )}
+
+        {isSpectator && (
+          <p className="text-yellow-400 text-center text-sm">
+            You&apos;re watching this game
           </p>
         )}
 

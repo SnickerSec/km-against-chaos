@@ -12,6 +12,7 @@ import ReactionOverlay from "./ReactionOverlay";
 import StickerOverlay from "./StickerOverlay";
 import MetaEffectOverlay from "./MetaEffectOverlay";
 import VoiceChat from "./VoiceChat";
+import RoundTimer from "./RoundTimer";
 import Chat from "./Chat";
 
 export default function GameScreen() {
@@ -20,6 +21,7 @@ export default function GameScreen() {
   const { nextRound, leaveLobby } = useSocket();
   const socket = getSocket();
   const isCzar = round?.czarId === socket.id;
+  const isSpectator = lobby?.players.find(p => p.id === socket.id)?.isSpectator;
 
   if (!round) {
     return (
@@ -40,8 +42,11 @@ export default function GameScreen() {
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800">
-        <span className="text-sm text-gray-400">
+        <span className="text-sm text-gray-400 inline-flex items-center gap-2">
           Round {roundNumber}/{maxRounds}
+          {round.phaseDeadline && round.phase !== "revealing" && !winnerInfo && (
+            <RoundTimer deadline={round.phaseDeadline} />
+          )}
         </span>
         <div className="flex items-center gap-3">
           <ScoreBar />
@@ -87,6 +92,15 @@ export default function GameScreen() {
       {/* Reaction bar */}
       <ReactionBar />
 
+      {/* Spectator banner */}
+      {isSpectator && (
+        <div className="text-center mb-2">
+          <span className="inline-block bg-yellow-600/20 text-yellow-400 text-xs px-3 py-1 rounded-full font-semibold">
+            Spectating
+          </span>
+        </div>
+      )}
+
       {/* Main content area */}
       <div className="flex-1 px-4 pb-6">
         {winnerInfo ? (
@@ -96,7 +110,9 @@ export default function GameScreen() {
             isHost={lobby?.hostId === socket.id}
           />
         ) : round.phase === "submitting" ? (
-          isCzar ? (
+          isSpectator ? (
+            <WaitingForSubmissions />
+          ) : isCzar ? (
             <WaitingForSubmissions />
           ) : hasSubmitted ? (
             <div className="text-center text-gray-400 mt-8">
@@ -107,7 +123,7 @@ export default function GameScreen() {
             <PlayerHand blurred={handBlurred} iconsRandomized={iconsRandomized} />
           )
         ) : round.phase === "judging" ? (
-          <CzarView isCzar={isCzar} />
+          <CzarView isCzar={isCzar && !isSpectator} />
         ) : null}
       </div>
 

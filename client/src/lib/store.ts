@@ -9,6 +9,7 @@ export interface PlayerInfo {
   score: number;
   connected: boolean;
   isBot?: boolean;
+  isSpectator?: boolean;
 }
 
 export interface LobbyState {
@@ -59,6 +60,7 @@ export interface RoundState {
   phase: "submitting" | "judging" | "revealing";
   submissions: Submission[];
   winnerId: string | null;
+  phaseDeadline?: number;
 }
 
 export interface PlayerGameView {
