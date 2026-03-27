@@ -76,9 +76,20 @@ export default function HomeScreen() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 min-h-screen">
       {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-5xl font-bold mb-2">
-          <span className="text-purple-400">Decked</span>
+      <div className="flex flex-col items-center mb-8">
+        <h1 className="mb-2">
+          <svg viewBox="0 0 280 64" className="w-64 h-auto" aria-label="Decked">
+            {/* Back card */}
+            <rect x="4" y="6" width="34" height="46" rx="5" fill="#6b21a8" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-12 21 29)"/>
+            {/* Middle card */}
+            <rect x="10" y="4" width="34" height="46" rx="5" fill="#4c1d95" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-4 27 27)"/>
+            {/* Front card */}
+            <rect x="16" y="6" width="34" height="46" rx="5" fill="#1f2937" stroke="#a855f7" strokeWidth="2"/>
+            {/* D on front card */}
+            <text x="33" y="36" textAnchor="middle" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="24" fill="#a855f7">D</text>
+            {/* "ecked" text */}
+            <text x="62" y="44" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="42" fill="#c084fc" letterSpacing="2">ecked</text>
+          </svg>
         </h1>
         <p className="text-gray-400">
           Create and play custom card games
