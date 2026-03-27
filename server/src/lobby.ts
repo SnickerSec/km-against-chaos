@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import type { Lobby, Player, LobbyState, PlayerInfo } from "./types.js";
 
 const lobbies = new Map<string, Lobby>();
@@ -8,7 +9,7 @@ function generateCode(): string {
   let code: string;
   do {
     code = Array.from({ length: 4 }, () =>
-      chars[Math.floor(Math.random() * chars.length)]
+      chars[randomBytes(1)[0] % chars.length]
     ).join("");
   } while (lobbies.has(code));
   return code;

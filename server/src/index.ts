@@ -505,16 +505,25 @@ io.on("connection", (socket) => {
     removeFromVoice(socket.id);
   });
 
-  // Pure relay — server never touches SDP or ICE data
+  // Pure relay — validate both sender and target are in the same lobby
   socket.on("voice:offer", (targetId, sdp) => {
+    const senderCode = getLobbyForSocket(socket.id);
+    const targetCode = getLobbyForSocket(targetId);
+    if (!senderCode || senderCode !== targetCode) return;
     io.to(targetId).emit("voice:offer", socket.id, sdp);
   });
 
   socket.on("voice:answer", (targetId, sdp) => {
+    const senderCode = getLobbyForSocket(socket.id);
+    const targetCode = getLobbyForSocket(targetId);
+    if (!senderCode || senderCode !== targetCode) return;
     io.to(targetId).emit("voice:answer", socket.id, sdp);
   });
 
   socket.on("voice:ice-candidate", (targetId, candidate) => {
+    const senderCode = getLobbyForSocket(socket.id);
+    const targetCode = getLobbyForSocket(targetId);
+    if (!senderCode || senderCode !== targetCode) return;
     io.to(targetId).emit("voice:ice-candidate", socket.id, candidate);
   });
 
@@ -564,12 +573,24 @@ io.on("connection", (socket) => {
     io.to(code).emit("chat:message", msg);
   });
 
+  const ALLOWED_MEDIA_HOSTS = ["media.giphy.com", "media0.giphy.com", "media1.giphy.com", "media2.giphy.com", "media3.giphy.com", "media4.giphy.com", "media.tenor.com", "c.tenor.com"];
+
+  function isAllowedMediaUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      return (parsed.protocol === "https:" || parsed.protocol === "http:") &&
+        ALLOWED_MEDIA_HOSTS.some((h) => parsed.hostname === h);
+    } catch {
+      return false;
+    }
+  }
+
   let lastGifTime = 0;
   socket.on("chat:gif", (gifUrl: string) => {
     const now = Date.now();
     if (now - lastGifTime < 1000) return;
     lastGifTime = now;
-    if (typeof gifUrl !== "string" || !gifUrl.startsWith("http")) return;
+    if (typeof gifUrl !== "string" || !isAllowedMediaUrl(gifUrl)) return;
     const code = getLobbyForSocket(socket.id);
     const playerName = getPlayerNameInLobby(code || "", socket.id);
     if (!code || !playerName) return;
@@ -583,7 +604,7 @@ io.on("connection", (socket) => {
     const now = Date.now();
     if (now - lastStickerTime < 2000) return;
     lastStickerTime = now;
-    if (typeof url !== "string" || !url.startsWith("http")) return;
+    if (typeof url !== "string" || !isAllowedMediaUrl(url)) return;
     const code = getLobbyForSocket(socket.id);
     const playerName = getPlayerNameInLobby(code || "", socket.id);
     if (!code || !playerName) return;

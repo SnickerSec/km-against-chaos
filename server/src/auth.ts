@@ -3,14 +3,24 @@ import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
+
 if (!process.env.JWT_SECRET) {
   console.error("FATAL: JWT_SECRET environment variable is required");
   process.exit(1);
 }
+if (process.env.JWT_SECRET.length < 32) {
+  console.error("FATAL: JWT_SECRET must be at least 32 characters");
+  process.exit(1);
+}
 const JWT_SECRET = process.env.JWT_SECRET;
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "cwilli.it@gmail.com")
+
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .split(",")
-  .map((e) => e.trim().toLowerCase());
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
+if (ADMIN_EMAILS.length === 0) {
+  console.warn("WARNING: ADMIN_EMAILS is not set — admin panel will be inaccessible");
+}
 
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 

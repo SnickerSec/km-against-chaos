@@ -15,10 +15,22 @@ import { generateCards, generateDeck } from "./aiGenerate.js";
 import { requireAuth, requireModeratorOrAdmin } from "./auth.js";
 
 const router = Router();
+
+const BODY_SIZE_LIMIT = 100 * 1024; // 100 KB
+
 router.use((req, res, next) => {
   if (req.headers["content-type"]?.includes("application/json")) {
     let body = "";
-    req.on("data", (chunk: Buffer) => (body += chunk));
+    let size = 0;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > BODY_SIZE_LIMIT) {
+        res.status(413).json({ error: "Request body too large" });
+        req.destroy();
+        return;
+      }
+      body += chunk;
+    });
     req.on("end", () => {
       try {
         (req as any).body = JSON.parse(body);
@@ -32,6 +44,32 @@ router.use((req, res, next) => {
     next();
   }
 });
+
+// Per-user AI generation rate limit: 10 requests per minute
+const aiRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const AI_RATE_LIMIT = 10;
+const AI_RATE_WINDOW_MS = 60 * 1000;
+
+function checkAiRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const entry = aiRateLimitMap.get(userId);
+  if (!entry || now >= entry.resetAt) {
+    aiRateLimitMap.set(userId, { count: 1, resetAt: now + AI_RATE_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= AI_RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
+
+function requireAiRateLimit(req: any, res: any, next: any) {
+  const userId = req.user?.id;
+  if (!userId || !checkAiRateLimit(userId)) {
+    res.status(429).json({ error: "AI generation rate limit exceeded. Please wait a minute." });
+    return;
+  }
+  next();
+}
 
 // List all decks
 router.get("/", async (_req, res) => {
@@ -150,8 +188,19 @@ router.post("/import", requireAuth, async (req, res) => {
   }
 });
 
+const MAX_THEME_LEN = 200;
+const MAX_WILDCARD_LEN = 200;
+const MAX_CHAOS_COUNT = 100;
+const MAX_KNOWLEDGE_COUNT = 100;
+
+function clampInt(val: any, min: number, max: number, fallback: number): number {
+  const n = typeof val === "number" ? val : parseInt(val, 10);
+  if (!isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
 // AI-generate cards for a pack
-router.post("/generate", requireAuth, async (req, res) => {
+router.post("/generate", requireAuth, requireAiRateLimit, async (req, res) => {
   const body = (req as any).body;
   const {
     theme, gameType, packType, packName, deckName, deckDescription,
@@ -163,6 +212,14 @@ router.post("/generate", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Theme is required" });
     return;
   }
+  if (theme.trim().length > MAX_THEME_LEN) {
+    res.status(400).json({ error: `Theme must be ${MAX_THEME_LEN} characters or fewer` });
+    return;
+  }
+  if (wildcard && typeof wildcard === "string" && wildcard.length > MAX_WILDCARD_LEN) {
+    res.status(400).json({ error: `Wildcard must be ${MAX_WILDCARD_LEN} characters or fewer` });
+    return;
+  }
 
   try {
     const cards = await generateCards({
@@ -172,12 +229,12 @@ router.post("/generate", requireAuth, async (req, res) => {
       packName,
       deckName,
       deckDescription,
-      chaosCount,
-      knowledgeCount,
+      chaosCount: clampInt(chaosCount, 1, MAX_CHAOS_COUNT, 20),
+      knowledgeCount: clampInt(knowledgeCount, 1, MAX_KNOWLEDGE_COUNT, 20),
       maturity,
-      flavorThemes,
-      chaosLevel,
-      wildcard,
+      flavorThemes: Array.isArray(flavorThemes) ? flavorThemes.slice(0, 5) : undefined,
+      chaosLevel: clampInt(chaosLevel, 0, 100, 0),
+      wildcard: typeof wildcard === "string" ? wildcard.slice(0, MAX_WILDCARD_LEN) : undefined,
     });
     res.json(cards);
   } catch (e: any) {
@@ -191,12 +248,20 @@ router.post("/generate", requireAuth, async (req, res) => {
 });
 
 // AI-generate a full deck (name, description, cards)
-router.post("/generate-deck", requireAuth, async (req, res) => {
+router.post("/generate-deck", requireAuth, requireAiRateLimit, async (req, res) => {
   const body = (req as any).body;
   const { theme, gameType, chaosCount, knowledgeCount, maturity, flavorThemes, chaosLevel, wildcard } = body;
 
   if (!theme || typeof theme !== "string" || theme.trim().length === 0) {
     res.status(400).json({ error: "Theme is required" });
+    return;
+  }
+  if (theme.trim().length > MAX_THEME_LEN) {
+    res.status(400).json({ error: `Theme must be ${MAX_THEME_LEN} characters or fewer` });
+    return;
+  }
+  if (wildcard && typeof wildcard === "string" && wildcard.length > MAX_WILDCARD_LEN) {
+    res.status(400).json({ error: `Wildcard must be ${MAX_WILDCARD_LEN} characters or fewer` });
     return;
   }
 
@@ -205,12 +270,12 @@ router.post("/generate-deck", requireAuth, async (req, res) => {
       theme: theme.trim(),
       gameType: gameType || "cards-against-humanity",
       packType: "base",
-      chaosCount,
-      knowledgeCount,
+      chaosCount: clampInt(chaosCount, 1, MAX_CHAOS_COUNT, 20),
+      knowledgeCount: clampInt(knowledgeCount, 1, MAX_KNOWLEDGE_COUNT, 20),
       maturity,
-      flavorThemes,
-      chaosLevel,
-      wildcard,
+      flavorThemes: Array.isArray(flavorThemes) ? flavorThemes.slice(0, 5) : undefined,
+      chaosLevel: clampInt(chaosLevel, 0, 100, 0),
+      wildcard: typeof wildcard === "string" ? wildcard.slice(0, MAX_WILDCARD_LEN) : undefined,
     });
     res.json(deck);
   } catch (e: any) {
