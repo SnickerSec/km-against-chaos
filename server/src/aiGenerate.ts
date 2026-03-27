@@ -6,14 +6,14 @@ import pool from "./db.js";
 interface GeneratedCards {
   name?: string;
   description?: string;
-  chaosCards: { text: string; pick: number }[];
+  chaosCards: { text: string; pick: number; metaType?: string; metaEffect?: any }[];
   knowledgeCards: { text: string }[];
 }
 
 interface GeneratedDeck {
   name: string;
   description: string;
-  chaosCards: { text: string; pick: number }[];
+  chaosCards: { text: string; pick: number; metaType?: string; metaEffect?: any }[];
   knowledgeCards: { text: string }[];
 }
 
@@ -35,6 +35,11 @@ export interface GenerateContext {
   deckDescription?: string;
   chaosCount?: number;
   knowledgeCount?: number;
+  // 4-Pillar fields
+  maturity?: "kid-friendly" | "moderate" | "adult" | "raunchy";
+  flavorThemes?: string[];
+  chaosLevel?: number; // 0–100: percentage of chaos cards that are meta/rule-breaker cards
+  wildcard?: string;
 }
 
 const DEFAULTS: AiSettings = {
@@ -67,76 +72,169 @@ function getApiKey(provider: AiProvider): string | undefined {
   return process.env[envMap[provider]];
 }
 
-// ── Prompt builders ──
+// ── Static prompt sections (ordered for prefix-cache efficiency) ──
 
-function buildCardRules(gameType: string): string {
+function buildEngineRules(gameType: string): string {
   if (gameType === "cards-against-humanity") {
-    return `Rules for this Cards Against Humanity style game:
-- Chaos cards are fill-in-the-blank prompts. Use ___ for the blank.
-- Most Chaos cards should have pick:1 (one blank). 2-3 can have pick:2 (two blanks).
-- Knowledge cards are short, funny answers (2-10 words).
-- Be clever, funny, and a bit edgy but not offensive.
-- Cards should be specific to the theme, not generic.`;
+    return `=== GAME ENGINE RULES ===
+This is a Cards Against Humanity-style party game called "KM Against Chaos".
+- Chaos cards are fill-in-the-blank PROMPT cards. Use ___ for each blank.
+- Most Chaos cards have pick:1 (one blank). 2–3 per set can have pick:2 (two blanks, e.g. "___ and ___ walk into ___").
+- Knowledge cards are short, punchy ANSWER cards (2–10 words).
+- Cards should be clever, funny, and specific to the theme — never generic filler.`;
   }
-  // Future game types can be added here
   return "Generate prompt cards and answer cards appropriate for the game type.";
 }
 
-function buildCardsPrompt(ctx: GenerateContext, cc: number, kc: number): string {
-  const rules = buildCardRules(ctx.gameType);
+function buildMaturityRules(maturity: string): string {
+  switch (maturity) {
+    case "kid-friendly":
+      return `=== CONTENT SAFETY: KID-FRIENDLY (G-RATED) ===
+- Absolutely no profanity, innuendo, violence, drugs, or dark themes.
+- Humor must be wholesome, punny, and safe for ages 8+.
+- Think Nickelodeon, not Adult Swim.`;
+    case "moderate":
+      return `=== CONTENT SAFETY: MODERATE (PG-13) ===
+- Mild sarcasm and light innuendo are fine. No explicit content.
+- Dark humor is okay if it stays tasteful (think The Office, not South Park).
+- Avoid slurs, graphic violence, or explicit sexual content.`;
+    case "raunchy":
+      return `=== CONTENT SAFETY: RAUNCHY (EXPLICIT) ===
+- Explicit adult content, dark humor, profanity, and offensive jokes are permitted.
+- Push boundaries — this is for adults who want the uncensored experience.
+- No actual hate speech targeting real protected groups, but everything else is fair game.`;
+    default: // "adult"
+      return `=== CONTENT SAFETY: ADULT (STANDARD CAH) ===
+- Standard Cards Against Humanity tone: edgy, dark, politically incorrect, mildly profane.
+- Humor should punch at institutions, absurdity, and human behavior — not at individuals.
+- Think "uncomfortable but funny" — the kind of thing that makes people say "oh no" then laugh.`;
+  }
+}
 
+function buildFlavorRules(flavorThemes: string[]): string {
+  if (!flavorThemes || flavorThemes.length === 0) return "";
+  return `=== THEMATIC FLAVOR OVERLAYS ===
+Apply these flavor lenses to the vocabulary, references, and vibe of ALL cards:
+${flavorThemes.map((t) => `- ${t}`).join("\n")}
+Every card should feel like it could only exist in a deck with these themes.
+Use slang, references, aesthetics, and in-jokes specific to these flavor themes.`;
+}
+
+function buildMetaCardRules(metaCount: number): string {
+  if (metaCount <= 0) return "";
+  return `=== META / RULE-BREAKER CARDS ===
+Exactly ${metaCount} of the Chaos cards must be "Meta Cards" that manipulate the digital game state.
+Meta cards use a special JSON format with metaType and metaEffect fields. Types:
+
+1. score_manipulation — Awards or deducts points:
+   {"metaType":"score_manipulation","metaEffect":{"type":"score_add","value":2,"target":"winner"}}
+   {"metaType":"score_manipulation","metaEffect":{"type":"score_subtract","value":1,"target":"loser"}}
+   {"metaType":"score_manipulation","metaEffect":{"type":"score_add","value":1,"target":"czar"}}
+   Valid targets: "winner", "loser", "czar", "all"
+
+2. ui_interference — Messes with other players' screens:
+   {"metaType":"ui_interference","metaEffect":{"type":"hide_cards","target":"all_others","durationMs":20000}}
+   {"metaType":"ui_interference","metaEffect":{"type":"randomize_icons","target":"all","durationMs":15000}}
+   Valid targets: "all_others", "all", "winner", "loser"
+
+3. hand_reset — Forces a hand redraw:
+   {"metaType":"hand_reset","metaEffect":{"type":"hand_reset","target":"loser"}}
+   {"metaType":"hand_reset","metaEffect":{"type":"hand_reset","target":"all"}}
+   Valid targets: "winner", "loser", "all", "all_others"
+
+Meta card text should describe the effect humorously, matching the deck theme.
+Example: "CHAOS RULE: The winner of this round steals ___ extra points from last place."
+The pick field still applies for meta cards (1 or 2 blanks).`;
+}
+
+function buildDynamicSection(ctx: GenerateContext, cc: number, kc: number, metaCount: number): string {
   const packDesc = ctx.packType === "expansion"
-    ? `This is an EXPANSION BOX called "${ctx.packName || "Expansion"}" for an existing deck. It should add mid-sized variety — new prompts and answers that complement but don't repeat the base game.`
+    ? `This is an EXPANSION BOX called "${ctx.packName || "Expansion"}" — add mid-sized variety that complements but doesn't repeat the base game.`
     : ctx.packType === "themed"
-    ? `This is a small THEMED PACK called "${ctx.packName || "Themed Pack"}" for an existing deck. It should be tightly focused on a single sub-topic within the theme — a concentrated set of cards around one specific angle.`
-    : `This is the BASE GAME — the core set of cards that defines the deck.`;
+    ? `This is a small THEMED PACK called "${ctx.packName || "Themed Pack"}" — tightly focused on one specific angle within the theme.`
+    : `This is the BASE GAME — the core set that defines the deck.`;
 
   const deckContext = ctx.deckName
     ? `\nExisting deck: "${ctx.deckName}"${ctx.deckDescription ? ` — ${ctx.deckDescription}` : ""}`
     : "";
 
-  return `Generate cards for a "${ctx.gameType}" style party game.
+  const wildcardSection = ctx.wildcard?.trim()
+    ? `\nWILDCARD CONTEXT (hyper-niche — weave this into cards where it fits): "${ctx.wildcard.trim()}"`
+    : "";
 
-Theme: "${ctx.theme}"
-${deckContext}
+  const standardCount = cc - metaCount;
+  const cardBreakdown = metaCount > 0
+    ? `Generate exactly ${standardCount} standard fill-in-the-blank Chaos cards AND ${metaCount} Meta/Rule-Breaker Chaos cards (${cc} total), plus ${kc} Knowledge cards.`
+    : `Generate exactly ${cc} Chaos cards (prompts) and ${kc} Knowledge cards (answers).`;
 
-${packDesc}
+  return `=== GENERATION REQUEST ===
+Theme: "${ctx.theme}"${deckContext}
+${packDesc}${wildcardSection}
 
-Generate exactly ${cc} "Chaos" cards (prompts) and ${kc} "Knowledge" cards (answers).
+${cardBreakdown}
+${ctx.packType !== "base" ? `Also generate a short, catchy pack name and a 1-2 sentence description.` : ""}`;
+}
 
-${rules}
-${ctx.packType !== "base" ? `- Also generate a short, catchy pack name and a 1-2 sentence description for this pack.` : ""}
+function buildCardsPrompt(ctx: GenerateContext, cc: number, kc: number): string {
+  const metaCount = Math.round(cc * ((ctx.chaosLevel ?? 0) / 100));
+  const maturity = ctx.maturity || "adult";
+  const flavorThemes = ctx.flavorThemes || [];
 
-Respond ONLY with valid JSON in this exact format, no other text:
+  const sections = [
+    buildEngineRules(ctx.gameType),
+    buildMaturityRules(maturity),
+    flavorThemes.length > 0 ? buildFlavorRules(flavorThemes) : "",
+    metaCount > 0 ? buildMetaCardRules(metaCount) : "",
+    buildDynamicSection(ctx, cc, kc, metaCount),
+  ].filter(Boolean).join("\n\n");
+
+  const metaSchema = metaCount > 0
+    ? `{"text": "CHAOS RULE: The winner steals ___ point(s) from last place.", "pick": 1, "metaType": "score_manipulation", "metaEffect": {"type": "score_add", "value": 1, "target": "winner"}}`
+    : "";
+
+  const exampleChaos = metaCount > 0
+    ? `[{"text": "The ___ is broken again.", "pick": 1}, ${metaSchema}]`
+    : `[{"text": "The ___ is broken again.", "pick": 1}]`;
+
+  return `${sections}
+
+Respond ONLY with valid JSON, no other text:
 ${ctx.packType !== "base" ? `{
   "name": "Pack Name Here",
-  "description": "A short description of this pack.",
-  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
+  "description": "A short description.",
+  "chaosCards": ${exampleChaos},
   "knowledgeCards": [{"text": "A rogue spreadsheet"}]
 }` : `{
-  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
+  "chaosCards": ${exampleChaos},
   "knowledgeCards": [{"text": "A rogue spreadsheet"}]
 }`}`;
 }
 
 function buildDeckPrompt(ctx: GenerateContext, cc: number, kc: number): string {
-  const rules = buildCardRules(ctx.gameType);
+  const metaCount = Math.round(cc * ((ctx.chaosLevel ?? 0) / 100));
+  const maturity = ctx.maturity || "adult";
+  const flavorThemes = ctx.flavorThemes || [];
 
-  return `Create a complete "${ctx.gameType}" style card game deck based on this theme:
+  const sections = [
+    buildEngineRules(ctx.gameType),
+    buildMaturityRules(maturity),
+    flavorThemes.length > 0 ? buildFlavorRules(flavorThemes) : "",
+    metaCount > 0 ? buildMetaCardRules(metaCount) : "",
+    buildDynamicSection(ctx, cc, kc, metaCount),
+  ].filter(Boolean).join("\n\n");
 
-Theme: "${ctx.theme}"
+  const metaSchema = metaCount > 0
+    ? `, {"text": "CHAOS RULE: Last place must ___.", "pick": 1, "metaType": "hand_reset", "metaEffect": {"type": "hand_reset", "target": "loser"}}`
+    : "";
 
-Generate a creative deck name, a short description (1-2 sentences), exactly ${cc} "Chaos" cards (prompts) and ${kc} "Knowledge" cards (answers).
+  return `${sections}
+Also generate a creative deck name and a short (1-2 sentence) description.
 
-${rules}
-- The deck name should be catchy and related to the theme.
-- The description should explain what the deck is about in a fun way.
-
-Respond ONLY with valid JSON in this exact format, no other text:
+Respond ONLY with valid JSON, no other text:
 {
   "name": "Deck Name Here",
-  "description": "A short, fun description of the deck.",
-  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}],
+  "description": "A short, fun description.",
+  "chaosCards": [{"text": "The ___ is broken again.", "pick": 1}${metaSchema}],
   "knowledgeCards": [{"text": "A rogue spreadsheet"}]
 }`;
 }
@@ -177,10 +275,23 @@ async function callDeepSeek(model: string, maxTokens: number, prompt: string): P
     apiKey,
     baseURL: "https://api.deepseek.com",
   });
+  // Split prompt into static system content (cacheable) and dynamic user content
+  // DeepSeek auto-caches the first N tokens of repeated system prompts
+  const splitIdx = prompt.indexOf("=== GENERATION REQUEST ===");
+  const systemContent = splitIdx > 0 ? prompt.slice(0, splitIdx).trim() : "";
+  const userContent = splitIdx > 0 ? prompt.slice(splitIdx).trim() : prompt;
+
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = systemContent
+    ? [
+        { role: "system", content: systemContent },
+        { role: "user", content: userContent },
+      ]
+    : [{ role: "user", content: prompt }];
+
   const response = await client.chat.completions.create({
     model,
     max_tokens: maxTokens,
-    messages: [{ role: "user", content: prompt }],
+    messages,
   });
   const text = response.choices[0]?.message?.content;
   if (!text) throw new Error("Empty response from DeepSeek");

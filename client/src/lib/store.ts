@@ -24,10 +24,26 @@ export interface KnowledgeCard {
   text: string;
 }
 
+export interface MetaEffect {
+  type: "score_add" | "score_subtract" | "hide_cards" | "randomize_icons" | "hand_reset";
+  value?: number;
+  target: string;
+  durationMs?: number;
+}
+
 export interface ChaosCard {
   id: string;
   text: string;
   pick: number;
+  metaType?: string;
+  metaEffect?: MetaEffect;
+}
+
+export interface MetaEffectNotification {
+  effectType: string;
+  value?: number;
+  affectedPlayerIds: string[];
+  description: string;
 }
 
 export interface Submission {
@@ -93,6 +109,11 @@ interface GameStore {
   // Sticker overlay
   activeSticker: { url: string; playerName: string } | null;
 
+  // Meta card effects
+  activeMetaEffect: MetaEffectNotification | null;
+  handBlurred: boolean;
+  iconsRandomized: boolean;
+
   // Actions
   setPlayerName: (name: string) => void;
   setLobby: (lobby: LobbyState | null) => void;
@@ -110,6 +131,9 @@ interface GameStore {
   addChatMessage: (msg: ChatMessage) => void;
   setChatOpen: (open: boolean) => void;
   setActiveSticker: (sticker: { url: string; playerName: string } | null) => void;
+  setActiveMetaEffect: (effect: MetaEffectNotification | null) => void;
+  setHandBlurred: (v: boolean) => void;
+  setIconsRandomized: (v: boolean) => void;
   reset: () => void;
 }
 
@@ -132,6 +156,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   chatOpen: false,
   unreadCount: 0,
   activeSticker: null,
+  activeMetaEffect: null,
+  handBlurred: false,
+  iconsRandomized: false,
 
   setPlayerName: (name) => set({ playerName: name }),
   setLobby: (lobby) => set({ lobby }),
@@ -202,6 +229,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setActiveSticker: (sticker) => set({ activeSticker: sticker }),
 
+  setActiveMetaEffect: (effect) => set({ activeMetaEffect: effect }),
+  setHandBlurred: (v) => set({ handBlurred: v }),
+  setIconsRandomized: (v) => set({ iconsRandomized: v }),
+
   reset: () =>
     set({
       playerName: "",
@@ -221,5 +252,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       chatOpen: false,
       unreadCount: 0,
       activeSticker: null,
+      activeMetaEffect: null,
+      handBlurred: false,
+      iconsRandomized: false,
     }),
 }));

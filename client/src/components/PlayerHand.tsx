@@ -2,12 +2,38 @@
 
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
+import { Icon } from "@iconify/react";
+import { useMemo } from "react";
 
-export default function PlayerHand() {
+// Icons used for randomized-icon chaos effect
+const CHAOS_ICONS = [
+  "mdi:skull", "mdi:fire", "mdi:ghost", "mdi:alien", "mdi:robot",
+  "mdi:lightning-bolt", "mdi:biohazard", "mdi:radioactive", "mdi:chess-rook",
+  "mdi:shark", "mdi:ninja", "mdi:mushroom", "mdi:ufo", "mdi:bacteria",
+];
+
+export default function PlayerHand({
+  blurred = false,
+  iconsRandomized = false,
+}: {
+  blurred?: boolean;
+  iconsRandomized?: boolean;
+}) {
   const { hand, selectedCards, round } = useGameStore();
   const { toggleCardSelection } = useGameStore();
   const { submitCards } = useSocket();
   const pick = round?.chaosCard.pick || 1;
+
+  // Stable randomized icon assignment per card (changes each render when iconsRandomized flips on)
+  const cardIcons = useMemo(() => {
+    if (!iconsRandomized) return {};
+    return Object.fromEntries(
+      hand.map((card) => [
+        card.id,
+        CHAOS_ICONS[Math.floor(Math.random() * CHAOS_ICONS.length)],
+      ])
+    );
+  }, [iconsRandomized, hand]);
 
   const handleSubmit = () => {
     if (selectedCards.length === pick) {
@@ -17,15 +43,21 @@ export default function PlayerHand() {
 
   return (
     <div>
+      {blurred && (
+        <div className="mb-3 text-center text-yellow-400 text-sm font-semibold animate-pulse">
+          Your hand is hidden! (Chaos effect)
+        </div>
+      )}
       <p className="text-gray-400 text-sm mb-3 text-center">
         {pick > 1
           ? `Pick ${pick} cards in order (1st blank, 2nd blank)`
           : "Pick a card from your hand"}
       </p>
-      <div className="grid grid-cols-1 gap-3 max-w-lg mx-auto">
+      <div className={`grid grid-cols-1 gap-3 max-w-lg mx-auto transition-all duration-500 ${blurred ? "blur-md select-none pointer-events-none" : ""}`}>
         {hand.map((card) => {
           const selIndex = selectedCards.indexOf(card.id);
           const isSelected = selIndex !== -1;
+          const chaosIcon = cardIcons[card.id];
           return (
             <button
               key={card.id}
@@ -36,7 +68,14 @@ export default function PlayerHand() {
                   : "bg-gray-800 border-2 border-gray-700 hover:border-gray-500"
               }`}
             >
-              <p className="font-medium">{card.text}</p>
+              {chaosIcon ? (
+                <div className="flex items-center gap-2">
+                  <Icon icon={chaosIcon} width={20} className="shrink-0 text-orange-400" />
+                  <p className="font-medium">{card.text}</p>
+                </div>
+              ) : (
+                <p className="font-medium">{card.text}</p>
+              )}
               {isSelected && pick > 1 && (
                 <span className="absolute top-2 right-3 bg-white text-purple-700 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                   {selIndex + 1}
@@ -47,7 +86,7 @@ export default function PlayerHand() {
         })}
       </div>
 
-      {selectedCards.length === pick && (
+      {selectedCards.length === pick && !blurred && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800">
           <button
             onClick={handleSubmit}

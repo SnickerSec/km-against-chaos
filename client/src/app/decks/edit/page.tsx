@@ -79,6 +79,10 @@ function EditDeckContent() {
           chaosCards: deck.chaosCards.map((c) => ({ text: c.text, pick: c.pick })),
           knowledgeCards: deck.knowledgeCards.map((c) => ({ text: c.text })),
           winCondition: deck.winCondition || { mode: "rounds", value: 10 },
+          maturity: deck.maturity,
+          flavorThemes: deck.flavorThemes,
+          chaosLevel: deck.chaosLevel,
+          wildcard: deck.wildcard,
         }}
         submitLabel="Save Changes"
         onSubmit={async (data) => {

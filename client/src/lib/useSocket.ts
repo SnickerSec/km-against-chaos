@@ -11,6 +11,7 @@ import {
   ChaosCard,
   KnowledgeCard,
   ChatMessage,
+  MetaEffectNotification,
 } from "./store";
 
 export function useSocket() {
@@ -27,6 +28,9 @@ export function useSocket() {
     setScores,
     addChatMessage,
     setActiveSticker,
+    setActiveMetaEffect,
+    setHandBlurred,
+    setIconsRandomized,
   } = useGameStore();
 
   useEffect(() => {
@@ -100,6 +104,31 @@ export function useSocket() {
       setScreen("gameover");
     });
 
+    socket.on("game:meta-effect" as any, (payload: MetaEffectNotification) => {
+      setActiveMetaEffect(payload);
+      // Auto-dismiss notification after 4 seconds
+      setTimeout(() => setActiveMetaEffect(null), 4000);
+
+      const myId = socket.id ?? "";
+      const isAffected = myId ? payload.affectedPlayerIds.includes(myId) : false;
+
+      if (isAffected) {
+        if (payload.effectType === "hide_cards") {
+          setHandBlurred(true);
+          const duration = 20000;
+          setTimeout(() => setHandBlurred(false), duration);
+        } else if (payload.effectType === "randomize_icons") {
+          setIconsRandomized(true);
+          const duration = 15000;
+          setTimeout(() => setIconsRandomized(false), duration);
+        }
+      }
+    });
+
+    socket.on("game:hand-updated" as any, (hand: KnowledgeCard[]) => {
+      useGameStore.setState({ hand });
+    });
+
     socket.on("chat:message", (msg: ChatMessage) => {
       addChatMessage(msg);
     });
@@ -124,6 +153,9 @@ export function useSocket() {
     setScores,
     addChatMessage,
     setActiveSticker,
+    setActiveMetaEffect,
+    setHandBlurred,
+    setIconsRandomized,
   ]);
 
   const createLobby = (playerName: string, deckId?: string) => {

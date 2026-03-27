@@ -8,6 +8,7 @@ import {
   validateDeck,
   upsertPacksForDeck,
   createDeckFromPacks,
+  remixDeck,
   type PackInput,
 } from "./deckStore.js";
 import { generateCards, generateDeck } from "./aiGenerate.js";
@@ -76,6 +77,16 @@ router.get("/:id/export", async (req, res) => {
   }
 });
 
+// One-click remix a deck (snapshot clone)
+router.post("/:id/remix", requireAuth, async (req, res) => {
+  try {
+    const deck = await remixDeck(req.params.id, (req as any).user.id);
+    res.status(201).json(deck);
+  } catch (e: any) {
+    res.status(e.message === "Source deck not found" ? 404 : 500).json({ error: e.message });
+  }
+});
+
 // Create deck from selected pack IDs
 router.post("/from-packs", requireAuth, async (req, res) => {
   const body = (req as any).body;
@@ -105,7 +116,15 @@ router.post("/", requireAuth, async (req, res) => {
     return;
   }
   try {
-    const deck = await createDeck({ ...body, ownerId: (req as any).user.id });
+    const deck = await createDeck({
+      ...body,
+      ownerId: (req as any).user.id,
+      maturity: body.maturity,
+      flavorThemes: body.flavorThemes,
+      chaosLevel: body.chaosLevel,
+      wildcard: body.wildcard,
+      remixedFrom: body.remixedFrom,
+    });
     if (body.packs && Array.isArray(body.packs)) {
       await upsertPacksForDeck(deck.id, body.packs as PackInput[], (req as any).user.id, false);
     }
@@ -134,7 +153,11 @@ router.post("/import", requireAuth, async (req, res) => {
 // AI-generate cards for a pack
 router.post("/generate", requireAuth, async (req, res) => {
   const body = (req as any).body;
-  const { theme, gameType, packType, packName, deckName, deckDescription, chaosCount, knowledgeCount } = body;
+  const {
+    theme, gameType, packType, packName, deckName, deckDescription,
+    chaosCount, knowledgeCount,
+    maturity, flavorThemes, chaosLevel, wildcard,
+  } = body;
 
   if (!theme || typeof theme !== "string" || theme.trim().length === 0) {
     res.status(400).json({ error: "Theme is required" });
@@ -151,6 +174,10 @@ router.post("/generate", requireAuth, async (req, res) => {
       deckDescription,
       chaosCount,
       knowledgeCount,
+      maturity,
+      flavorThemes,
+      chaosLevel,
+      wildcard,
     });
     res.json(cards);
   } catch (e: any) {
@@ -166,7 +193,7 @@ router.post("/generate", requireAuth, async (req, res) => {
 // AI-generate a full deck (name, description, cards)
 router.post("/generate-deck", requireAuth, async (req, res) => {
   const body = (req as any).body;
-  const { theme, gameType, chaosCount, knowledgeCount } = body;
+  const { theme, gameType, chaosCount, knowledgeCount, maturity, flavorThemes, chaosLevel, wildcard } = body;
 
   if (!theme || typeof theme !== "string" || theme.trim().length === 0) {
     res.status(400).json({ error: "Theme is required" });
@@ -180,6 +207,10 @@ router.post("/generate-deck", requireAuth, async (req, res) => {
       packType: "base",
       chaosCount,
       knowledgeCount,
+      maturity,
+      flavorThemes,
+      chaosLevel,
+      wildcard,
     });
     res.json(deck);
   } catch (e: any) {

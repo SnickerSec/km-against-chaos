@@ -5,6 +5,8 @@ import type {
   RoundState,
   GameState,
   PlayerGameView,
+  MetaEffect,
+  MetaTarget,
 } from "./types.js";
 import { CHAOS_CARDS, KNOWLEDGE_CARDS, shuffled } from "./deck.js";
 
@@ -220,11 +222,54 @@ export function getJudgingData(lobbyCode: string): {
   return { submissions, chaosCard: round.chaosCard };
 }
 
+export function resolveMetaTargets(
+  target: MetaTarget,
+  winnerId: string,
+  czarId: string,
+  playerIds: string[]
+): string[] {
+  switch (target) {
+    case "winner": return [winnerId];
+    case "czar": return [czarId];
+    case "all": return playerIds;
+    case "all_others": return playerIds.filter((id) => id !== winnerId);
+    case "loser": {
+      // Find the player with the lowest score who isn't the winner or czar
+      // Falls back to all non-winners if no clear loser
+      return playerIds.filter((id) => id !== winnerId && id !== czarId);
+    }
+    default: return [];
+  }
+}
+
+export function resetPlayerHand(lobbyCode: string, playerId: string): KnowledgeCard[] {
+  const game = games.get(lobbyCode);
+  if (!game) return [];
+
+  const newHand: KnowledgeCard[] = [];
+  for (let i = 0; i < HAND_SIZE; i++) {
+    if (game.knowledgeDeck.length > 0) {
+      newHand.push(game.knowledgeDeck.pop()!);
+    }
+  }
+  game.hands.set(playerId, newHand);
+  return newHand;
+}
+
 export function pickWinner(
   lobbyCode: string,
   czarId: string,
   winnerId: string
-): { success: boolean; error?: string } {
+): {
+  success: boolean;
+  error?: string;
+  metaEffect?: {
+    effect: MetaEffect;
+    winnerId: string;
+    czarId: string;
+    playerIds: string[];
+  };
+} {
   const game = games.get(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
 
@@ -249,6 +294,34 @@ export function pickWinner(
   // Check point-based win
   if (game.winMode === "points" && newScore >= game.targetPoints) {
     game.gameOver = true;
+  }
+
+  // Handle meta card effects
+  const metaEffect = round.chaosCard.metaEffect;
+  if (metaEffect) {
+    const targets = resolveMetaTargets(metaEffect.target, winnerId, czarId, game.playerIds);
+
+    if (metaEffect.type === "score_add" && metaEffect.value) {
+      for (const pid of targets) {
+        game.scores.set(pid, (game.scores.get(pid) || 0) + metaEffect.value!);
+      }
+    } else if (metaEffect.type === "score_subtract" && metaEffect.value) {
+      for (const pid of targets) {
+        const current = game.scores.get(pid) || 0;
+        game.scores.set(pid, Math.max(0, current - metaEffect.value!));
+      }
+    }
+    // hand_reset and ui effects are handled in the socket layer
+
+    return {
+      success: true,
+      metaEffect: {
+        effect: metaEffect,
+        winnerId,
+        czarId,
+        playerIds: game.playerIds,
+      },
+    };
   }
 
   return { success: true };

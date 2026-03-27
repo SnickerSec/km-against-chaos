@@ -32,6 +32,8 @@ import {
   remapGamePlayer,
   addPlayerToGame,
   removePlayerFromGame,
+  resetPlayerHand,
+  resolveMetaTargets,
 } from "./game.js";
 import {
   registerSession,
@@ -382,7 +384,6 @@ io.on("connection", (socket) => {
     // Get winner info
     const scores = getScores(code);
     const winnerCards = getWinnerCards(code);
-    const players = getLobbyPlayers(code);
     const winnerName = getPlayerName(code, winnerId);
 
     io.to(code).emit(
@@ -392,6 +393,49 @@ io.on("connection", (socket) => {
       winnerCards || [],
       scores || {}
     );
+
+    // Apply meta card effects if the chaos card had one
+    if (result.metaEffect) {
+      const { effect, winnerId: wId, czarId, playerIds } = result.metaEffect;
+      const targets = resolveMetaTargets(effect.target, wId, czarId, playerIds);
+
+      // Hand reset: clear hands and re-deal
+      if (effect.type === "hand_reset") {
+        for (const pid of targets) {
+          const newHand = resetPlayerHand(code, pid);
+          io.to(pid).emit("game:hand-updated", newHand);
+        }
+      }
+
+      // Build human-readable description
+      const affectedNames = targets.map((pid) => getPlayerName(code, pid) || "???");
+      let description = "";
+      switch (effect.type) {
+        case "score_add":
+          description = `+${effect.value} point${effect.value !== 1 ? "s" : ""} for ${affectedNames.join(", ")}`;
+          break;
+        case "score_subtract":
+          description = `-${effect.value} point${effect.value !== 1 ? "s" : ""} from ${affectedNames.join(", ")}`;
+          break;
+        case "hide_cards":
+          description = `${affectedNames.join(", ")}'s cards are hidden for ${Math.round((effect.durationMs || 20000) / 1000)}s`;
+          break;
+        case "randomize_icons":
+          description = `Icons randomized for ${affectedNames.join(", ")} for ${Math.round((effect.durationMs || 15000) / 1000)}s`;
+          break;
+        case "hand_reset":
+          description = `${affectedNames.join(", ")} drew a fresh hand`;
+          break;
+      }
+
+      // Broadcast to all players — clients use affectedPlayerIds to know if they're hit
+      io.to(code).emit("game:meta-effect", {
+        effectType: effect.type,
+        value: effect.value,
+        affectedPlayerIds: targets,
+        description,
+      });
+    }
   });
 
   socket.on("game:next-round", () => {

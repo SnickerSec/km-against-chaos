@@ -16,27 +16,42 @@ export interface DeckSummary {
   winCondition: WinCondition;
   builtIn?: boolean;
   ownerId?: string | null;
+  maturity?: string;
+  flavorThemes?: string[];
+  chaosLevel?: number;
+  wildcard?: string;
+  remixedFrom?: string | null;
 }
 
 export interface CustomDeck {
   id: string;
   name: string;
   description: string;
-  chaosCards: { id: string; text: string; pick: number }[];
+  chaosCards: { id: string; text: string; pick: number; metaType?: string; metaEffect?: any }[];
   knowledgeCards: { id: string; text: string }[];
   winCondition: WinCondition;
   createdAt: string;
   updatedAt: string;
   ownerId?: string | null;
+  maturity?: string;
+  flavorThemes?: string[];
+  chaosLevel?: number;
+  wildcard?: string;
+  remixedFrom?: string | null;
 }
 
 export interface DeckExport {
   name: string;
   description: string;
-  chaosCards: { text: string; pick?: number }[];
+  chaosCards: { text: string; pick?: number; metaType?: string; metaEffect?: any }[];
   knowledgeCards: { text: string }[];
   winCondition?: WinCondition;
   packs?: { type: string; name: string; description: string; chaosCards: { text: string; pick?: number }[]; knowledgeCards: { text: string }[] }[];
+  maturity?: string;
+  flavorThemes?: string[];
+  chaosLevel?: number;
+  wildcard?: string;
+  remixedFrom?: string;
 }
 
 export interface PackSummary {
@@ -124,6 +139,11 @@ export interface GenerateContext {
   deckDescription?: string;
   chaosCount?: number;
   knowledgeCount?: number;
+  // 4-Pillar fields
+  maturity?: string;
+  flavorThemes?: string[];
+  chaosLevel?: number;
+  wildcard?: string;
 }
 
 export async function generateDeckAI(ctx: GenerateContext): Promise<GeneratedDeck> {
@@ -168,6 +188,18 @@ export async function createDeckFromPacks(data: { packIds: string[]; name: strin
   if (!res.ok) {
     const err = await res.json();
     throw new Error(err.error || "Failed to create deck");
+  }
+  return res.json();
+}
+
+export async function remixDeck(sourceId: string): Promise<CustomDeck> {
+  const res = await fetch(`${API_URL}/api/decks/${sourceId}/remix`, {
+    method: "POST",
+    headers: { ...getAuthHeaders() },
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to remix deck");
   }
   return res.json();
 }

@@ -71,6 +71,23 @@ export async function initDb() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT NULL
   `);
 
+  // 4-Pillar recipe columns
+  await pool.query(`
+    ALTER TABLE decks ADD COLUMN IF NOT EXISTS maturity TEXT DEFAULT 'adult'
+  `);
+  await pool.query(`
+    ALTER TABLE decks ADD COLUMN IF NOT EXISTS flavor_themes JSONB DEFAULT '[]'
+  `);
+  await pool.query(`
+    ALTER TABLE decks ADD COLUMN IF NOT EXISTS chaos_level INTEGER DEFAULT 0
+  `);
+  await pool.query(`
+    ALTER TABLE decks ADD COLUMN IF NOT EXISTS wildcard TEXT DEFAULT ''
+  `);
+  await pool.query(`
+    ALTER TABLE decks ADD COLUMN IF NOT EXISTS remixed_from TEXT REFERENCES decks(id)
+  `);
+
   console.log("Database initialized");
 }
 

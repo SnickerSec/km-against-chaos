@@ -37,6 +37,10 @@ function NewDeckContent() {
           chaosCards: deck.chaosCards.map((c) => ({ text: c.text, pick: c.pick })),
           knowledgeCards: deck.knowledgeCards.map((c) => ({ text: c.text })),
           winCondition: deck.winCondition || { mode: "rounds", value: 10 },
+          maturity: deck.maturity,
+          flavorThemes: deck.flavorThemes,
+          chaosLevel: deck.chaosLevel,
+          wildcard: deck.wildcard,
         });
       })
       .catch(() => setInitialData(null))
@@ -66,7 +70,7 @@ function NewDeckContent() {
         initial={initialData ?? undefined}
         submitLabel={remixOf ? "Save Remix" : "Create Deck"}
         onSubmit={async (data) => {
-          await createDeck(data);
+          await createDeck({ ...data, remixedFrom: remixOf || undefined });
           router.push("/decks");
         }}
       />

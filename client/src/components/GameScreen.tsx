@@ -10,10 +10,11 @@ import ScoreBar from "./ScoreBar";
 import ReactionBar from "./ReactionBar";
 import ReactionOverlay from "./ReactionOverlay";
 import StickerOverlay from "./StickerOverlay";
+import MetaEffectOverlay from "./MetaEffectOverlay";
 import Chat from "./Chat";
 
 export default function GameScreen() {
-  const { round, hasSubmitted, winnerInfo, lobby, roundNumber, maxRounds } =
+  const { round, hasSubmitted, winnerInfo, lobby, roundNumber, maxRounds, handBlurred, iconsRandomized } =
     useGameStore();
   const { nextRound, leaveLobby } = useSocket();
   const socket = getSocket();
@@ -34,6 +35,7 @@ export default function GameScreen() {
     <div className="flex flex-col min-h-screen">
       <ReactionOverlay />
       <StickerOverlay />
+      <MetaEffectOverlay />
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800">
@@ -101,7 +103,7 @@ export default function GameScreen() {
               <p className="text-sm mt-1">Waiting for other players...</p>
             </div>
           ) : (
-            <PlayerHand />
+            <PlayerHand blurred={handBlurred} iconsRandomized={iconsRandomized} />
           )
         ) : round.phase === "judging" ? (
           <CzarView isCzar={isCzar} />

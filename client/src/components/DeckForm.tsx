@@ -4,6 +4,38 @@ import { useState, useRef } from "react";
 import { Icon } from "@iconify/react";
 import { generateCardsAI, generateDeckAI, type GenerateContext } from "@/lib/api";
 
+// ── 4-Pillar constants ──
+
+const MATURITY_LEVELS = [
+  { id: "kid-friendly", label: "Kid-Friendly", icon: "mdi:emoticon-happy", desc: "G-rated, wholesome fun" },
+  { id: "moderate",     label: "Moderate",     icon: "mdi:emoticon-cool", desc: "PG-13, mild innuendo" },
+  { id: "adult",        label: "Adult",        icon: "mdi:emoticon-devil", desc: "Standard CAH edge" },
+  { id: "raunchy",      label: "Raunchy",      icon: "mdi:fire",          desc: "Explicit, no limits" },
+] as const;
+
+const FLAVOR_THEMES = [
+  { id: "90s-nostalgia",    label: "90s Nostalgia",      icon: "mdi:cassette" },
+  { id: "cyber-dystopia",   label: "Cyber-Dystopia",     icon: "mdi:robot-angry" },
+  { id: "medieval-fantasy", label: "Medieval Fantasy",   icon: "mdi:sword" },
+  { id: "space-opera",      label: "Space Opera",        icon: "mdi:rocket" },
+  { id: "corporate-hell",   label: "Corporate Hell",     icon: "mdi:briefcase" },
+  { id: "beach-vacation",   label: "Beach Vacation",     icon: "mdi:umbrella-beach" },
+  { id: "zombie-apocalypse","label": "Zombie Apocalypse","icon": "mdi:skull" },
+  { id: "anime-fever",      label: "Anime Fever",        icon: "mdi:star-four-points" },
+  { id: "cooking-show",     label: "Cooking Show",       icon: "mdi:chef-hat" },
+  { id: "true-crime",       label: "True Crime",         icon: "mdi:magnify" },
+  { id: "reality-tv",       label: "Reality TV",         icon: "mdi:television-play" },
+  { id: "political-chaos",  label: "Political Chaos",    icon: "mdi:gavel" },
+  { id: "gaming-culture",   label: "Gaming Culture",     icon: "mdi:controller-classic" },
+  { id: "gen-z-speak",      label: "Gen Z Speak",        icon: "mdi:lightning-bolt" },
+  { id: "boomer-classics",  label: "Boomer Classics",    icon: "mdi:newspaper" },
+  { id: "conspiracy",       label: "Conspiracy Theories","icon": "mdi:alien" },
+  { id: "crypto-bro",       label: "Crypto / NFT",       icon: "mdi:bitcoin" },
+  { id: "horror-movie",     label: "Horror Movie",       icon: "mdi:ghost" },
+  { id: "wild-west",        label: "Wild West",          icon: "mdi:pistol" },
+  { id: "academia",         label: "Academia / PhD Life","icon": "mdi:school" },
+];
+
 interface CardInput {
   text: string;
   pick?: number;
@@ -21,6 +53,11 @@ interface DeckFormData {
   knowledgeCards: CardInput[];
   winCondition: WinCondition;
   packs?: { type: string; name: string; description: string; chaosCards: CardInput[]; knowledgeCards: CardInput[] }[];
+  // 4-Pillar recipe fields
+  maturity?: string;
+  flavorThemes?: string[];
+  chaosLevel?: number;
+  wildcard?: string;
 }
 
 type PackType = "base" | "expansion" | "themed";
@@ -36,7 +73,7 @@ interface CardPack {
 }
 
 interface Props {
-  initial?: DeckFormData;
+  initial?: DeckFormData & { maturity?: string; flavorThemes?: string[]; chaosLevel?: number; wildcard?: string };
   onSubmit: (data: DeckFormData) => Promise<void>;
   submitLabel: string;
 }
@@ -61,6 +98,14 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [knowledgeCount, setKnowledgeCount] = useState(25);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // 4-Pillar recipe state
+  const [maturity, setMaturity] = useState(initial?.maturity || "adult");
+  const [flavorThemes, setFlavorThemes] = useState<string[]>(initial?.flavorThemes || []);
+  const [chaosLevel, setChaosLevel] = useState(initial?.chaosLevel ?? 0);
+  const [wildcard, setWildcard] = useState(initial?.wildcard || "");
+  const [pillarsOpen, setPillarsOpen] = useState(false);
+  const [themeSearch, setThemeSearch] = useState("");
 
   const [packs, setPacks] = useState<CardPack[]>([
     {
@@ -138,6 +183,10 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         knowledgeCards: allKnowledge,
         winCondition: { mode: winMode, value: winValue },
         packs: packData,
+        maturity,
+        flavorThemes,
+        chaosLevel,
+        wildcard: wildcard.trim(),
       });
     } catch (e: any) {
       setError(e.message);
@@ -160,7 +209,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   };
 
   const handleGenerateDeck = async (theme: string) => {
-    const deck = await generateDeckAI({ theme, gameType, chaosCount, knowledgeCount });
+    const deck = await generateDeckAI({ theme, gameType, chaosCount, knowledgeCount, maturity, flavorThemes, chaosLevel, wildcard: wildcard.trim() || undefined });
     setName(deck.name);
     setDescription(deck.description);
     setPacks((prev) => {
@@ -222,6 +271,148 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
               Answer cards must outnumber prompt cards. Max 30 prompts, 50 answers.
             </p>
           </>
+        )}
+      </div>
+
+      {/* 4-Pillar Generation Settings */}
+      <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setPillarsOpen(!pillarsOpen)}
+          className="flex items-center justify-between w-full p-4 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Icon icon="mdi:tune-variant" className="text-purple-400" width={18} />
+            <span className="font-semibold text-sm text-gray-200">Generation Settings</span>
+            <span className="text-xs text-gray-500 ml-1">
+              {[
+                MATURITY_LEVELS.find((m) => m.id === maturity)?.label || "Adult",
+                flavorThemes.length > 0 ? `${flavorThemes.length} theme${flavorThemes.length !== 1 ? "s" : ""}` : null,
+                chaosLevel > 0 ? `${chaosLevel}% chaos` : null,
+                wildcard.trim() ? "wildcard" : null,
+              ].filter(Boolean).join(" · ")}
+            </span>
+          </div>
+          <Icon icon={pillarsOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-500" width={18} />
+        </button>
+
+        {pillarsOpen && (
+          <div className="px-4 pb-4 space-y-5 border-t border-gray-800 pt-4">
+            {/* Pillar 1: Maturity */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
+                Content Safety
+              </label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {MATURITY_LEVELS.map((level) => (
+                  <button
+                    key={level.id}
+                    type="button"
+                    onClick={() => setMaturity(level.id)}
+                    className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-sm font-medium transition-colors ${
+                      maturity === level.id
+                        ? "bg-purple-600/30 border-purple-500 text-purple-200"
+                        : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500"
+                    }`}
+                  >
+                    <Icon icon={level.icon} width={20} />
+                    <span className="text-xs">{level.label}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-gray-600 text-xs mt-1">
+                {MATURITY_LEVELS.find((m) => m.id === maturity)?.desc}
+              </p>
+            </div>
+
+            {/* Pillar 2: Flavor Themes */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
+                Flavor Themes
+                {flavorThemes.length > 0 && (
+                  <span className="ml-2 text-purple-400 normal-case font-normal">
+                    {flavorThemes.length} selected
+                  </span>
+                )}
+              </label>
+              <input
+                type="text"
+                value={themeSearch}
+                onChange={(e) => setThemeSearch(e.target.value)}
+                placeholder="Search themes..."
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm mb-2"
+              />
+              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                {FLAVOR_THEMES.filter((t) =>
+                  t.label.toLowerCase().includes(themeSearch.toLowerCase())
+                ).map((theme) => {
+                  const active = flavorThemes.includes(theme.id);
+                  return (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() =>
+                        setFlavorThemes(
+                          active ? flavorThemes.filter((id) => id !== theme.id) : [...flavorThemes, theme.id]
+                        )
+                      }
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                        active
+                          ? "bg-cyan-600/30 border-cyan-500 text-cyan-200"
+                          : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600"
+                      }`}
+                    >
+                      <Icon icon={theme.icon} width={13} />
+                      {theme.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pillar 3: Chaos Level */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">
+                Chaos Level — <span className="text-orange-400">{chaosLevel}%</span> meta cards
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={50}
+                step={5}
+                value={chaosLevel}
+                onChange={(e) => setChaosLevel(parseInt(e.target.value))}
+                className="w-full accent-orange-500"
+              />
+              <div className="flex justify-between text-xs text-gray-600 mt-0.5">
+                <span>0% — all fill-in-the-blank</span>
+                <span>50% — half are rule-breakers</span>
+              </div>
+              {chaosLevel > 0 && (
+                <p className="text-orange-400/80 text-xs mt-1">
+                  ~{chaosLevel}% of prompt cards will be meta cards that manipulate scores, UI, or hands
+                </p>
+              )}
+            </div>
+
+            {/* Pillar 4: Wildcard */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">
+                Wildcard Context
+              </label>
+              <input
+                type="text"
+                value={wildcard}
+                onChange={(e) => setWildcard(e.target.value)}
+                placeholder='e.g. "Inside jokes about our team", "References to our podcast"'
+                maxLength={200}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm"
+              />
+              <p className="text-gray-600 text-xs mt-1">
+                Hyper-niche context woven into the AI-generated cards for maximum personalization
+              </p>
+            </div>
+          </div>
         )}
       </div>
 
@@ -337,6 +528,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
             gameType={gameType}
             deckName={name}
             deckDescription={description}
+            pillars={{ maturity, flavorThemes, chaosLevel, wildcard }}
             onUpdate={(updater) => updatePack(pack.id, updater)}
             onRemove={() => removePack(pack.id)}
           />
@@ -390,6 +582,7 @@ function CardPackEditor({
   gameType,
   deckName,
   deckDescription,
+  pillars,
   onUpdate,
   onRemove,
 }: {
@@ -398,6 +591,7 @@ function CardPackEditor({
   gameType: string;
   deckName: string;
   deckDescription: string;
+  pillars: { maturity: string; flavorThemes: string[]; chaosLevel: number; wildcard: string };
   onUpdate: (updater: (p: CardPack) => CardPack) => void;
   onRemove: () => void;
 }) {
@@ -459,6 +653,7 @@ function CardPackEditor({
               gameType={gameType}
               deckName={deckName}
               deckDescription={pack.description || deckDescription}
+              pillars={pillars}
               onGenerated={(chaos, knowledge, generatedName, generatedDescription) => {
                 onUpdate((p) => ({
                   ...p,
@@ -797,6 +992,7 @@ function AIGenerate({
   gameType,
   deckName,
   deckDescription,
+  pillars,
   onGenerated,
 }: {
   packName: string;
@@ -804,6 +1000,7 @@ function AIGenerate({
   gameType: string;
   deckName: string;
   deckDescription: string;
+  pillars?: { maturity: string; flavorThemes: string[]; chaosLevel: number; wildcard: string };
   onGenerated: (chaos: CardInput[], knowledge: CardInput[], name?: string, description?: string) => void;
 }) {
   const defaultPrompts = packType === "themed" ? 2 : 5;
@@ -829,6 +1026,12 @@ function AIGenerate({
         deckDescription,
         chaosCount: promptCount,
         knowledgeCount: answerCount,
+        ...(pillars ? {
+          maturity: pillars.maturity,
+          flavorThemes: pillars.flavorThemes,
+          chaosLevel: pillars.chaosLevel,
+          wildcard: pillars.wildcard.trim() || undefined,
+        } : {}),
       });
       onGenerated(
         cards.chaosCards.map((c) => ({ text: c.text, pick: c.pick || 1 })),

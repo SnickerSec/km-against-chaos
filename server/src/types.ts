@@ -42,10 +42,29 @@ export interface PlayerInfo {
 
 // ── Game Types ──
 
+export type MetaEffectType = "score_add" | "score_subtract" | "hide_cards" | "randomize_icons" | "hand_reset";
+export type MetaTarget = "winner" | "loser" | "all_others" | "czar" | "all";
+
+export interface MetaEffect {
+  type: MetaEffectType;
+  value?: number; // for score_add / score_subtract
+  target: MetaTarget;
+  durationMs?: number; // for UI effects (hide_cards, randomize_icons)
+}
+
 export interface ChaosCard {
   id: string;
   text: string;
   pick: number; // how many Knowledge cards to play (usually 1)
+  metaType?: "score_manipulation" | "ui_interference" | "hand_reset";
+  metaEffect?: MetaEffect;
+}
+
+export interface MetaEffectPayload {
+  effectType: MetaEffectType;
+  value?: number;
+  affectedPlayerIds: string[];
+  description: string;
 }
 
 export interface KnowledgeCard {
@@ -121,6 +140,8 @@ export interface ServerEvents {
   "game:player-submitted": (playerId: string) => void;
   "game:judging": (submissions: Submission[], chaosCard: ChaosCard) => void;
   "game:round-winner": (winnerId: string, winnerName: string, cards: KnowledgeCard[], scores: Record<string, number>) => void;
+  "game:meta-effect": (payload: MetaEffectPayload) => void;
+  "game:hand-updated": (hand: KnowledgeCard[]) => void;
   "game:over": (scores: Record<string, number>) => void;
   "reaction:broadcast": (emoji: string, playerName: string) => void;
   "chat:message": (message: { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }) => void;
