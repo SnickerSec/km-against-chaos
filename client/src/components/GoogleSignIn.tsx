@@ -16,6 +16,54 @@ declare global {
   }
 }
 
+function ProfileDropdown({ user, onLogout }: { user: { name: string; picture?: string }; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    if (open) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 rounded-full hover:ring-2 hover:ring-gray-600 transition-all"
+      >
+        {user.picture ? (
+          <img
+            src={user.picture}
+            alt=""
+            className="w-8 h-8 rounded-full"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-gray-300 text-sm font-bold">
+            {user.name.charAt(0).toUpperCase()}
+          </div>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 z-50">
+          <div className="px-3 py-2 border-b border-gray-700">
+            <p className="text-sm font-medium text-white truncate">{user.name}</p>
+          </div>
+          <button
+            onClick={() => { setOpen(false); onLogout(); }}
+            className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GoogleSignIn() {
   const { user, loading, login, logout, restore } = useAuthStore();
   const buttonRef = useRef<HTMLDivElement>(null);
@@ -81,23 +129,7 @@ export default function GoogleSignIn() {
 
   if (user) {
     return (
-      <div className="flex items-center gap-3">
-        {user.picture && (
-          <img
-            src={user.picture}
-            alt=""
-            className="w-8 h-8 rounded-full"
-            referrerPolicy="no-referrer"
-          />
-        )}
-        <span className="text-sm text-gray-300">{user.name}</span>
-        <button
-          onClick={logout}
-          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-        >
-          Sign out
-        </button>
-      </div>
+      <ProfileDropdown user={user} onLogout={logout} />
     );
   }
 
