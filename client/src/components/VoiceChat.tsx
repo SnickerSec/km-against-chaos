@@ -51,13 +51,14 @@ function createVAD(stream: MediaStream, onSpeaking: (v: boolean) => void): () =>
   };
 }
 
-export default function VoiceChat() {
+export default function VoiceChat({ floating = false }: { floating?: boolean }) {
   const [joined, setJoined] = useState(false);
   const [muted, setMuted] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [joiningError, setJoiningError] = useState<string | null>(null);
   const [voiceUsers, setVoiceUsers] = useState<VoiceUser[]>([]);
   const [speakingIds, setSpeakingIds] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState(false);
 
   const lobby = useGameStore((s) => s.lobby);
   const socket = getSocket();
@@ -252,8 +253,8 @@ export default function VoiceChat() {
     ? [{ id: myId, name: myName }, ...voiceUsers]
     : voiceUsers;
 
-  return (
-    <div className="bg-gray-900 border border-gray-700 rounded-xl p-3">
+  const voicePanel = (
+    <div className={`bg-gray-900 border border-gray-700 rounded-xl p-3 ${floating ? "w-64" : ""}`}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <Icon icon="mdi:microphone" width={15} className="text-green-400" />
@@ -262,33 +263,43 @@ export default function VoiceChat() {
             <span className="text-xs text-gray-500">· {allVoiceParticipants.length} in voice</span>
           )}
         </div>
-        {joined ? (
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
+          {joined ? (
+            <>
+              <button
+                onClick={toggleMute}
+                title={muted ? "Unmute" : "Mute"}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  muted ? "bg-red-600/30 text-red-400" : "bg-gray-800 text-gray-300 hover:text-white"
+                }`}
+              >
+                <Icon icon={muted ? "mdi:microphone-off" : "mdi:microphone"} width={14} />
+              </button>
+              <button
+                onClick={handleLeave}
+                className="px-2.5 py-1 bg-red-600/20 hover:bg-red-600/30 border border-red-600/40 rounded-lg text-red-400 text-xs font-semibold transition-colors"
+              >
+                Leave
+              </button>
+            </>
+          ) : (
             <button
-              onClick={toggleMute}
-              title={muted ? "Unmute" : "Mute"}
-              className={`p-1.5 rounded-lg transition-colors ${
-                muted ? "bg-red-600/30 text-red-400" : "bg-gray-800 text-gray-300 hover:text-white"
-              }`}
+              onClick={handleJoin}
+              disabled={permissionDenied}
+              className="px-2.5 py-1 bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 rounded-lg text-green-400 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Icon icon={muted ? "mdi:microphone-off" : "mdi:microphone"} width={14} />
+              Join Voice
             </button>
+          )}
+          {floating && (
             <button
-              onClick={handleLeave}
-              className="px-2.5 py-1 bg-red-600/20 hover:bg-red-600/30 border border-red-600/40 rounded-lg text-red-400 text-xs font-semibold transition-colors"
+              onClick={() => setExpanded(false)}
+              className="text-gray-400 hover:text-white ml-1"
             >
-              Leave
+              <Icon icon="mdi:close" width={16} />
             </button>
-          </div>
-        ) : (
-          <button
-            onClick={handleJoin}
-            disabled={permissionDenied}
-            className="px-2.5 py-1 bg-green-600/20 hover:bg-green-600/30 border border-green-600/40 rounded-lg text-green-400 text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Join Voice
-          </button>
-        )}
+          )}
+        </div>
       </div>
 
       {permissionDenied && (
@@ -328,6 +339,40 @@ export default function VoiceChat() {
       {allVoiceParticipants.length === 0 && !joined && (
         <p className="text-xs text-gray-600">No one in voice yet</p>
       )}
+    </div>
+  );
+
+  if (!floating) return voicePanel;
+
+  // Floating mode: show as a button that expands into a panel
+  if (!expanded) {
+    const anySpeaking = speakingIds.size > 0;
+    return (
+      <div className="fixed bottom-4 right-20 z-40">
+        <button
+          onClick={() => setExpanded(true)}
+          className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors relative ${
+            joined
+              ? anySpeaking
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-green-700 hover:bg-green-800"
+              : "bg-gray-700 hover:bg-gray-600"
+          }`}
+        >
+          <Icon icon={joined && muted ? "mdi:microphone-off" : "mdi:microphone"} width={20} />
+          {allVoiceParticipants.length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+              {allVoiceParticipants.length}
+            </span>
+          )}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed bottom-20 right-20 z-40 shadow-2xl">
+      {voicePanel}
     </div>
   );
 }

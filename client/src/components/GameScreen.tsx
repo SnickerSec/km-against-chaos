@@ -180,11 +180,7 @@ export default function GameScreen() {
         ) : null}
       </div>
 
-      {/* Voice chat — collapsed by default in game, user expands */}
-      <div className="px-4 pb-2">
-        <VoiceChat />
-      </div>
-
+      <VoiceChat floating />
       <Chat />
     </div>
   );
