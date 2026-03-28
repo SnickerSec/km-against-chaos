@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { fetchDecks, fetchDeck, deleteDeck, fetchPacks, createDeckFromPacks, DeckSummary, PackSummary } from "@/lib/api";
+import { fetchDecks, fetchDeck, deleteDeck, fetchPacks, createDeckFromPacks, DeckSummary, PackSummary, API_URL } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
+import { getAuthHeaders } from "@/lib/auth";
 import { generateDeckPdf } from "@/lib/printDeck";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
@@ -96,6 +97,22 @@ export default function DecksPage() {
       setError(e.message);
     } finally {
       setPrinting(null);
+    }
+  };
+
+  const handleTgc = async (deckId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/print/tgc/auth?deckId=${deckId}`, {
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+      window.location.href = data.url;
+    } catch (e: any) {
+      setError(e.message);
     }
   };
 
@@ -300,18 +317,12 @@ export default function DecksPage() {
                     </p>
                   </div>
                   <div className="flex gap-2 ml-4">
-                    <button
-                      onClick={() => handlePrint(deck.id)}
-                      disabled={printing === deck.id}
-                      className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors disabled:opacity-50"
-                      title="Download print-ready PDF"
-                    >
-                      {printing === deck.id ? (
-                        <Icon icon="mdi:loading" className="animate-spin" width={14} />
-                      ) : (
-                        <Icon icon="mdi:printer" width={14} />
-                      )}
-                    </button>
+                    <PrintDropdown
+                      deckId={deck.id}
+                      printing={printing === deck.id}
+                      onPdf={() => handlePrint(deck.id)}
+                      onTgc={() => handleTgc(deck.id)}
+                    />
                     {user && !isOwner(deck) && (
                       <button
                         onClick={() => handleRemix(deck.id)}
@@ -467,6 +478,59 @@ export default function DecksPage() {
               )}
             </>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PrintDropdown({ deckId, printing, onPdf, onTgc }: {
+  deckId: string;
+  printing: boolean;
+  onPdf: () => void;
+  onTgc: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    if (open) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        disabled={printing}
+        className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors disabled:opacity-50"
+        title="Print options"
+      >
+        {printing ? (
+          <Icon icon="mdi:loading" className="animate-spin" width={14} />
+        ) : (
+          <Icon icon="mdi:printer" width={14} />
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 w-52 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 z-50">
+          <button
+            onClick={() => { setOpen(false); onPdf(); }}
+            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 transition-colors flex items-center gap-2"
+          >
+            <Icon icon="mdi:file-pdf-box" width={16} className="text-red-400" />
+            Download PDF
+          </button>
+          <button
+            onClick={() => { setOpen(false); onTgc(); }}
+            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 transition-colors flex items-center gap-2"
+          >
+            <Icon icon="mdi:cards-playing" width={16} className="text-purple-400" />
+            Order from The Game Crafter
+          </button>
         </div>
       )}
     </div>

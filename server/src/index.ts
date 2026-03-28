@@ -13,6 +13,7 @@ import authRoutes from "./authRoutes.js";
 import adminRoutes from "./adminRoutes.js";
 import packRoutes from "./packRoutes.js";
 import mediaRoutes from "./mediaRoutes.js";
+import tgcRoutes from "./tgcRoutes.js";
 import { getDeck, seedBuiltInDecks } from "./deckStore.js";
 import { initDb } from "./db.js";
 import {
@@ -124,6 +125,7 @@ app.use("/api/admin", apiLimiter, adminRoutes);
 app.use("/api/decks", apiLimiter, deckRoutes);
 app.use("/api/packs", apiLimiter, packRoutes);
 app.use("/api/gifs", staticLimiter, mediaRoutes);
+app.use("/api/print/tgc", apiLimiter, tgcRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [
