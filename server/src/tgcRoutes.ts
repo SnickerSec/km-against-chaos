@@ -138,7 +138,7 @@ router.get("/auth", requireAuth, (req, res) => {
   const callbackUrl = `${req.protocol}://${req.get("host")}/api/print/tgc/callback?deckId=${deckId}`;
 
   const ssoUrl = `https://www.thegamecrafter.com/sso?api_key_id=${apiKeyId}` +
-    `&permission=edit_my_designers&permission=edit_my_games&permission=edit_my_files&permission=edit_my_carts` +
+    `&permission=view_my_account&permission=view_my_designers&permission=edit_my_designers&permission=view_my_games&permission=edit_my_games&permission=view_my_files&permission=edit_my_files&permission=view_my_carts&permission=edit_my_carts` +
     `&postback_uri=${encodeURIComponent(callbackUrl)}`;
 
   res.json({ url: ssoUrl });
@@ -171,25 +171,26 @@ router.get("/callback", async (req, res) => {
     // Create or get designer
     let designerId: string;
     try {
-      const designers = await tgcGet("/designer", { session_id: sessionId });
-      const list = designers.items || [];
-      if (list.length > 0) {
-        designerId = list[0].id;
+      // Try to get user's existing designers
+      const userData = await tgcGet(`/user/${userId}/designers`, { session_id: sessionId });
+      const items = userData.items || [];
+      if (items.length > 0) {
+        designerId = items[0].id;
       } else {
+        throw new Error("no designers");
+      }
+    } catch {
+      // Create a new designer for this user
+      try {
         const designer = await tgcPost("/designer", {
           session_id: sessionId,
           name: "Decked",
           user_id: userId,
         });
         designerId = designer.id;
+      } catch (designerErr: any) {
+        throw new Error(`Designer setup failed: ${designerErr.message}. You may need to revoke app access at thegamecrafter.com and re-authorize.`);
       }
-    } catch {
-      const designer = await tgcPost("/designer", {
-        session_id: sessionId,
-        name: "Decked",
-        user_id: userId,
-      });
-      designerId = designer.id;
     }
 
     // Create a folder for card images
@@ -286,7 +287,7 @@ router.get("/callback", async (req, res) => {
     const clientUrl = process.env.CLIENT_URL || "https://www.decked.gg";
     res.redirect(`https://www.thegamecrafter.com/cart/${cartId}`);
   } catch (err: any) {
-    console.error("TGC integration error:", err);
+    console.error("TGC integration error:", err.message || err);
     const clientUrl = process.env.CLIENT_URL || "https://www.decked.gg";
     res.redirect(`${clientUrl}/decks?tgcError=${encodeURIComponent(err.message || "Failed to create order")}`);
   }
