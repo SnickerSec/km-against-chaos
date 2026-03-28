@@ -115,7 +115,7 @@ export default function HomeScreen() {
       </div>
 
       {/* Name input — always visible */}
-      <div className="max-w-sm mb-6">
+      <div className="max-w-sm mx-auto mb-6">
         <input
           ref={nameRef}
           type="text"
@@ -134,7 +134,7 @@ export default function HomeScreen() {
       </div>
 
       {/* Join by Code — always visible */}
-      <div className="max-w-sm mb-8">
+      <div className="max-w-sm mx-auto mb-8">
         <div className="flex gap-2">
           <input
             ref={roomCodeRef}
