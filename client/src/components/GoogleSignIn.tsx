@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useAuthStore, getGoogleClientId } from "@/lib/auth";
 
 declare global {
@@ -52,6 +53,13 @@ function ProfileDropdown({ user, onLogout }: { user: { name: string; picture?: s
           <div className="px-3 py-2 border-b border-gray-700">
             <p className="text-sm font-medium text-white truncate">{user.name}</p>
           </div>
+          <Link
+            href="/decks"
+            onClick={() => setOpen(false)}
+            className="block px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+          >
+            Manage Decks
+          </Link>
           <button
             onClick={() => { setOpen(false); onLogout(); }}
             className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
