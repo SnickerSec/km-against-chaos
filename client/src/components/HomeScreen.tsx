@@ -91,9 +91,8 @@ export default function HomeScreen() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 min-h-screen">
       {/* Header */}
-      <div className="flex flex-col items-center mb-8">
+      <div className="flex flex-col items-start mb-8">
         <div className="flex items-center justify-between w-full mb-2">
-          <div className="w-32" />
           <h1>
             <svg viewBox="-10 0 240 58" className="w-64 h-auto block" aria-label="Decked">
             {/* Back card */}
@@ -108,9 +107,7 @@ export default function HomeScreen() {
             <text x="58" y="42" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="42" fill="#c084fc" letterSpacing="2">ecked</text>
           </svg>
           </h1>
-          <div className="w-32 flex justify-end">
-            <GoogleSignIn />
-          </div>
+          <GoogleSignIn />
         </div>
         <p className="text-gray-400">
           Create and play custom card games
@@ -118,7 +115,7 @@ export default function HomeScreen() {
       </div>
 
       {/* Name input — always visible */}
-      <div className="max-w-sm mx-auto mb-6">
+      <div className="max-w-sm mb-6">
         <input
           ref={nameRef}
           type="text"
@@ -132,7 +129,7 @@ export default function HomeScreen() {
             if (e.key === "Enter" && roomCode.trim()) handleJoin();
           }}
           maxLength={20}
-          className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-center text-lg"
+          className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-lg"
         />
       </div>
 
