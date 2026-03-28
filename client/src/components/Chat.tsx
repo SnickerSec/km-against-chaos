@@ -109,7 +109,7 @@ export default function Chat() {
 
   if (!chatOpen) {
     return (
-      <div className="fixed bottom-4 right-4 z-40 flex flex-col items-center gap-1">
+      <div className="fixed bottom-4 right-4 z-40">
         <button
           onClick={() => setChatOpen(true)}
           className="w-12 h-12 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center shadow-lg transition-colors relative"
@@ -123,7 +123,6 @@ export default function Chat() {
             </span>
           )}
         </button>
-        <span className="text-gray-500 text-[10px] leading-tight">press /</span>
       </div>
     );
   }

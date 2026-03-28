@@ -118,8 +118,9 @@ interface GameStore {
   chatOpen: boolean;
   unreadCount: number;
 
-  // Sticker overlay
+  // Sticker / GIF overlay
   activeSticker: { url: string; playerName: string } | null;
+  activeGif: { url: string; playerName: string } | null;
 
   // Meta card effects
   activeMetaEffect: MetaEffectNotification | null;
@@ -147,6 +148,7 @@ interface GameStore {
   addChatMessage: (msg: ChatMessage) => void;
   setChatOpen: (open: boolean) => void;
   setActiveSticker: (sticker: { url: string; playerName: string } | null) => void;
+  setActiveGif: (gif: { url: string; playerName: string } | null) => void;
   setActiveMetaEffect: (effect: MetaEffectNotification | null) => void;
   setHandBlurred: (v: boolean) => void;
   setIconsRandomized: (v: boolean) => void;
@@ -173,6 +175,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   chatOpen: false,
   unreadCount: 0,
   activeSticker: null,
+  activeGif: null,
   activeMetaEffect: null,
   handBlurred: false,
   iconsRandomized: false,
@@ -240,16 +243,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setScores: (scores) => set({ scores }),
 
   addChatMessage: (msg) => {
-    const { chatMessages, chatOpen } = get();
-    set({
+    const { chatMessages, chatOpen, screen } = get();
+    const updates: Partial<GameStore> = {
       chatMessages: [...chatMessages.slice(-99), msg],
       unreadCount: chatOpen ? 0 : get().unreadCount + 1,
-    });
+    };
+    // Show GIF overlay on game screen
+    if (msg.gifUrl && screen === "game") {
+      updates.activeGif = { url: msg.gifUrl, playerName: msg.playerName };
+    }
+    set(updates);
   },
 
   setChatOpen: (open) => set({ chatOpen: open, unreadCount: open ? 0 : get().unreadCount }),
 
   setActiveSticker: (sticker) => set({ activeSticker: sticker }),
+  setActiveGif: (gif) => set({ activeGif: gif }),
 
   setActiveMetaEffect: (effect) => set({ activeMetaEffect: effect }),
   setHandBlurred: (v) => set({ handBlurred: v }),
@@ -275,6 +284,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       chatOpen: false,
       unreadCount: 0,
       activeSticker: null,
+      activeGif: null,
       activeMetaEffect: null,
       handBlurred: false,
       iconsRandomized: false,

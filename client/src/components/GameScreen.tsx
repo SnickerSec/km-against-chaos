@@ -11,6 +11,7 @@ import ScoreBar from "./ScoreBar";
 import ReactionBar from "./ReactionBar";
 import ReactionOverlay from "./ReactionOverlay";
 import StickerOverlay from "./StickerOverlay";
+import GifOverlay from "./GifOverlay";
 import MetaEffectOverlay from "./MetaEffectOverlay";
 import VoiceChat from "./VoiceChat";
 import RoundTimer from "./RoundTimer";
@@ -40,6 +41,7 @@ export default function GameScreen() {
     <div className="flex flex-col min-h-screen">
       <ReactionOverlay />
       <StickerOverlay />
+      <GifOverlay />
       <MetaEffectOverlay />
 
       {/* Top bar */}
