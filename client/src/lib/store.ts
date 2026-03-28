@@ -66,7 +66,7 @@ export interface RoundState {
   isBonus?: boolean;
 }
 
-export type GameType = "cah" | "joking_hazard";
+export type GameType = "cah" | "joking_hazard" | "apples_to_apples";
 
 export interface PlayerGameView {
   hand: KnowledgeCard[];

@@ -83,6 +83,15 @@ This is a Cards Against Humanity-style party game called "KM Against Chaos".
 - Knowledge cards are short, punchy ANSWER cards (2–10 words).
 - Cards should be clever, funny, and specific to the theme — never generic filler.`;
   }
+  if (gameType === "apples-to-apples" || gameType === "apples_to_apples") {
+    return `=== GAME ENGINE RULES ===
+This is an Apples to Apples-style party game.
+- Green cards are PROMPT cards with a single adjective or short description (NO blanks, NO fill-in-the-blank). Examples: "Scary", "Hilarious", "Unbelievable", "Heartwarming".
+- All Green cards have pick:1. Never use ___ blanks.
+- Red cards are short NOUN/THING answer cards (1–6 words). Examples: "My first paycheck", "Puppies", "A haunted house", "Grandma's cooking".
+- Keep it family-friendly — clever and funny but no explicit or offensive content.
+- Cards should be broadly appealing and work in many combinations.`;
+  }
   if (gameType === "joking-hazard" || gameType === "joking_hazard") {
     return `=== GAME ENGINE RULES ===
 This is a Joking Hazard-style 3-panel comic strip game (text-based, no images).
@@ -197,9 +206,14 @@ function buildDynamicSection(ctx: GenerateContext, cc: number, kc: number, metaC
     : "";
 
   const isJH = ctx.gameType === "joking-hazard" || ctx.gameType === "joking_hazard";
+  const isA2A = ctx.gameType === "apples-to-apples" || ctx.gameType === "apples_to_apples";
   const standardCount = cc - metaCount;
   const cardBreakdown = isJH
     ? `Generate exactly ${cc} red-bordered bonus panel cards (chaosCards with bonus:true) and ${kc} black-bordered regular panel cards (knowledgeCards).`
+    : isA2A
+    ? (metaCount > 0
+      ? `Generate exactly ${standardCount} standard Green cards (single adjective/description, pick:1, NO blanks) AND ${metaCount} Meta/Rule-Breaker Green cards (${cc} total), plus ${kc} Red cards (nouns/things, 1-6 words).`
+      : `Generate exactly ${cc} Green cards (adjectives/descriptions, pick:1, NO blanks) and ${kc} Red cards (nouns/things).`)
     : (metaCount > 0
       ? `Generate exactly ${standardCount} standard fill-in-the-blank Chaos cards AND ${metaCount} Meta/Rule-Breaker Chaos cards (${cc} total), plus ${kc} Knowledge cards.`
       : `Generate exactly ${cc} Chaos cards (prompts) and ${kc} Knowledge cards (answers).`);

@@ -580,14 +580,14 @@ io.on("connection", (socket) => {
       let customChaos = undefined;
       let customKnowledge = undefined;
       let winCondition = undefined;
-      let gameType: "cah" | "joking_hazard" | undefined = undefined;
+      let gameType: "cah" | "joking_hazard" | "apples_to_apples" | undefined = undefined;
       if (deckId) {
         const deck = await getDeck(deckId);
         if (deck) {
           customChaos = deck.chaosCards;
           customKnowledge = deck.knowledgeCards;
           winCondition = deck.winCondition;
-          gameType = deck.gameType as "cah" | "joking_hazard" | undefined;
+          gameType = deck.gameType as "cah" | "joking_hazard" | "apples_to_apples" | undefined;
         }
       }
 

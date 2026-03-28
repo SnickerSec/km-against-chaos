@@ -25,6 +25,7 @@ export default function GameScreen() {
   const isCzar = round?.czarId === socket.id;
   const isSpectator = lobby?.players.find(p => p.id === socket.id)?.isSpectator;
   const isJH = gameType === "joking_hazard";
+  const isA2A = gameType === "apples_to_apples";
 
   if (!round) {
     return (
@@ -93,15 +94,15 @@ export default function GameScreen() {
             </div>
           )
         ) : (
-          <div className="bg-gray-900 border-2 border-red-500 rounded-xl p-5 max-w-lg mx-auto">
-            <p className="text-xs text-red-400 font-semibold mb-2 uppercase tracking-wider">
-              Chaos Card
+          <div className={`bg-gray-900 border-2 ${isA2A ? "border-green-500" : "border-red-500"} rounded-xl p-5 max-w-lg mx-auto`}>
+            <p className={`text-xs ${isA2A ? "text-green-400" : "text-red-400"} font-semibold mb-2 uppercase tracking-wider`}>
+              {isA2A ? "Green Card" : "Chaos Card"}
             </p>
             <p className="text-lg font-medium leading-relaxed">
               {round.chaosCard.text}
             </p>
             {round.chaosCard.pick > 1 && (
-              <p className="text-xs text-red-300 mt-2">
+              <p className={`text-xs ${isA2A ? "text-green-300" : "text-red-300"} mt-2`}>
                 Pick {round.chaosCard.pick}
               </p>
             )}
@@ -113,11 +114,11 @@ export default function GameScreen() {
       <div className="text-center mb-4">
         {isCzar ? (
           <span className="inline-block bg-purple-600 text-sm px-3 py-1 rounded-full font-semibold">
-            {isJH ? "You are the Judge" : "You are the Czar"}
+            {isJH || isA2A ? "You are the Judge" : "You are the Czar"}
           </span>
         ) : (
           <span className="text-gray-500 text-sm">
-            {isJH ? "Judge" : "Czar"}: <strong className="text-purple-400">{czarName}</strong>
+            {isJH || isA2A ? "Judge" : "Czar"}: <strong className="text-purple-400">{czarName}</strong>
           </span>
         )}
       </div>

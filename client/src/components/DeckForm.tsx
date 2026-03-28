@@ -96,7 +96,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [winMode, setWinMode] = useState<"rounds" | "points">(initial?.winCondition?.mode || "rounds");
   const [winValue, setWinValue] = useState(initial?.winCondition?.value || 10);
   const [gameType, setGameType] = useState(
-    initial?.gameType === "joking_hazard" ? "joking-hazard" : "cards-against-humanity"
+    initial?.gameType === "joking_hazard" ? "joking-hazard"
+    : initial?.gameType === "apples_to_apples" ? "apples-to-apples"
+    : "cards-against-humanity"
   );
   const [chaosCount, setChaosCount] = useState(10);
   const [knowledgeCount, setKnowledgeCount] = useState(25);
@@ -228,7 +230,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         flavorThemes,
         chaosLevel,
         wildcard: wildcard.trim(),
-        gameType: isJH ? "joking_hazard" : "cah",
+        gameType: isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : "cah",
       });
     } catch (e: any) {
       setError(e.message);
@@ -302,10 +304,13 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         >
           <option value="cards-against-humanity">Cards Against Humanity</option>
           <option value="joking-hazard">Joking Hazard (Comic Strip)</option>
+          <option value="apples-to-apples">Apples to Apples</option>
         </select>
         <p className="text-gray-500 text-xs mt-1">
           {gameType === "joking-hazard"
             ? "3-panel comic strip game — the Judge plays Panel 2, others compete for the funniest Panel 3"
+            : gameType === "apples-to-apples"
+            ? "Family-friendly party game — a Judge plays a Green card, players submit Red cards to match"
             : "Fill-in-the-blank party game — a Czar reads a prompt, players submit answers"}
         </p>
 
@@ -471,12 +476,12 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
                 className="w-full accent-orange-500"
               />
               <div className="flex justify-between text-xs text-gray-600 mt-0.5">
-                <span>0% — {gameType === "joking-hazard" ? "all comic panels" : "all fill-in-the-blank"}</span>
+                <span>0% — {gameType === "joking-hazard" ? "all comic panels" : gameType === "apples-to-apples" ? "all adjective prompts" : "all fill-in-the-blank"}</span>
                 <span>50% — half are rule-breakers</span>
               </div>
               {chaosLevel > 0 && (
                 <p className="text-orange-400/80 text-xs mt-1">
-                  ~{chaosLevel}% of {gameType === "joking-hazard" ? "scene" : "prompt"} cards will be meta cards that manipulate scores, UI, or hands
+                  ~{chaosLevel}% of {gameType === "joking-hazard" ? "scene" : gameType === "apples-to-apples" ? "green" : "prompt"} cards will be meta cards that manipulate scores, UI, or hands
                 </p>
               )}
             </div>
@@ -715,7 +720,7 @@ function CardPackEditor({
           </button>
           <h3 className={`font-semibold ${style.color}`}>{pack.name || (pack.type === "expansion" ? "Expansion Box" : "Themed Pack")}</h3>
           <span className="text-gray-500 text-xs whitespace-nowrap">
-            {chaosCardCount} prompts · {knowledgeCardCount} answers
+            {chaosCardCount} {gameType === "apples-to-apples" ? "green" : "prompts"} · {knowledgeCardCount} {gameType === "apples-to-apples" ? "red" : "answers"}
           </span>
         </div>
         {!isBase && (
@@ -800,16 +805,22 @@ function CardPackEditor({
             />
           ) : (
             <>
-              {/* CAH: Chaos Cards */}
+              {/* Chaos / Green Cards */}
               <CardListEditor
-                label="Prompt Cards"
-                labelColor="text-red-400"
+                label={gameType === "apples-to-apples" ? "Green Cards" : "Prompt Cards"}
+                labelColor={gameType === "apples-to-apples" ? "text-green-400" : "text-red-400"}
                 cards={pack.chaosCards}
-                placeholder={(i) => `Prompt ${i + 1}, e.g. "The root cause was ___"`}
-                hint={isBase ? "Use ___ as a blank for players to fill in. Min 5 cards." : "Use ___ as a blank for players to fill in."}
-                addButtonColor="bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-600/50"
-                focusColor="focus:border-red-500"
-                showPick
+                placeholder={(i) => gameType === "apples-to-apples"
+                  ? `Green card ${i + 1}, e.g. "Scary", "Hilarious"`
+                  : `Prompt ${i + 1}, e.g. "The root cause was ___"`}
+                hint={gameType === "apples-to-apples"
+                  ? (isBase ? "Single adjective or short description per card. No blanks. Min 5 cards." : "Single adjective or short description per card. No blanks.")
+                  : (isBase ? "Use ___ as a blank for players to fill in. Min 5 cards." : "Use ___ as a blank for players to fill in.")}
+                addButtonColor={gameType === "apples-to-apples"
+                  ? "bg-green-600/20 hover:bg-green-600/30 text-green-400 border-green-600/50"
+                  : "bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-600/50"}
+                focusColor={gameType === "apples-to-apples" ? "focus:border-green-500" : "focus:border-red-500"}
+                showPick={gameType !== "apples-to-apples"}
                 packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
                 onUpdate={(index, field, value) => updateChaos(index, field, value)}
                 onAdd={() => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, { text: "", pick: 1 }] }))}
@@ -818,15 +829,21 @@ function CardPackEditor({
                 }
               />
 
-              {/* CAH: Knowledge Cards */}
+              {/* Knowledge / Red Cards */}
               <CardListEditor
-                label="Answer Cards"
-                labelColor="text-purple-400"
+                label={gameType === "apples-to-apples" ? "Red Cards" : "Answer Cards"}
+                labelColor={gameType === "apples-to-apples" ? "text-red-400" : "text-purple-400"}
                 cards={pack.knowledgeCards}
-                placeholder={(i) => `Answer ${i + 1}`}
-                hint={isBase ? "Short answers or phrases. Min 15 cards." : "Short answers or phrases."}
-                addButtonColor="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border-purple-600/50"
-                focusColor="focus:border-purple-500"
+                placeholder={(i) => gameType === "apples-to-apples"
+                  ? `Red card ${i + 1}, e.g. "Puppies", "My first paycheck"`
+                  : `Answer ${i + 1}`}
+                hint={gameType === "apples-to-apples"
+                  ? (isBase ? "Nouns, things, or short phrases. Min 15 cards." : "Nouns, things, or short phrases.")
+                  : (isBase ? "Short answers or phrases. Min 15 cards." : "Short answers or phrases.")}
+                addButtonColor={gameType === "apples-to-apples"
+                  ? "bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-600/50"
+                  : "bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border-purple-600/50"}
+                focusColor={gameType === "apples-to-apples" ? "focus:border-red-500" : "focus:border-purple-500"}
                 packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
                 onUpdate={(index, _field, value) => updateKnowledge(index, value as string)}
                 onAdd={() => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, { text: "" }] }))}
