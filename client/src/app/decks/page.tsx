@@ -37,10 +37,6 @@ export default function DecksPage() {
 
   const [printing, setPrinting] = useState<string | null>(null);
 
-  // TGC progress
-  const [tgcProgress, setTgcProgress] = useState<{ step: string; progress: number; total: number; detail?: string } | null>(null);
-  const [tgcError, setTgcError] = useState<string | null>(null);
-  const [tgcCartUrl, setTgcCartUrl] = useState<string | null>(null);
 
   const user = useAuthStore((s) => s.user);
   const isAdmin = useAuthStore((s) => s.isAdmin);
@@ -73,46 +69,6 @@ export default function DecksPage() {
 
   useEffect(() => { load(); }, []);
 
-  // Handle TGC SSO callback
-  const tgcStartedRef = useRef(false);
-  useEffect(() => {
-    if (tgcStartedRef.current) return;
-    const params = new URLSearchParams(window.location.search);
-    const tgcToken = params.get("tgcToken");
-    const tgcErr = params.get("tgcError");
-    if (!tgcToken && !tgcErr) return;
-
-    tgcStartedRef.current = true;
-    window.history.replaceState({}, "", "/decks");
-
-    if (tgcErr) {
-      setTgcError(tgcErr);
-      return;
-    }
-
-    setTgcProgress({ step: "Connecting", progress: 0, total: 0, detail: "Starting..." });
-    const eventSource = new EventSource(`${API_URL}/api/print/tgc/create?token=${tgcToken}`);
-    eventSource.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.error) {
-        setTgcError(data.error);
-        setTgcProgress(null);
-        eventSource.close();
-      } else if (data.done) {
-        setTgcCartUrl(data.cartUrl);
-        setTgcProgress(null);
-        eventSource.close();
-      } else {
-        setTgcProgress(data);
-      }
-    };
-    eventSource.onerror = () => {
-      setTgcError("Connection lost during card upload");
-      setTgcProgress(null);
-      eventSource.close();
-    };
-    return () => eventSource.close();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTabChange = (t: Tab) => {
     setTab(t);
@@ -260,77 +216,6 @@ export default function DecksPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      {/* TGC Progress Modal */}
-      {(tgcProgress || tgcError || tgcCartUrl) && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
-            {tgcProgress && (
-              <>
-                <div className="flex items-center gap-3 mb-4">
-                  <Icon icon="mdi:loading" className="animate-spin text-purple-400" width={24} />
-                  <h3 className="text-lg font-semibold">Creating on The Game Crafter</h3>
-                </div>
-                <p className="text-sm text-gray-400 mb-1">{tgcProgress.step}</p>
-                <p className="text-xs text-gray-500 mb-3">{tgcProgress.detail}</p>
-                {tgcProgress.total > 0 && (
-                  <>
-                    <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
-                      <div
-                        className="bg-purple-600 h-3 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.round((tgcProgress.progress / tgcProgress.total) * 100)}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 text-right">
-                      {tgcProgress.progress} / {tgcProgress.total} cards
-                    </p>
-                  </>
-                )}
-              </>
-            )}
-            {tgcError && (
-              <>
-                <div className="flex items-center gap-3 mb-4">
-                  <Icon icon="mdi:alert-circle" className="text-red-400" width={24} />
-                  <h3 className="text-lg font-semibold">Error</h3>
-                </div>
-                <p className="text-sm text-red-400 mb-4">{tgcError}</p>
-                <button
-                  onClick={() => setTgcError(null)}
-                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-semibold transition-colors"
-                >
-                  Close
-                </button>
-              </>
-            )}
-            {tgcCartUrl && (
-              <>
-                <div className="flex items-center gap-3 mb-4">
-                  <Icon icon="mdi:check-circle" className="text-green-400" width={24} />
-                  <h3 className="text-lg font-semibold">Ready to Order!</h3>
-                </div>
-                <p className="text-sm text-gray-400 mb-4">Your deck has been created on The Game Crafter. Click below to review and checkout.</p>
-                <div className="flex gap-3">
-                  <a
-                    href={tgcCartUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-semibold text-center transition-colors"
-                  >
-                    Go to Cart
-                  </a>
-                  <button
-                    onClick={() => setTgcCartUrl(null)}
-                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-semibold transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold">Deck Builder</h1>

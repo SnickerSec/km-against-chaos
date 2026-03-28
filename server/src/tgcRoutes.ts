@@ -170,11 +170,11 @@ router.get("/callback", async (req, res) => {
     });
 
     const clientUrl = process.env.CLIENT_URL || "https://www.decked.gg";
-    res.redirect(`${clientUrl}/decks?tgcToken=${token}`);
+    res.redirect(`${clientUrl}/decks/print?token=${token}`);
   } catch (err: any) {
     console.error("TGC SSO error:", err.message || err);
     const clientUrl = process.env.CLIENT_URL || "https://www.decked.gg";
-    res.redirect(`${clientUrl}/decks?tgcError=${encodeURIComponent(err.message || "SSO failed")}`);
+    res.redirect(`${clientUrl}/decks`);
   }
 });
 
