@@ -158,7 +158,7 @@ export default function DecksPage() {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`font-semibold text-sm ${colorClass}`}>{pack.name}</span>
+            <span className={`font-semibold text-sm ${colorClass}`}>{pack.deckName || pack.name}</span>
             {selected && (
               <span className="text-xs bg-green-700/40 text-green-300 px-2 py-0.5 rounded-full">Selected</span>
             )}
