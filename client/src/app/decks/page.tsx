@@ -75,18 +75,20 @@ function DecksPageContent() {
   useEffect(() => { load(); }, []);
 
   // Handle TGC SSO callback
+  const tgcStartedRef = useRef(false);
   useEffect(() => {
     const tgcToken = searchParams.get("tgcToken");
     const tgcErr = searchParams.get("tgcError");
     if (tgcErr) {
       setTgcError(decodeURIComponent(tgcErr));
-      router.replace("/decks");
+      window.history.replaceState({}, "", "/decks");
       return;
     }
-    if (!tgcToken) return;
+    if (!tgcToken || tgcStartedRef.current) return;
+    tgcStartedRef.current = true;
 
-    // Clear URL params
-    router.replace("/decks");
+    // Clear URL params without triggering re-render
+    window.history.replaceState({}, "", "/decks");
 
     // Start SSE stream
     setTgcProgress({ step: "Connecting", progress: 0, total: 0, detail: "Starting..." });
