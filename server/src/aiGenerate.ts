@@ -86,25 +86,24 @@ This is a Cards Against Humanity-style party game called "KM Against Chaos".
   if (gameType === "joking-hazard" || gameType === "joking_hazard") {
     return `=== GAME ENGINE RULES ===
 This is a Joking Hazard-style 3-panel comic strip game (text-based, no images).
+All cards are PANEL CARDS — the same card type with different border colors.
 
-SCENE CARDS (drawn from deck each round):
-There are two types:
-1. Regular scene cards (black border) — become Panel 1 (the opening). pick:1, no bonus field.
-   The Judge then plays a Panel card as Panel 2, and other players submit 1 card as Panel 3.
-2. Bonus scene cards (red border) — become Panel 3 (the punchline is FIXED). pick:1, bonus:true.
-   In a bonus round, players submit 2 cards as Panels 1+2 (the setup). Winner gets 2 points.
-   About 15-20% of scene cards should be bonus cards.
-   Bonus cards should be strong punchlines — dramatic, absurd, or shocking endings.
+CARD TYPES BY BORDER COLOR:
+1. Black-bordered panels (majority ~80-85%) — versatile, can be used as any panel.
+   Regular round: drawn card = Panel 1, Judge plays Panel 2, players submit Panel 3.
+2. Red-bordered panels (~15-20%) — strong punchlines that trigger Bonus Rounds.
+   Bonus round: red card = Panel 3 (fixed), players submit 2 cards for Panels 1+2.
+   Winner gets 2 points. Red cards should be dramatic, absurd, or shocking endings.
 
-Scene cards are complete sentences or phrases. No blanks.
-Example regular: {"text": "Two coworkers stare at a whiteboard", "pick": 1}
-Example bonus: {"text": "Everyone in the room spontaneously combusts", "pick": 1, "bonus": true}
+ALL CARDS:
+- Complete sentences or phrases (NOT fill-in-the-blank, no blanks).
+- Short (2-12 words). Describe actions, reactions, situations, consequences.
+- Should work in many combinations — avoid cards that only pair with one other.
+- Humor: unexpected escalation, absurd consequences, deadpan observations.
 
-PANEL CARDS (held in player hands):
-- Used as Panel 2 (setup) by the Judge, or Panel 3 (punchline) / Panels 1+2 (bonus round setup) by players.
-- Short reactions, consequences, actions, or escalations.
-- Should work in many combinations — avoid cards only relevant to one scene.
-- Humor: unexpected escalation, absurd consequences, deadpan observations.`;
+OUTPUT FORMAT:
+- chaosCards = red-bordered bonus cards: {"text": "...", "pick": 1, "bonus": true}
+- knowledgeCards = black-bordered regular cards: {"text": "..."}`;
   }
   return "Generate prompt cards and answer cards appropriate for the game type.";
 }
@@ -188,9 +187,7 @@ function buildDynamicSection(ctx: GenerateContext, cc: number, kc: number, metaC
   const isJH = ctx.gameType === "joking-hazard" || ctx.gameType === "joking_hazard";
   const standardCount = cc - metaCount;
   const cardBreakdown = isJH
-    ? (metaCount > 0
-      ? `Generate exactly ${standardCount} standard Scene cards AND ${metaCount} Meta/Rule-Breaker Scene cards (${cc} total), plus ${kc} Panel cards.`
-      : `Generate exactly ${cc} Scene cards (Panel 1) and ${kc} Panel cards (for hands).`)
+    ? `Generate exactly ${cc} red-bordered bonus panel cards (chaosCards with bonus:true) and ${kc} black-bordered regular panel cards (knowledgeCards).`
     : (metaCount > 0
       ? `Generate exactly ${standardCount} standard fill-in-the-blank Chaos cards AND ${metaCount} Meta/Rule-Breaker Chaos cards (${cc} total), plus ${kc} Knowledge cards.`
       : `Generate exactly ${cc} Chaos cards (prompts) and ${kc} Knowledge cards (answers).`);

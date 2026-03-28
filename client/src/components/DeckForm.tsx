@@ -164,17 +164,43 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
     setError(null);
     if (!name.trim()) { setError("Deck name is required"); return; }
 
-    const allChaos = packs.flatMap((p) => p.chaosCards).filter((c) => c.text.trim());
-    const allKnowledge = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
+    const isJH = gameType === "joking-hazard";
 
-    if (allChaos.length < 5) { setError("Need at least 5 prompt cards with text across all packs"); return; }
-    if (allKnowledge.length < 15) { setError("Need at least 15 answer cards with text across all packs"); return; }
+    let allChaos: CardInput[];
+    let allKnowledge: CardInput[];
+
+    if (isJH) {
+      // JH: all cards are in knowledgeCards. Auto-split:
+      // - Red (bonus) cards → chaosCards (drawn from deck, trigger bonus rounds)
+      // - ~30% of black cards → chaosCards (drawn as regular Panel 1 starters)
+      // - Remaining black cards → knowledgeCards (dealt to hands)
+      const allPanels = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
+      const redCards = allPanels.filter((c) => c.bonus);
+      const blackCards = allPanels.filter((c) => !c.bonus);
+
+      if (allPanels.length < 20) { setError("Need at least 20 panel cards for a Joking Hazard deck"); return; }
+
+      // Shuffle black cards and split ~30% to draw pile, rest to hands
+      const shuffledBlack = [...blackCards].sort(() => Math.random() - 0.5);
+      const drawCount = Math.max(5, Math.round(blackCards.length * 0.3));
+      const blackForDeck = shuffledBlack.slice(0, drawCount).map((c) => ({ ...c, pick: 1 }));
+      const blackForHands = shuffledBlack.slice(drawCount);
+
+      allChaos = [...redCards.map((c) => ({ ...c, pick: 1, bonus: true })), ...blackForDeck];
+      allKnowledge = blackForHands;
+    } else {
+      allChaos = packs.flatMap((p) => p.chaosCards).filter((c) => c.text.trim());
+      allKnowledge = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
+
+      if (allChaos.length < 5) { setError("Need at least 5 prompt cards with text across all packs"); return; }
+      if (allKnowledge.length < 15) { setError("Need at least 15 answer cards with text across all packs"); return; }
+    }
 
     const packData = packs.map((p) => ({
       type: p.type,
       name: p.name,
       description: p.description,
-      chaosCards: p.chaosCards.filter((c) => c.text.trim()),
+      chaosCards: isJH ? [] : p.chaosCards.filter((c) => c.text.trim()),
       knowledgeCards: p.knowledgeCards.filter((c) => c.text.trim()),
     })).filter((p) => p.chaosCards.length > 0 || p.knowledgeCards.length > 0);
 
@@ -191,7 +217,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         flavorThemes,
         chaosLevel,
         wildcard: wildcard.trim(),
-        gameType: gameType === "joking-hazard" ? "joking_hazard" : "cah",
+        gameType: isJH ? "joking_hazard" : "cah",
       });
     } catch (e: any) {
       setError(e.message);
@@ -214,12 +240,34 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   };
 
   const handleGenerateDeck = async (theme: string) => {
-    const deck = await generateDeckAI({ theme, gameType, chaosCount, knowledgeCount, maturity, flavorThemes, chaosLevel, wildcard: wildcard.trim() || undefined });
+    const isJH = gameType === "joking-hazard";
+    const deck = await generateDeckAI({
+      theme, gameType,
+      chaosCount: isJH ? Math.round(knowledgeCount * 0.18) : chaosCount,
+      knowledgeCount: isJH ? knowledgeCount : knowledgeCount,
+      maturity, flavorThemes, chaosLevel,
+      wildcard: wildcard.trim() || undefined,
+    });
     setName(deck.name);
     setDescription(deck.description);
     setPacks((prev) => {
       const basePack = prev.find((p) => p.type === "base");
       const rest = prev.filter((p) => p.type !== "base");
+
+      if (isJH) {
+        // Merge all generated cards into one panel pool
+        const bonusPanels = deck.chaosCards.map((c) => ({ text: c.text, bonus: true }));
+        const regularPanels = deck.knowledgeCards.map((c) => ({ text: c.text }));
+        return [
+          {
+            ...(basePack || { id: "base", type: "base" as const, name: "Base Game", description: "", open: true }),
+            chaosCards: [],
+            knowledgeCards: [...bonusPanels, ...regularPanels],
+          },
+          ...rest,
+        ];
+      }
+
       return [
         {
           ...(basePack || { id: "base", type: "base" as const, name: "Base Game", description: "", open: true }),
@@ -252,41 +300,52 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
         {/* Card counts — only on create */}
         {!initial && (
-          <>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">
-                  {gameType === "joking-hazard" ? "Scene cards to generate" : "Prompt cards to generate"}
-                </label>
-                <input
-                  type="number"
-                  value={chaosCount}
-                  onChange={(e) => handleChaosCount(parseInt(e.target.value) || 10)}
-                  min={5}
-                  max={30}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">
-                  {gameType === "joking-hazard" ? "Panel cards to generate" : "Answer cards to generate"}
-                </label>
-                <input
-                  type="number"
-                  value={knowledgeCount}
-                  onChange={(e) => handleKnowledgeCount(parseInt(e.target.value) || 25)}
-                  min={chaosCount + 1}
-                  max={50}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-                />
-              </div>
+          gameType === "joking-hazard" ? (
+            <div className="mt-3">
+              <label className="block text-xs text-gray-400 mb-1">Panel cards to generate</label>
+              <input
+                type="number"
+                value={knowledgeCount}
+                onChange={(e) => setKnowledgeCount(Math.max(20, Math.min(80, parseInt(e.target.value) || 40)))}
+                min={20}
+                max={80}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+              />
+              <p className="text-gray-600 text-xs mt-1">
+                AI will generate ~15-20% as red (bonus) cards. Min 20, max 80.
+              </p>
             </div>
-            <p className="text-gray-600 text-xs mt-1">
-              {gameType === "joking-hazard"
-                ? "Panel cards must outnumber scene cards. Max 30 scenes, 50 panels."
-                : "Answer cards must outnumber prompt cards. Max 30 prompts, 50 answers."}
-            </p>
-          </>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Prompt cards to generate</label>
+                  <input
+                    type="number"
+                    value={chaosCount}
+                    onChange={(e) => handleChaosCount(parseInt(e.target.value) || 10)}
+                    min={5}
+                    max={30}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Answer cards to generate</label>
+                  <input
+                    type="number"
+                    value={knowledgeCount}
+                    onChange={(e) => handleKnowledgeCount(parseInt(e.target.value) || 25)}
+                    min={chaosCount + 1}
+                    max={50}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+              <p className="text-gray-600 text-xs mt-1">
+                Answer cards must outnumber prompt cards. Max 30 prompts, 50 answers.
+              </p>
+            </>
+          )
         )}
       </div>
 
@@ -702,54 +761,77 @@ function CardPackEditor({
             </div>
           )}
 
-          {/* Chaos Cards */}
-          <CardListEditor
-            label={gameType === "joking-hazard" ? "Scene Cards (Panel 1)" : "Prompt Cards"}
-            labelColor="text-red-400"
-            cards={pack.chaosCards}
-            placeholder={gameType === "joking-hazard"
-              ? (i) => `Scene ${i + 1}, e.g. "Two coworkers stare at a whiteboard"`
-              : (i) => `Prompt ${i + 1}, e.g. "The root cause was ___"`}
-            hint={gameType === "joking-hazard"
-              ? (isBase ? "Scene-setting cards drawn from the deck each round. Min 5 cards." : "Scene-setting cards drawn from the deck each round.")
-              : (isBase ? "Use ___ as a blank for players to fill in. Min 5 cards." : "Use ___ as a blank for players to fill in.")}
-            addButtonColor="bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-600/50"
-            focusColor="focus:border-red-500"
-            showPick={gameType !== "joking-hazard"}
-            showBonus={gameType === "joking-hazard"}
-            packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
-            onUpdate={(index, field, value) => updateChaos(index, field, value)}
-            onAdd={() => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, { text: "", pick: 1 }] }))}
-            onRemove={(index) =>
-              onUpdate((p) => ({ ...p, chaosCards: p.chaosCards.filter((_, i) => i !== index) }))
-            }
-          />
+          {gameType === "joking-hazard" ? (
+            /* JH: Single unified panel cards editor — all cards are panels, toggle red for bonus */
+            <CardListEditor
+              label="Panel Cards"
+              labelColor="text-purple-400"
+              cards={pack.knowledgeCards}
+              placeholder={(i) => `Panel ${i + 1}, e.g. "One of them quietly starts crying"`}
+              hint={isBase
+                ? "All cards are panels. Toggle RED for bonus punchlines (~15-20%). Min 20 cards total."
+                : "Panel cards for this pack. Toggle RED for bonus cards."}
+              addButtonColor="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border-purple-600/50"
+              focusColor="focus:border-purple-500"
+              showBonus
+              packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
+              onUpdate={(index, field, value) => {
+                onUpdate((p) => {
+                  const updated = [...p.knowledgeCards];
+                  updated[index] = { ...updated[index], [field]: value };
+                  return { ...p, knowledgeCards: updated };
+                });
+              }}
+              onAdd={() => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, { text: "" }] }))}
+              onRemove={(index) =>
+                onUpdate((p) => ({ ...p, knowledgeCards: p.knowledgeCards.filter((_, i) => i !== index) }))
+              }
+            />
+          ) : (
+            <>
+              {/* CAH: Chaos Cards */}
+              <CardListEditor
+                label="Prompt Cards"
+                labelColor="text-red-400"
+                cards={pack.chaosCards}
+                placeholder={(i) => `Prompt ${i + 1}, e.g. "The root cause was ___"`}
+                hint={isBase ? "Use ___ as a blank for players to fill in. Min 5 cards." : "Use ___ as a blank for players to fill in."}
+                addButtonColor="bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-600/50"
+                focusColor="focus:border-red-500"
+                showPick
+                packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
+                onUpdate={(index, field, value) => updateChaos(index, field, value)}
+                onAdd={() => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, { text: "", pick: 1 }] }))}
+                onRemove={(index) =>
+                  onUpdate((p) => ({ ...p, chaosCards: p.chaosCards.filter((_, i) => i !== index) }))
+                }
+              />
 
-          {/* Knowledge Cards */}
-          <CardListEditor
-            label={gameType === "joking-hazard" ? "Panel Cards (Hands)" : "Answer Cards"}
-            labelColor="text-purple-400"
-            cards={pack.knowledgeCards}
-            placeholder={gameType === "joking-hazard"
-              ? (i) => `Panel ${i + 1}, e.g. "One of them quietly starts crying"`
-              : (i) => `Answer ${i + 1}`}
-            hint={gameType === "joking-hazard"
-              ? (isBase ? "Cards in player hands — used as Panel 2 (setup) and Panel 3 (punchline). Min 15 cards." : "Cards in player hands.")
-              : (isBase ? "Short answers or phrases. Min 15 cards." : "Short answers or phrases.")}
-            addButtonColor="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border-purple-600/50"
-            focusColor="focus:border-purple-500"
-            packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
-            onUpdate={(index, _field, value) => updateKnowledge(index, value as string)}
-            onAdd={() => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, { text: "" }] }))}
-            onRemove={(index) =>
-              onUpdate((p) => ({ ...p, knowledgeCards: p.knowledgeCards.filter((_, i) => i !== index) }))
-            }
-          />
+              {/* CAH: Knowledge Cards */}
+              <CardListEditor
+                label="Answer Cards"
+                labelColor="text-purple-400"
+                cards={pack.knowledgeCards}
+                placeholder={(i) => `Answer ${i + 1}`}
+                hint={isBase ? "Short answers or phrases. Min 15 cards." : "Short answers or phrases."}
+                addButtonColor="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border-purple-600/50"
+                focusColor="focus:border-purple-500"
+                packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
+                onUpdate={(index, _field, value) => updateKnowledge(index, value as string)}
+                onAdd={() => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, { text: "" }] }))}
+                onRemove={(index) =>
+                  onUpdate((p) => ({ ...p, knowledgeCards: p.knowledgeCards.filter((_, i) => i !== index) }))
+                }
+              />
+            </>
+          )}
 
           {/* Bulk Add */}
           <BulkAdd
             gameType={gameType}
-            onAddChaos={(cards) => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, ...cards] }))}
+            onAddChaos={gameType === "joking-hazard"
+              ? (cards) => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
+              : (cards) => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, ...cards] }))}
             onAddKnowledge={(cards) =>
               onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
             }
