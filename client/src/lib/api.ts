@@ -29,7 +29,7 @@ export interface CustomDeck {
   name: string;
   description: string;
   chaosCards: { id: string; text: string; pick: number; metaType?: string; metaEffect?: any }[];
-  knowledgeCards: { id: string; text: string }[];
+  knowledgeCards: { id: string; text: string; bonus?: boolean }[];
   winCondition: WinCondition;
   createdAt: string;
   updatedAt: string;
@@ -40,6 +40,7 @@ export interface CustomDeck {
   wildcard?: string;
   remixedFrom?: string | null;
   gameType?: string;
+  packs?: { type: string; name: string; description: string; chaosCards: { text: string; pick?: number }[]; knowledgeCards: { text: string; bonus?: boolean }[] }[];
 }
 
 export interface DeckExport {

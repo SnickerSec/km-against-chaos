@@ -394,6 +394,20 @@ export async function upsertPacksForDeck(
   }
 }
 
+export async function getPacksForDeck(deckId: string): Promise<{ type: string; name: string; description: string; chaosCards: any[]; knowledgeCards: any[] }[]> {
+  const { rows } = await pool.query(
+    "SELECT type, name, description, chaos_cards, knowledge_cards FROM packs WHERE deck_id = $1 ORDER BY created_at ASC",
+    [deckId]
+  );
+  return rows.map((r: any) => ({
+    type: r.type,
+    name: r.name,
+    description: r.description || "",
+    chaosCards: (r.chaos_cards || []).map((c: any) => ({ text: c.text, pick: c.pick || 1 })),
+    knowledgeCards: (r.knowledge_cards || []).map((c: any) => ({ text: c.text, ...(c.bonus ? { bonus: true } : {}) })),
+  }));
+}
+
 export async function listPacks(type?: string): Promise<PackSummary[]> {
   const { rows } = await pool.query(
     `SELECT p.id, p.deck_id, p.type, p.name, p.description, p.owner_id, p.built_in,

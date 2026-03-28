@@ -111,8 +111,19 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [pillarsOpen, setPillarsOpen] = useState(false);
   const [themeSearch, setThemeSearch] = useState("");
 
-  const [packs, setPacks] = useState<CardPack[]>([
-    {
+  const [packs, setPacks] = useState<CardPack[]>(() => {
+    if (initial?.packs && initial.packs.length > 0) {
+      return initial.packs.map((p, i) => ({
+        id: i === 0 && p.type === "base" ? "base" : makeId(),
+        type: p.type as PackType,
+        name: p.name,
+        description: p.description || "",
+        chaosCards: p.chaosCards.length > 0 ? p.chaosCards : [{ text: "", pick: 1 }],
+        knowledgeCards: p.knowledgeCards.length > 0 ? p.knowledgeCards : [{ text: "" }],
+        open: i === 0,
+      }));
+    }
+    return [{
       id: "base",
       type: "base",
       name: "Base Game",
@@ -120,8 +131,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       chaosCards: initial?.chaosCards || [{ text: "", pick: 1 }],
       knowledgeCards: initial?.knowledgeCards || [{ text: "" }],
       open: true,
-    },
-  ]);
+    }];
+  });
 
   // Check if base game has enough cards to unlock expansions/packs
   const basePack = packs.find((p) => p.type === "base")!;

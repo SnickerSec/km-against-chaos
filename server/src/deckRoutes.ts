@@ -9,6 +9,7 @@ import {
   upsertPacksForDeck,
   createDeckFromPacks,
   remixDeck,
+  getPacksForDeck,
   type PackInput,
 } from "./deckStore.js";
 import { generateCards, generateDeck } from "./aiGenerate.js";
@@ -88,7 +89,8 @@ router.get("/:id", async (req, res) => {
       res.status(404).json({ error: "Deck not found" });
       return;
     }
-    res.json(deck);
+    const packs = await getPacksForDeck(req.params.id);
+    res.json({ ...deck, packs: packs.length > 0 ? packs : undefined });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

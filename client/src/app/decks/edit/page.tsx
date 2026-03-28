@@ -77,12 +77,13 @@ function EditDeckContent() {
           name: deck.name,
           description: deck.description,
           chaosCards: deck.chaosCards.map((c) => ({ text: c.text, pick: c.pick })),
-          knowledgeCards: deck.knowledgeCards.map((c) => ({ text: c.text })),
+          knowledgeCards: deck.knowledgeCards.map((c) => ({ text: c.text, ...(c.bonus ? { bonus: true } : {}) })),
           winCondition: deck.winCondition || { mode: "rounds", value: 10 },
           maturity: deck.maturity,
           flavorThemes: deck.flavorThemes,
           chaosLevel: deck.chaosLevel,
           wildcard: deck.wildcard,
+          packs: deck.packs,
         }}
         submitLabel="Save Changes"
         onSubmit={async (data) => {
