@@ -102,8 +102,23 @@ export function startRound(lobbyCode: string): RoundState | null {
   const chaosCard = game.chaosDeck.pop()!;
 
   const isJH = game.gameType === "joking_hazard";
-  const initialPhase = isJH ? "czar_setup" as const : "submitting" as const;
-  const phaseDeadline = Date.now() + (isJH ? CZAR_SETUP_TIME_MS : SUBMIT_TIME_MS);
+  const isBonus = isJH && !!chaosCard.bonus;
+
+  // Bonus round: red card = Panel 3 (fixed), skip czar setup, players submit 2 cards
+  // Regular JH: czar plays Panel 2, players submit 1 card
+  // CAH: straight to submitting
+  let initialPhase: "czar_setup" | "submitting";
+  if (isJH && !isBonus) {
+    initialPhase = "czar_setup";
+  } else {
+    initialPhase = "submitting";
+  }
+  const phaseDeadline = Date.now() + (initialPhase === "czar_setup" ? CZAR_SETUP_TIME_MS : SUBMIT_TIME_MS);
+
+  // For bonus rounds, override pick to 2 (players submit 2 cards for Panels 1+2)
+  if (isBonus) {
+    chaosCard.pick = 2;
+  }
 
   game.currentRound = {
     chaosCard,
@@ -123,6 +138,7 @@ export function startRound(lobbyCode: string): RoundState | null {
     submissions: [],
     winnerId: null,
     phaseDeadline,
+    isBonus,
   };
 }
 
@@ -150,6 +166,7 @@ export function getPlayerView(lobbyCode: string, playerId: string): PlayerGameVi
       winnerId: round.winnerId,
       phaseDeadline: round.phaseDeadline,
       czarSetupCard: round.czarSetupCard || undefined,
+      isBonus: round.chaosCard.bonus || undefined,
     };
   }
 
@@ -226,6 +243,10 @@ export function forceCzarSetup(lobbyCode: string): KnowledgeCard | null {
 
 export function getGameType(lobbyCode: string): GameType | undefined {
   return games.get(lobbyCode)?.gameType;
+}
+
+export function getCurrentPhase(lobbyCode: string): string | undefined {
+  return games.get(lobbyCode)?.currentRound?.phase;
 }
 
 export function submitCards(
@@ -372,7 +393,8 @@ export function pickWinner(
 
   round.winnerId = winnerId;
   round.phase = "revealing";
-  const newScore = (game.scores.get(winnerId) || 0) + 1;
+  const pointsAwarded = (game.gameType === "joking_hazard" && round.chaosCard.bonus) ? 2 : 1;
+  const newScore = (game.scores.get(winnerId) || 0) + pointsAwarded;
   game.scores.set(winnerId, newScore);
 
   // Check point-based win

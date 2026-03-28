@@ -64,6 +64,7 @@ export interface ChaosCard {
   pick: number; // how many Knowledge cards to play (usually 1)
   metaType?: "score_manipulation" | "ui_interference" | "hand_reset";
   metaEffect?: MetaEffect;
+  bonus?: boolean; // Joking Hazard: red-bordered card — becomes Panel 3, players submit 2 cards, 2 points
 }
 
 export interface MetaEffectPayload {
@@ -92,6 +93,7 @@ export interface RoundState {
   winnerId: string | null;
   phaseDeadline?: number;          // Unix ms timestamp for countdown
   czarSetupCard?: KnowledgeCard;   // Joking Hazard: card played by czar as panel 2
+  isBonus?: boolean;               // Joking Hazard: red card bonus round (card = Panel 3, submit 2)
 }
 
 export interface GameState {

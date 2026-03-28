@@ -1,6 +1,6 @@
 "use client";
 
-import { useGameStore } from "@/lib/store";
+import { useGameStore, type GameType } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { Icon } from "@iconify/react";
 import { useMemo, useState, useRef, useCallback } from "react";
@@ -24,7 +24,7 @@ export default function PlayerHand({
   onCardClick?: (cardId: string) => void;
   singleSelect?: boolean;
 }) {
-  const { hand, selectedCards, round } = useGameStore();
+  const { hand, selectedCards, round, gameType } = useGameStore();
   const { toggleCardSelection } = useGameStore();
   const { submitCards } = useSocket();
   const pick = singleSelect ? 1 : (round?.chaosCard.pick || 1);
@@ -72,11 +72,17 @@ export default function PlayerHand({
           Your hand is hidden! (Chaos effect)
         </div>
       )}
-      <p className="text-gray-400 text-sm mb-3 text-center">
-        {pick > 1
-          ? `Pick ${pick} cards in order (1st blank, 2nd blank)`
-          : "Pick a card from your hand"}
-      </p>
+      {!onCardClick && (
+        <p className="text-gray-400 text-sm mb-3 text-center">
+          {gameType === "joking_hazard" && round?.isBonus
+            ? "Pick 2 cards — Panel 1 (setup) then Panel 2 (build-up)"
+            : pick > 1
+              ? `Pick ${pick} cards in order (1st blank, 2nd blank)`
+              : gameType === "joking_hazard"
+                ? "Pick a card as Panel 3 (the punchline)"
+                : "Pick a card from your hand"}
+        </p>
+      )}
       <div className={`grid grid-cols-1 gap-3 max-w-lg mx-auto transition-all duration-500 ${blurred ? "blur-md select-none pointer-events-none" : ""}`}>
         {hand.map((card) => {
           const selIndex = selectedCards.indexOf(card.id);

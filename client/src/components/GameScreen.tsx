@@ -63,29 +63,52 @@ export default function GameScreen() {
       {/* Card display — comic strip for JH, single card for CAH */}
       <div className="px-4 pt-6 pb-4">
         {isJH ? (
-          <div className="flex gap-3 max-w-2xl mx-auto">
-            {/* Panel 1 — from deck */}
-            <div className="flex-1 bg-gray-900 border-2 border-red-500 rounded-xl p-4">
-              <p className="text-xs text-red-400 font-semibold mb-2 uppercase tracking-wider">Panel 1</p>
-              <p className="text-base font-medium leading-relaxed">{round.chaosCard.text}</p>
+          round.isBonus ? (
+            /* BONUS ROUND — red card is Panel 3, players submit Panels 1+2 */
+            <div>
+              <div className="text-center mb-3">
+                <span className="inline-block bg-red-600 text-white text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+                  Bonus Round — 2 Points
+                </span>
+              </div>
+              <div className="flex gap-3 max-w-2xl mx-auto">
+                <div className="flex-1 bg-gray-900 border-2 border-gray-700 border-dashed rounded-xl p-4">
+                  <p className="text-xs text-blue-400 font-semibold mb-2 uppercase tracking-wider">Panel 1</p>
+                  <p className="text-gray-600 text-sm italic">Your setup</p>
+                </div>
+                <div className="flex-1 bg-gray-900 border-2 border-gray-700 border-dashed rounded-xl p-4">
+                  <p className="text-xs text-blue-400 font-semibold mb-2 uppercase tracking-wider">Panel 2</p>
+                  <p className="text-gray-600 text-sm italic">Your setup</p>
+                </div>
+                <div className="flex-1 bg-gray-900 border-2 border-red-500 rounded-xl p-4">
+                  <p className="text-xs text-red-400 font-semibold mb-2 uppercase tracking-wider">Panel 3</p>
+                  <p className="text-base font-medium leading-relaxed">{round.chaosCard.text}</p>
+                </div>
+              </div>
             </div>
-            {/* Panel 2 — czar's setup card */}
-            <div className={`flex-1 bg-gray-900 border-2 rounded-xl p-4 ${
-              round.czarSetupCard ? "border-purple-500" : "border-gray-700 border-dashed"
-            }`}>
-              <p className="text-xs text-purple-400 font-semibold mb-2 uppercase tracking-wider">Panel 2</p>
-              {round.czarSetupCard ? (
-                <p className="text-base font-medium leading-relaxed">{round.czarSetupCard.text}</p>
-              ) : (
-                <p className="text-gray-600 text-sm italic">Waiting for Judge...</p>
-              )}
+          ) : (
+            /* REGULAR ROUND — drawn card is Panel 1, judge plays Panel 2, players submit Panel 3 */
+            <div className="flex gap-3 max-w-2xl mx-auto">
+              <div className="flex-1 bg-gray-900 border-2 border-gray-700 rounded-xl p-4">
+                <p className="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wider">Panel 1</p>
+                <p className="text-base font-medium leading-relaxed">{round.chaosCard.text}</p>
+              </div>
+              <div className={`flex-1 bg-gray-900 border-2 rounded-xl p-4 ${
+                round.czarSetupCard ? "border-purple-500" : "border-gray-700 border-dashed"
+              }`}>
+                <p className="text-xs text-purple-400 font-semibold mb-2 uppercase tracking-wider">Panel 2</p>
+                {round.czarSetupCard ? (
+                  <p className="text-base font-medium leading-relaxed">{round.czarSetupCard.text}</p>
+                ) : (
+                  <p className="text-gray-600 text-sm italic">Waiting for Judge...</p>
+                )}
+              </div>
+              <div className="flex-1 bg-gray-900 border-2 border-gray-700 border-dashed rounded-xl p-4">
+                <p className="text-xs text-green-400 font-semibold mb-2 uppercase tracking-wider">Panel 3</p>
+                <p className="text-gray-600 text-sm italic">Your punchline</p>
+              </div>
             </div>
-            {/* Panel 3 — placeholder during setup/submitting */}
-            <div className="flex-1 bg-gray-900 border-2 border-gray-700 border-dashed rounded-xl p-4">
-              <p className="text-xs text-green-400 font-semibold mb-2 uppercase tracking-wider">Panel 3</p>
-              <p className="text-gray-600 text-sm italic">Your punchline</p>
-            </div>
-          </div>
+          )
         ) : (
           <div className="bg-gray-900 border-2 border-red-500 rounded-xl p-5 max-w-lg mx-auto">
             <p className="text-xs text-red-400 font-semibold mb-2 uppercase tracking-wider">

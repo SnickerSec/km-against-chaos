@@ -39,6 +39,7 @@ export interface ChaosCard {
   pick: number;
   metaType?: string;
   metaEffect?: MetaEffect;
+  bonus?: boolean;
 }
 
 export interface MetaEffectNotification {
@@ -62,6 +63,7 @@ export interface RoundState {
   winnerId: string | null;
   phaseDeadline?: number;
   czarSetupCard?: KnowledgeCard;
+  isBonus?: boolean;
 }
 
 export type GameType = "cah" | "joking_hazard";

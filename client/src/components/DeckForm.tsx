@@ -39,6 +39,7 @@ const FLAVOR_THEMES = [
 interface CardInput {
   text: string;
   pick?: number;
+  bonus?: boolean;
 }
 
 interface WinCondition {
@@ -614,7 +615,7 @@ function CardPackEditor({
   const chaosCardCount = pack.chaosCards.filter((c) => c.text.trim()).length;
   const knowledgeCardCount = pack.knowledgeCards.filter((c) => c.text.trim()).length;
 
-  const updateChaos = (index: number, field: keyof CardInput, value: string | number) => {
+  const updateChaos = (index: number, field: keyof CardInput, value: string | number | boolean) => {
     onUpdate((p) => {
       const updated = [...p.chaosCards];
       updated[index] = { ...updated[index], [field]: value };
@@ -715,6 +716,7 @@ function CardPackEditor({
             addButtonColor="bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-600/50"
             focusColor="focus:border-red-500"
             showPick={gameType !== "joking-hazard"}
+            showBonus={gameType === "joking-hazard"}
             packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
             onUpdate={(index, field, value) => updateChaos(index, field, value)}
             onAdd={() => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, { text: "", pick: 1 }] }))}
@@ -769,6 +771,7 @@ function CardListEditor({
   addButtonColor,
   focusColor,
   showPick,
+  showBonus,
   packBadge,
   onUpdate,
   onAdd,
@@ -782,8 +785,9 @@ function CardListEditor({
   addButtonColor: string;
   focusColor: string;
   showPick?: boolean;
+  showBonus?: boolean;
   packBadge?: { name: string; type: PackType };
-  onUpdate: (index: number, field: keyof CardInput, value: string | number) => void;
+  onUpdate: (index: number, field: keyof CardInput, value: string | number | boolean) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
 }) {
@@ -841,6 +845,20 @@ function CardListEditor({
                     <option value={1}>Pick 1</option>
                     <option value={2}>Pick 2</option>
                   </select>
+                )}
+                {showBonus && (
+                  <button
+                    type="button"
+                    onClick={() => onUpdate(i, "bonus" as keyof CardInput, !card.bonus)}
+                    className={`shrink-0 px-2 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                      card.bonus
+                        ? "bg-red-600/30 border-red-500 text-red-300"
+                        : "bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-500"
+                    }`}
+                    title={card.bonus ? "Bonus card (red) — worth 2 pts" : "Make this a bonus card (red border)"}
+                  >
+                    {card.bonus ? "RED" : "red"}
+                  </button>
                 )}
                 {cards.length > 1 && (
                   <button

@@ -190,7 +190,7 @@ export async function getDeck(id: string): Promise<CustomDeck | null> {
 export async function createDeck(input: {
   name: string;
   description?: string;
-  chaosCards: { text: string; pick?: number; metaType?: string; metaEffect?: any }[];
+  chaosCards: { text: string; pick?: number; metaType?: string; metaEffect?: any; bonus?: boolean }[];
   knowledgeCards: { text: string }[];
   winCondition?: WinCondition;
   ownerId?: string;
@@ -210,6 +210,7 @@ export async function createDeck(input: {
     pick: c.pick || 1,
     ...(c.metaType ? { metaType: c.metaType } : {}),
     ...(c.metaEffect ? { metaEffect: c.metaEffect } : {}),
+    ...(c.bonus ? { bonus: true } : {}),
   }));
   const knowledgeCards = input.knowledgeCards.map((c, i) => ({
     id: `kc-${Date.now()}-${i}`,
@@ -270,7 +271,7 @@ export async function updateDeck(
   input: {
     name?: string;
     description?: string;
-    chaosCards?: { text: string; pick?: number; metaType?: string; metaEffect?: any }[];
+    chaosCards?: { text: string; pick?: number; metaType?: string; metaEffect?: any; bonus?: boolean }[];
     knowledgeCards?: { text: string }[];
     winCondition?: WinCondition;
     maturity?: string;
@@ -295,6 +296,7 @@ export async function updateDeck(
         pick: c.pick || 1,
         ...(c.metaType ? { metaType: c.metaType } : {}),
         ...(c.metaEffect ? { metaEffect: c.metaEffect } : {}),
+        ...(c.bonus ? { bonus: true } : {}),
       }))
     : existing.chaosCards;
   const knowledgeCards = input.knowledgeCards

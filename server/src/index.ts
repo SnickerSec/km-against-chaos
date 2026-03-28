@@ -43,6 +43,7 @@ import {
   botCzarSetup,
   forceCzarSetup,
   getGameType,
+  getCurrentPhase,
 } from "./game.js";
 import {
   registerSession,
@@ -218,8 +219,9 @@ function sendRoundToPlayers(code: string) {
 // Unified bot action trigger: handles czar_setup (JH) then submissions
 function triggerBotActions(code: string) {
   const gt = getGameType(code);
-  if (gt === "joking_hazard") {
-    // If czar is a bot and we're in czar_setup, bot plays setup card first
+  const phase = getCurrentPhase(code);
+  if (gt === "joking_hazard" && phase === "czar_setup") {
+    // Regular JH round — czar needs to play setup card first
     const czarId = getCzarId(code);
     if (czarId?.startsWith("bot-")) {
       setTimeout(() => {
@@ -230,10 +232,11 @@ function triggerBotActions(code: string) {
           triggerBotSubmissions(code);
         }
       }, 1500 + Math.random() * 1500);
-      return; // Don't trigger submissions yet — wait for czar setup
+      return;
     }
     return; // Human czar — wait for their setup
   }
+  // CAH or JH bonus round (already in submitting phase) — go straight to bot submissions
   triggerBotSubmissions(code);
 }
 

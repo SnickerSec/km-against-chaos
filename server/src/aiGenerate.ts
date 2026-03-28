@@ -86,15 +86,25 @@ This is a Cards Against Humanity-style party game called "KM Against Chaos".
   if (gameType === "joking-hazard" || gameType === "joking_hazard") {
     return `=== GAME ENGINE RULES ===
 This is a Joking Hazard-style 3-panel comic strip game (text-based, no images).
-- Chaos cards are SCENE CARDS (Panel 1) — drawn from the deck each round to set the scene.
-  They should describe a situation, setting, or opening beat (e.g. "Two coworkers stare at a whiteboard").
-  Scene cards do NOT use blanks. They are complete sentences or phrases. Always pick:1.
-- Knowledge cards are PANEL CARDS — held in player hands, used as both Panel 2 (setup) and Panel 3 (punchline).
-  They should be short reactions, consequences, or escalations (e.g. "One of them quietly starts crying").
-  Panel cards are complete phrases, NOT fill-in-the-blank.
-- The Judge plays a Panel card as Panel 2 (the setup), then other players compete with Panel 3 (the punchline).
-- Cards should work in many combinations — avoid cards that only make sense with one specific scene.
-- Humor comes from unexpected escalation, absurd consequences, and deadpan observations.`;
+
+SCENE CARDS (drawn from deck each round):
+There are two types:
+1. Regular scene cards (black border) — become Panel 1 (the opening). pick:1, no bonus field.
+   The Judge then plays a Panel card as Panel 2, and other players submit 1 card as Panel 3.
+2. Bonus scene cards (red border) — become Panel 3 (the punchline is FIXED). pick:1, bonus:true.
+   In a bonus round, players submit 2 cards as Panels 1+2 (the setup). Winner gets 2 points.
+   About 15-20% of scene cards should be bonus cards.
+   Bonus cards should be strong punchlines — dramatic, absurd, or shocking endings.
+
+Scene cards are complete sentences or phrases. No blanks.
+Example regular: {"text": "Two coworkers stare at a whiteboard", "pick": 1}
+Example bonus: {"text": "Everyone in the room spontaneously combusts", "pick": 1, "bonus": true}
+
+PANEL CARDS (held in player hands):
+- Used as Panel 2 (setup) by the Judge, or Panel 3 (punchline) / Panels 1+2 (bonus round setup) by players.
+- Short reactions, consequences, actions, or escalations.
+- Should work in many combinations — avoid cards only relevant to one scene.
+- Humor: unexpected escalation, absurd consequences, deadpan observations.`;
   }
   return "Generate prompt cards and answer cards appropriate for the game type.";
 }
