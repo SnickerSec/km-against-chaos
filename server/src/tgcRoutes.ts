@@ -87,7 +87,7 @@ async function renderCardPng(text: string, type: "chaos" | "knowledge", pick?: n
 // ── TGC API helpers ──
 
 async function tgcPost(path: string, params: Record<string, string>): Promise<any> {
-  const form = new URLSearchParams(params);
+  const form = new URLSearchParams({ ...params, api_key_id: getApiKeyId() });
   const res = await fetch(`${TGC_API}${path}`, { method: "POST", body: form });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
@@ -95,9 +95,8 @@ async function tgcPost(path: string, params: Record<string, string>): Promise<an
 }
 
 async function tgcGet(path: string, params: Record<string, string> = {}): Promise<any> {
-  const qs = new URLSearchParams(params).toString();
-  const url = qs ? `${TGC_API}${path}?${qs}` : `${TGC_API}${path}`;
-  const res = await fetch(url);
+  const qs = new URLSearchParams({ ...params, api_key_id: getApiKeyId() }).toString();
+  const res = await fetch(`${TGC_API}${path}?${qs}`);
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
   return data.result || data;
@@ -106,7 +105,7 @@ async function tgcGet(path: string, params: Record<string, string> = {}): Promis
 async function tgcUploadFile(sessionId: string, folderId: string, name: string, pngBuffer: Buffer): Promise<string> {
   // Build multipart form data manually for reliable Node.js compatibility
   const boundary = `----DeckedUpload${Date.now()}`;
-  const fields: Record<string, string> = { session_id: sessionId, folder_id: folderId, name };
+  const fields: Record<string, string> = { session_id: sessionId, folder_id: folderId, name, api_key_id: getApiKeyId() };
 
   let body = "";
   for (const [key, val] of Object.entries(fields)) {
