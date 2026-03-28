@@ -221,7 +221,7 @@ router.get("/callback", async (req, res) => {
     // Create poker deck for prompt cards
     let promptDeckId: string | null = null;
     if (deck.chaosCards.length > 0) {
-      const promptDeck = await tgcPost("/deck", {
+      const promptDeck = await tgcPost("/pokerdeck", {
         session_id: sessionId,
         name: "Prompt Cards",
         game_id: gameId,
@@ -247,7 +247,7 @@ router.get("/callback", async (req, res) => {
     // Create poker deck for answer cards
     let answerDeckId: string | null = null;
     if (deck.knowledgeCards.length > 0) {
-      const answerDeck = await tgcPost("/deck", {
+      const answerDeck = await tgcPost("/pokerdeck", {
         session_id: sessionId,
         name: "Answer Cards",
         game_id: gameId,
