@@ -138,7 +138,7 @@ router.get("/auth", requireAuth, (req, res) => {
   const callbackUrl = `${req.protocol}://${req.get("host")}/api/print/tgc/callback?deckId=${deckId}`;
 
   const ssoUrl = `https://www.thegamecrafter.com/sso?api_key_id=${apiKeyId}` +
-    `&permission=edit_my_games&permission=edit_my_files&permission=edit_my_carts` +
+    `&permission=edit_my_designers&permission=edit_my_games&permission=edit_my_files&permission=edit_my_carts` +
     `&postback_uri=${encodeURIComponent(callbackUrl)}`;
 
   res.json({ url: ssoUrl });
