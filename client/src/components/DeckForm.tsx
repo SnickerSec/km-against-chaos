@@ -122,7 +122,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         description: p.description || "",
         chaosCards: p.chaosCards.length > 0 ? p.chaosCards : [{ text: "", pick: 1 }],
         knowledgeCards: p.knowledgeCards.length > 0 ? p.knowledgeCards : [{ text: "" }],
-        open: i === 0,
+        open: false,
       }));
     }
     return [{
@@ -132,7 +132,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       description: "",
       chaosCards: initial?.chaosCards || [{ text: "", pick: 1 }],
       knowledgeCards: initial?.knowledgeCards || [{ text: "" }],
-      open: true,
+      open: !initial,
     }];
   });
 
