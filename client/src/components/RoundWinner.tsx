@@ -1,6 +1,6 @@
 "use client";
 
-import type { KnowledgeCard } from "@/lib/store";
+import { useGameStore, type KnowledgeCard } from "@/lib/store";
 
 interface Props {
   winnerInfo: {
@@ -13,19 +13,41 @@ interface Props {
 }
 
 export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
+  const { gameType, round } = useGameStore();
+  const isJH = gameType === "joking_hazard";
+
   return (
-    <div className="text-center mt-4 max-w-lg mx-auto">
+    <div className="text-center mt-4 max-w-2xl mx-auto">
       <p className="text-green-400 text-xl font-bold mb-2">
         {winnerInfo.winnerName} wins the round!
       </p>
 
-      <div className="bg-green-900/30 border-2 border-green-600 rounded-xl p-5 mb-6">
-        {winnerInfo.cards.map((card, i) => (
-          <p key={i} className="text-lg font-medium">
-            {card.text}
-          </p>
-        ))}
-      </div>
+      {isJH && round ? (
+        <div className="flex gap-3 mb-6">
+          <div className="flex-1 bg-gray-900 border-2 border-red-500 rounded-xl p-4">
+            <p className="text-xs text-red-400 font-semibold mb-2 uppercase tracking-wider">Panel 1</p>
+            <p className="text-base font-medium">{round.chaosCard.text}</p>
+          </div>
+          <div className="flex-1 bg-gray-900 border-2 border-purple-500 rounded-xl p-4">
+            <p className="text-xs text-purple-400 font-semibold mb-2 uppercase tracking-wider">Panel 2</p>
+            <p className="text-base font-medium">{round.czarSetupCard?.text}</p>
+          </div>
+          <div className="flex-1 bg-green-900/30 border-2 border-green-600 rounded-xl p-4">
+            <p className="text-xs text-green-400 font-semibold mb-2 uppercase tracking-wider">Panel 3</p>
+            {winnerInfo.cards.map((card, i) => (
+              <p key={i} className="text-base font-medium">{card.text}</p>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-green-900/30 border-2 border-green-600 rounded-xl p-5 mb-6 max-w-lg mx-auto">
+          {winnerInfo.cards.map((card, i) => (
+            <p key={i} className="text-lg font-medium">
+              {card.text}
+            </p>
+          ))}
+        </div>
+      )}
 
       {isHost && (
         <button

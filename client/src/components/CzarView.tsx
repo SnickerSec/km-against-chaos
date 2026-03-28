@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { useGameStore } from "@/lib/store";
+import { useGameStore, type GameType } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import CardPreview from "./CardPreview";
 
 export default function CzarView({ isCzar }: { isCzar: boolean }) {
-  const { round } = useGameStore();
+  const { round, gameType } = useGameStore();
   const { pickWinner } = useSocket();
+  const isJH = gameType === "joking_hazard";
   const [selected, setSelected] = useState<string | null>(null);
   const [previewText, setPreviewText] = useState<string | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,8 +41,8 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
     <div>
       <p className="text-center text-gray-400 text-sm mb-4">
         {isCzar
-          ? "Pick the funniest answer!"
-          : "The Czar is choosing a winner..."}
+          ? isJH ? "Pick the funniest punchline!" : "Pick the funniest answer!"
+          : isJH ? "The Judge is choosing a winner..." : "The Czar is choosing a winner..."}
       </p>
 
       <div className="grid grid-cols-1 gap-3 max-w-lg mx-auto">

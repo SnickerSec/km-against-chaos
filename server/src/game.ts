@@ -7,6 +7,7 @@ import type {
   PlayerGameView,
   MetaEffect,
   MetaTarget,
+  GameType,
 } from "./types.js";
 import { CHAOS_CARDS, KNOWLEDGE_CARDS, shuffled } from "./deck.js";
 
@@ -27,18 +28,21 @@ interface InternalGameState {
   winMode: "rounds" | "points";
   targetPoints: number;
   gameOver: boolean;
+  gameType: GameType;
 }
 
-const SUBMIT_TIME_MS = 60_000; // 60s for submissions
-const JUDGE_TIME_MS = 30_000;  // 30s for czar to pick
+const SUBMIT_TIME_MS = 60_000;      // 60s for submissions
+const JUDGE_TIME_MS = 30_000;       // 30s for czar to pick
+const CZAR_SETUP_TIME_MS = 30_000;  // 30s for czar to play setup card (Joking Hazard)
 
 interface InternalRound {
   chaosCard: ChaosCard;
   czarId: string;
-  phase: "submitting" | "judging" | "revealing";
+  phase: "czar_setup" | "submitting" | "judging" | "revealing";
   submissions: Map<string, KnowledgeCard[]>;
   winnerId: string | null;
   phaseDeadline: number; // Date.now() + time limit
+  czarSetupCard: KnowledgeCard | null; // Joking Hazard: card played by czar as panel 2
 }
 
 const games = new Map<string, InternalGameState>();
@@ -48,7 +52,8 @@ export function createGame(
   playerIds: string[],
   customChaos?: ChaosCard[],
   customKnowledge?: KnowledgeCard[],
-  winCondition?: { mode: "rounds" | "points"; value: number }
+  winCondition?: { mode: "rounds" | "points"; value: number },
+  gameType?: GameType
 ): void {
   const chaosDeck = shuffled(customChaos || CHAOS_CARDS);
   const knowledgeDeck = shuffled(customKnowledge || KNOWLEDGE_CARDS);
@@ -77,6 +82,7 @@ export function createGame(
     winMode: wc.mode,
     targetPoints: wc.mode === "points" ? wc.value : Infinity,
     gameOver: false,
+    gameType: gameType || "cah",
   };
 
   games.set(lobbyCode, game);
@@ -95,22 +101,25 @@ export function startRound(lobbyCode: string): RoundState | null {
   const czarId = game.playerIds[game.czarIndex % game.playerIds.length];
   const chaosCard = game.chaosDeck.pop()!;
 
-  const phaseDeadline = Date.now() + SUBMIT_TIME_MS;
+  const isJH = game.gameType === "joking_hazard";
+  const initialPhase = isJH ? "czar_setup" as const : "submitting" as const;
+  const phaseDeadline = Date.now() + (isJH ? CZAR_SETUP_TIME_MS : SUBMIT_TIME_MS);
 
   game.currentRound = {
     chaosCard,
     czarId,
-    phase: "submitting",
+    phase: initialPhase,
     submissions: new Map(),
     winnerId: null,
     phaseDeadline,
+    czarSetupCard: null,
   };
 
   return {
     roundNumber: game.roundNumber,
     czarId,
     chaosCard,
-    phase: "submitting",
+    phase: initialPhase,
     submissions: [],
     winnerId: null,
     phaseDeadline,
@@ -140,6 +149,7 @@ export function getPlayerView(lobbyCode: string, playerId: string): PlayerGameVi
           : [],
       winnerId: round.winnerId,
       phaseDeadline: round.phaseDeadline,
+      czarSetupCard: round.czarSetupCard || undefined,
     };
   }
 
@@ -151,7 +161,71 @@ export function getPlayerView(lobbyCode: string, playerId: string): PlayerGameVi
     maxRounds: game.maxRounds,
     gameOver: game.gameOver,
     hasSubmitted: round ? round.submissions.has(playerId) : false,
+    gameType: game.gameType,
   };
+}
+
+export function czarSetup(
+  lobbyCode: string,
+  czarId: string,
+  cardId: string
+): { success: boolean; error?: string; czarSetupCard?: KnowledgeCard } {
+  const game = games.get(lobbyCode);
+  if (!game) return { success: false, error: "Game not found" };
+
+  const round = game.currentRound;
+  if (!round || round.phase !== "czar_setup") {
+    return { success: false, error: "Not in czar setup phase" };
+  }
+  if (czarId !== round.czarId) {
+    return { success: false, error: "Only the Judge can play the setup card" };
+  }
+
+  const hand = game.hands.get(czarId);
+  if (!hand) return { success: false, error: "Player not in game" };
+
+  const idx = hand.findIndex((c) => c.id === cardId);
+  if (idx === -1) return { success: false, error: "Card not in your hand" };
+
+  const playedCard = hand.splice(idx, 1)[0];
+  if (game.knowledgeDeck.length > 0) {
+    hand.push(game.knowledgeDeck.pop()!);
+  }
+
+  round.czarSetupCard = playedCard;
+  round.phase = "submitting";
+  round.phaseDeadline = Date.now() + SUBMIT_TIME_MS;
+
+  return { success: true, czarSetupCard: playedCard };
+}
+
+export function botCzarSetup(lobbyCode: string, botCzarId: string): { success: boolean; czarSetupCard?: KnowledgeCard } {
+  const game = games.get(lobbyCode);
+  if (!game?.currentRound || game.currentRound.phase !== "czar_setup") return { success: false };
+  if (game.currentRound.czarId !== botCzarId) return { success: false };
+
+  const hand = game.hands.get(botCzarId);
+  if (!hand || hand.length === 0) return { success: false };
+
+  const randomIdx = Math.floor(Math.random() * hand.length);
+  return czarSetup(lobbyCode, botCzarId, hand[randomIdx].id);
+}
+
+export function forceCzarSetup(lobbyCode: string): KnowledgeCard | null {
+  const game = games.get(lobbyCode);
+  if (!game?.currentRound || game.currentRound.phase !== "czar_setup") return null;
+
+  const czarId = game.currentRound.czarId;
+  const hand = game.hands.get(czarId);
+  if (!hand || hand.length === 0) return null;
+
+  const randomIdx = Math.floor(Math.random() * hand.length);
+  const result = czarSetup(lobbyCode, czarId, hand[randomIdx].id);
+  return result.czarSetupCard || null;
+}
+
+export function getGameType(lobbyCode: string): GameType | undefined {
+  return games.get(lobbyCode)?.gameType;
 }
 
 export function submitCards(

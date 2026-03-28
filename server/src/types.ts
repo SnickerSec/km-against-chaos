@@ -44,6 +44,8 @@ export interface PlayerInfo {
   isSpectator?: boolean;
 }
 
+export type GameType = "cah" | "joking_hazard";
+
 // ── Game Types ──
 
 export type MetaEffectType = "score_add" | "score_subtract" | "hide_cards" | "randomize_icons" | "hand_reset";
@@ -85,10 +87,11 @@ export interface RoundState {
   roundNumber: number;
   czarId: string;
   chaosCard: ChaosCard;
-  phase: "submitting" | "judging" | "revealing";
+  phase: "czar_setup" | "submitting" | "judging" | "revealing";
   submissions: Submission[];       // only visible during judging/revealing
   winnerId: string | null;
   phaseDeadline?: number;          // Unix ms timestamp for countdown
+  czarSetupCard?: KnowledgeCard;   // Joking Hazard: card played by czar as panel 2
 }
 
 export interface GameState {
@@ -109,6 +112,7 @@ export interface PlayerGameView {
   maxRounds: number;
   gameOver: boolean;
   hasSubmitted: boolean;
+  gameType?: GameType;
 }
 
 // ── Voice Chat (WebRTC signaling) ──
@@ -129,6 +133,7 @@ export interface ClientEvents {
   "voice:offer": (targetId: string, sdp: RTCSessionDescriptionInit) => void;
   "voice:answer": (targetId: string, sdp: RTCSessionDescriptionInit) => void;
   "voice:ice-candidate": (targetId: string, candidate: RTCIceCandidateInit) => void;
+  "game:czar-setup": (cardId: string, callback: (response: { success: boolean; error?: string }) => void) => void;
   "game:submit": (cardIds: string[], callback: (response: { success: boolean; error?: string }) => void) => void;
   "game:pick-winner": (playerId: string, callback: (response: { success: boolean; error?: string }) => void) => void;
   "game:next-round": () => void;

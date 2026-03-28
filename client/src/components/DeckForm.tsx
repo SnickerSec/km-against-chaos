@@ -58,6 +58,7 @@ interface DeckFormData {
   flavorThemes?: string[];
   chaosLevel?: number;
   wildcard?: string;
+  gameType?: string;
 }
 
 type PackType = "base" | "expansion" | "themed";
@@ -93,7 +94,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [description, setDescription] = useState(initial?.description || "");
   const [winMode, setWinMode] = useState<"rounds" | "points">(initial?.winCondition?.mode || "rounds");
   const [winValue, setWinValue] = useState(initial?.winCondition?.value || 10);
-  const [gameType, setGameType] = useState("cards-against-humanity");
+  const [gameType, setGameType] = useState(
+    initial?.gameType === "joking_hazard" ? "joking-hazard" : "cards-against-humanity"
+  );
   const [chaosCount, setChaosCount] = useState(10);
   const [knowledgeCount, setKnowledgeCount] = useState(25);
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +190,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         flavorThemes,
         chaosLevel,
         wildcard: wildcard.trim(),
+        gameType: gameType === "joking-hazard" ? "joking_hazard" : "cah",
       });
     } catch (e: any) {
       setError(e.message);
@@ -237,8 +241,13 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           onChange={(e) => setGameType(e.target.value)}
         >
           <option value="cards-against-humanity">Cards Against Humanity</option>
+          <option value="joking-hazard">Joking Hazard (Comic Strip)</option>
         </select>
-        <p className="text-gray-500 text-xs mt-1">More game types coming soon</p>
+        <p className="text-gray-500 text-xs mt-1">
+          {gameType === "joking-hazard"
+            ? "3-panel comic strip game — the Judge plays Panel 2, others compete for the funniest Panel 3"
+            : "Fill-in-the-blank party game — a Czar reads a prompt, players submit answers"}
+        </p>
 
         {/* Card counts — only on create */}
         {!initial && (
@@ -688,14 +697,18 @@ function CardPackEditor({
 
           {/* Chaos Cards */}
           <CardListEditor
-            label="Prompt Cards"
+            label={gameType === "joking-hazard" ? "Scene Cards (Panel 1)" : "Prompt Cards"}
             labelColor="text-red-400"
             cards={pack.chaosCards}
-            placeholder={(i) => `Prompt ${i + 1}, e.g. "The root cause was ___"`}
-            hint={isBase ? "Use ___ as a blank for players to fill in. Min 5 cards." : "Use ___ as a blank for players to fill in."}
+            placeholder={gameType === "joking-hazard"
+              ? (i) => `Scene ${i + 1}, e.g. "Two coworkers stare at a whiteboard"`
+              : (i) => `Prompt ${i + 1}, e.g. "The root cause was ___"`}
+            hint={gameType === "joking-hazard"
+              ? (isBase ? "Scene-setting cards drawn from the deck each round. Min 5 cards." : "Scene-setting cards drawn from the deck each round.")
+              : (isBase ? "Use ___ as a blank for players to fill in. Min 5 cards." : "Use ___ as a blank for players to fill in.")}
             addButtonColor="bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-600/50"
             focusColor="focus:border-red-500"
-            showPick
+            showPick={gameType !== "joking-hazard"}
             packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
             onUpdate={(index, field, value) => updateChaos(index, field, value)}
             onAdd={() => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, { text: "", pick: 1 }] }))}
@@ -706,11 +719,15 @@ function CardPackEditor({
 
           {/* Knowledge Cards */}
           <CardListEditor
-            label="Answer Cards"
+            label={gameType === "joking-hazard" ? "Panel Cards (Hands)" : "Answer Cards"}
             labelColor="text-purple-400"
             cards={pack.knowledgeCards}
-            placeholder={(i) => `Answer ${i + 1}`}
-            hint={isBase ? "Short answers or phrases. Min 15 cards." : "Short answers or phrases."}
+            placeholder={gameType === "joking-hazard"
+              ? (i) => `Panel ${i + 1}, e.g. "One of them quietly starts crying"`
+              : (i) => `Answer ${i + 1}`}
+            hint={gameType === "joking-hazard"
+              ? (isBase ? "Cards in player hands — used as Panel 2 (setup) and Panel 3 (punchline). Min 15 cards." : "Cards in player hands.")
+              : (isBase ? "Short answers or phrases. Min 15 cards." : "Short answers or phrases.")}
             addButtonColor="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border-purple-600/50"
             focusColor="focus:border-purple-500"
             packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}

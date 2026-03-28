@@ -39,6 +39,10 @@ import {
   getCzarId,
   forceSubmitForMissing,
   getPhaseDeadline,
+  czarSetup,
+  botCzarSetup,
+  forceCzarSetup,
+  getGameType,
 } from "./game.js";
 import {
   registerSession,
@@ -211,6 +215,28 @@ function sendRoundToPlayers(code: string) {
   }
 }
 
+// Unified bot action trigger: handles czar_setup (JH) then submissions
+function triggerBotActions(code: string) {
+  const gt = getGameType(code);
+  if (gt === "joking_hazard") {
+    // If czar is a bot and we're in czar_setup, bot plays setup card first
+    const czarId = getCzarId(code);
+    if (czarId?.startsWith("bot-")) {
+      setTimeout(() => {
+        const result = botCzarSetup(code, czarId);
+        if (result.success && result.czarSetupCard) {
+          sendRoundToPlayers(code);
+          scheduleRoundTimer(code);
+          triggerBotSubmissions(code);
+        }
+      }, 1500 + Math.random() * 1500);
+      return; // Don't trigger submissions yet — wait for czar setup
+    }
+    return; // Human czar — wait for their setup
+  }
+  triggerBotSubmissions(code);
+}
+
 // Bot auto-play: bots submit cards and pick winners with small delays
 function triggerBotSubmissions(code: string) {
   const botIds = getBotsInLobby(code);
@@ -329,6 +355,18 @@ function clearRoundTimer(code: string) {
 
 function handleTimerExpiry(code: string) {
   const czarId = getCzarId(code);
+
+  // If in czar_setup phase (Joking Hazard), auto-play a random card
+  const gt = getGameType(code);
+  if (gt === "joking_hazard") {
+    const setupCard = forceCzarSetup(code);
+    if (setupCard) {
+      sendRoundToPlayers(code);
+      scheduleRoundTimer(code);
+      triggerBotSubmissions(code);
+      return;
+    }
+  }
 
   // If still in submitting phase, force-submit for missing players
   const forced = forceSubmitForMissing(code);
@@ -537,12 +575,14 @@ io.on("connection", (socket) => {
       let customChaos = undefined;
       let customKnowledge = undefined;
       let winCondition = undefined;
+      let gameType: "cah" | "joking_hazard" | undefined = undefined;
       if (deckId) {
         const deck = await getDeck(deckId);
         if (deck) {
           customChaos = deck.chaosCards;
           customKnowledge = deck.knowledgeCards;
           winCondition = deck.winCondition;
+          gameType = deck.gameType as "cah" | "joking_hazard" | undefined;
         }
       }
 
@@ -554,7 +594,7 @@ io.on("connection", (socket) => {
       setTimeout(() => io.to(code).emit("lobby:countdown" as any, 2), 1000);
       setTimeout(() => io.to(code).emit("lobby:countdown" as any, 1), 2000);
       setTimeout(() => {
-        createGame(code, playerIds, customChaos, customKnowledge, winCondition);
+        createGame(code, playerIds, customChaos, customKnowledge, winCondition, gameType);
         const round = startRound(code);
 
         io.to(code).emit("lobby:countdown" as any, 0);
@@ -562,7 +602,7 @@ io.on("connection", (socket) => {
 
         if (round) {
           sendRoundToPlayers(code);
-          triggerBotSubmissions(code);
+          triggerBotActions(code);
           scheduleRoundTimer(code);
         }
 
@@ -613,6 +653,28 @@ io.on("connection", (socket) => {
   });
 
   // ── Game Events ──
+
+  socket.on("game:czar-setup", (cardId, callback) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code) {
+      callback({ success: false, error: "Not in a game" });
+      return;
+    }
+
+    clearRoundTimer(code);
+    const result = czarSetup(code, socket.id, cardId);
+    if (!result.success) {
+      callback({ success: false, error: result.error });
+      return;
+    }
+
+    callback({ success: true });
+
+    // Broadcast updated round state (now in submitting phase with czarSetupCard)
+    sendRoundToPlayers(code);
+    triggerBotSubmissions(code);
+    scheduleRoundTimer(code);
+  });
 
   socket.on("game:submit", (cardIds, callback) => {
     const code = findPlayerLobby(socket.id);
@@ -733,7 +795,7 @@ io.on("connection", (socket) => {
     const round = startRound(code);
     if (round) {
       sendRoundToPlayers(code);
-      triggerBotSubmissions(code);
+      triggerBotActions(code);
       scheduleRoundTimer(code);
     } else {
       // No more rounds

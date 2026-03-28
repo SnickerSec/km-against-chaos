@@ -21,6 +21,7 @@ export interface DeckSummary {
   chaosLevel?: number;
   wildcard?: string;
   remixedFrom?: string | null;
+  gameType?: string;
 }
 
 export interface CustomDeck {
@@ -38,6 +39,7 @@ export interface CustomDeck {
   chaosLevel?: number;
   wildcard?: string;
   remixedFrom?: string | null;
+  gameType?: string;
 }
 
 export interface DeckExport {

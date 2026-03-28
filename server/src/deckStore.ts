@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { ChaosCard, KnowledgeCard } from "./types.js";
+import type { ChaosCard, KnowledgeCard, GameType } from "./types.js";
 import { CHAOS_CARDS, KNOWLEDGE_CARDS } from "./deck.js";
 import pool from "./db.js";
 
@@ -28,6 +28,7 @@ export interface CustomDeck {
   chaosLevel?: number;
   wildcard?: string;
   remixedFrom?: string | null;
+  gameType?: GameType;
 }
 
 export interface DeckSummary {
@@ -44,6 +45,7 @@ export interface DeckSummary {
   chaosLevel?: number;
   wildcard?: string;
   remixedFrom?: string | null;
+  gameType?: GameType;
 }
 
 const DEFAULT_WIN_CONDITION: WinCondition = { mode: "rounds", value: 10 };
@@ -100,6 +102,7 @@ function rowToDeck(row: any): CustomDeck {
     chaosLevel: row.chaos_level ?? 0,
     wildcard: row.wildcard || "",
     remixedFrom: row.remixed_from || null,
+    gameType: (row.game_type as GameType) || "cah",
   };
 }
 
@@ -146,7 +149,7 @@ export async function listDecks(): Promise<DeckSummary[]> {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, description, built_in, win_condition, owner_id,
-              maturity, flavor_themes, chaos_level, wildcard, remixed_from,
+              maturity, flavor_themes, chaos_level, wildcard, remixed_from, game_type,
               jsonb_array_length(chaos_cards) as chaos_count,
               jsonb_array_length(knowledge_cards) as knowledge_count
        FROM decks ORDER BY built_in DESC, created_at DESC`
@@ -165,6 +168,7 @@ export async function listDecks(): Promise<DeckSummary[]> {
       chaosLevel: r.chaos_level ?? 0,
       wildcard: r.wildcard || "",
       remixedFrom: r.remixed_from || null,
+      gameType: (r.game_type as GameType) || "cah",
     }));
   } catch (err) {
     console.error("Database query failed in listDecks, returning built-in decks:", err);
@@ -195,6 +199,7 @@ export async function createDeck(input: {
   chaosLevel?: number;
   wildcard?: string;
   remixedFrom?: string;
+  gameType?: GameType;
 }): Promise<CustomDeck> {
   const id = randomUUID().slice(0, 8);
   const now = new Date().toISOString();
@@ -215,8 +220,8 @@ export async function createDeck(input: {
 
   const { rows } = await pool.query(
     `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, win_condition, owner_id,
-       maturity, flavor_themes, chaos_level, wildcard, remixed_from, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       maturity, flavor_themes, chaos_level, wildcard, remixed_from, game_type, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING *`,
     [
       id,
@@ -231,6 +236,7 @@ export async function createDeck(input: {
       input.chaosLevel ?? 0,
       input.wildcard || "",
       input.remixedFrom || null,
+      input.gameType || "cah",
       now,
       now,
     ]
@@ -255,6 +261,7 @@ export async function remixDeck(sourceId: string, ownerId: string): Promise<Cust
     chaosLevel: source.chaosLevel,
     wildcard: source.wildcard,
     remixedFrom: sourceId,
+    gameType: source.gameType,
   });
 }
 
@@ -270,6 +277,7 @@ export async function updateDeck(
     flavorThemes?: string[];
     chaosLevel?: number;
     wildcard?: string;
+    gameType?: GameType;
   },
   ownerId?: string,
   bypassOwnership?: boolean
@@ -297,20 +305,21 @@ export async function updateDeck(
   const flavorThemes = input.flavorThemes !== undefined ? input.flavorThemes : existing.flavorThemes || [];
   const chaosLevel = input.chaosLevel !== undefined ? input.chaosLevel : existing.chaosLevel ?? 0;
   const wildcard = input.wildcard !== undefined ? input.wildcard : existing.wildcard || "";
+  const gameType = input.gameType !== undefined ? input.gameType : existing.gameType || "cah";
 
   let queryText: string;
   let queryParams: any[];
 
   if (bypassOwnership) {
     queryText = `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5,
-       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, updated_at = NOW()
-     WHERE id = $10 RETURNING *`;
-    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, id];
+       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, updated_at = NOW()
+     WHERE id = $11 RETURNING *`;
+    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, id];
   } else {
     queryText = `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5,
-       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, updated_at = NOW()
-     WHERE id = $10 AND (owner_id = $11 OR owner_id IS NULL) RETURNING *`;
-    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, id, ownerId];
+       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, updated_at = NOW()
+     WHERE id = $11 AND (owner_id = $12 OR owner_id IS NULL) RETURNING *`;
+    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, id, ownerId];
   }
 
   const { rows } = await pool.query(queryText, queryParams);

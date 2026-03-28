@@ -57,11 +57,14 @@ export interface RoundState {
   roundNumber: number;
   czarId: string;
   chaosCard: ChaosCard;
-  phase: "submitting" | "judging" | "revealing";
+  phase: "czar_setup" | "submitting" | "judging" | "revealing";
   submissions: Submission[];
   winnerId: string | null;
   phaseDeadline?: number;
+  czarSetupCard?: KnowledgeCard;
 }
+
+export type GameType = "cah" | "joking_hazard";
 
 export interface PlayerGameView {
   hand: KnowledgeCard[];
@@ -71,6 +74,7 @@ export interface PlayerGameView {
   maxRounds: number;
   gameOver: boolean;
   hasSubmitted: boolean;
+  gameType?: GameType;
 }
 
 export type Screen = "home" | "lobby" | "game" | "gameover";
@@ -104,6 +108,9 @@ interface GameStore {
   selectedCards: string[];
   winnerInfo: { winnerId: string; winnerName: string; cards: KnowledgeCard[] } | null;
 
+  // Game type
+  gameType: GameType;
+
   // Chat
   chatMessages: ChatMessage[];
   chatOpen: boolean;
@@ -127,7 +134,8 @@ interface GameStore {
   setError: (error: string | null) => void;
   setScreen: (screen: Screen) => void;
   setGameView: (view: PlayerGameView) => void;
-  setRoundPhase: (phase: "submitting" | "judging" | "revealing") => void;
+  setGameType: (gameType: GameType) => void;
+  setRoundPhase: (phase: "czar_setup" | "submitting" | "judging" | "revealing") => void;
   setSubmissions: (submissions: Submission[]) => void;
   addSubmittedPlayer: (playerId: string) => void;
   toggleCardSelection: (cardId: string, maxPick: number) => void;
@@ -167,12 +175,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
   handBlurred: false,
   iconsRandomized: false,
   countdown: null,
+  gameType: "cah",
 
   setPlayerName: (name) => set({ playerName: name }),
   setLobby: (lobby) => set({ lobby }),
   setConnected: (connected) => set({ connected }),
   setError: (error) => set({ error }),
   setScreen: (screen) => set({ screen }),
+
+  setGameType: (gameType) => set({ gameType }),
 
   setGameView: (view) =>
     set({
@@ -182,6 +193,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       roundNumber: view.roundNumber,
       maxRounds: view.maxRounds,
       hasSubmitted: view.hasSubmitted,
+      gameType: view.gameType || "cah",
       submittedPlayers: new Set(),
       selectedCards: [],
       winnerInfo: null,
@@ -265,5 +277,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       handBlurred: false,
       iconsRandomized: false,
       countdown: null,
+      gameType: "cah",
     }),
 }));

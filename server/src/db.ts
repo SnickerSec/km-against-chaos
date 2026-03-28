@@ -88,6 +88,10 @@ export async function initDb() {
     ALTER TABLE decks ADD COLUMN IF NOT EXISTS remixed_from TEXT REFERENCES decks(id)
   `);
 
+  await pool.query(`
+    ALTER TABLE decks ADD COLUMN IF NOT EXISTS game_type TEXT DEFAULT 'cah'
+  `);
+
   console.log("Database initialized");
 }
 

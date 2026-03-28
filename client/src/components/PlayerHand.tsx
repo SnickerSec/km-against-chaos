@@ -16,14 +16,18 @@ const CHAOS_ICONS = [
 export default function PlayerHand({
   blurred = false,
   iconsRandomized = false,
+  onCardClick,
+  singleSelect = false,
 }: {
   blurred?: boolean;
   iconsRandomized?: boolean;
+  onCardClick?: (cardId: string) => void;
+  singleSelect?: boolean;
 }) {
   const { hand, selectedCards, round } = useGameStore();
   const { toggleCardSelection } = useGameStore();
   const { submitCards } = useSocket();
-  const pick = round?.chaosCard.pick || 1;
+  const pick = singleSelect ? 1 : (round?.chaosCard.pick || 1);
 
   // Stable randomized icon assignment per card (changes each render when iconsRandomized flips on)
   const cardIcons = useMemo(() => {
@@ -83,7 +87,11 @@ export default function PlayerHand({
               key={card.id}
               onClick={() => {
                 if (longPressTriggered.current) return;
-                toggleCardSelection(card.id, pick);
+                if (onCardClick) {
+                  onCardClick(card.id);
+                } else {
+                  toggleCardSelection(card.id, pick);
+                }
               }}
               onTouchStart={() => startLongPress(card.text)}
               onTouchEnd={cancelLongPress}
@@ -115,7 +123,7 @@ export default function PlayerHand({
         })}
       </div>
 
-      {selectedCards.length === pick && !blurred && (
+      {selectedCards.length === pick && !blurred && !onCardClick && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800">
           <button
             onClick={handleSubmit}

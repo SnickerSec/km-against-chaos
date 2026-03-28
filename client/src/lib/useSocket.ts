@@ -247,6 +247,21 @@ export function useSocket() {
     );
   };
 
+  const czarSetup = (cardId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    socket.emit(
+      "game:czar-setup" as any,
+      cardId,
+      (response: { success: boolean; error?: string }) => {
+        if (!response.success) {
+          setError(response.error || "Failed to play setup card");
+        }
+      }
+    );
+  };
+
   const submitCards = (cardIds: string[]) => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -369,6 +384,7 @@ export function useSocket() {
     joinLobby,
     leaveLobby,
     startGame,
+    czarSetup,
     submitCards,
     pickWinner,
     nextRound,
