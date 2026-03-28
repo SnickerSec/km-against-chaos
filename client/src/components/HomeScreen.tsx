@@ -19,6 +19,7 @@ export default function HomeScreen() {
 
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "cah" | "joking_hazard">("all");
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState(codeFromUrl?.toUpperCase() || "");
   const [selectedDeck, setSelectedDeck] = useState<string | null>(null);
@@ -174,66 +175,36 @@ export default function HomeScreen() {
       {/* Host a Game */}
       <div>
         <h2 className="text-lg font-semibold text-gray-300 mb-3 text-center">Host a Game</h2>
+
+        {/* Filter tabs */}
+        <div className="flex justify-center gap-2 mb-4">
+          {([
+            ["all", "All"],
+            ["cah", "Cards Against Humanity"],
+            ["joking_hazard", "Joking Hazard"],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setFilter(value)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                filter === value
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <p className="text-gray-400 text-center">Loading games...</p>
         ) : (
-          <div className="space-y-3">
-            {decks.map((deck) => (
-              <div
-                key={deck.id}
-                className="bg-gray-900 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-bold text-lg">{deck.name}</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        deck.gameType === "joking_hazard"
-                          ? "bg-orange-600/30 text-orange-300"
-                          : "bg-red-600/30 text-red-300"
-                      }`}>
-                        {deck.gameType === "joking_hazard" ? "Joking Hazard" : "Cards Against Humanity"}
-                      </span>
-                      {deck.builtIn && (
-                        <span className="text-xs bg-purple-600/30 text-purple-300 px-2 py-0.5 rounded-full">
-                          Featured
-                        </span>
-                      )}
-                    </div>
-                    {deck.description && (
-                      <p className="text-gray-400 text-sm mb-2">{deck.description}</p>
-                    )}
-                    <p className="text-gray-600 text-xs">
-                      {deck.chaosCount} prompts · {deck.knowledgeCount} answers · {
-                        deck.winCondition?.mode === "points"
-                          ? `First to ${deck.winCondition.value} pts`
-                          : `${deck.winCondition?.value || 10} rounds`
-                      }
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleCreate(deck.id)}
-                    className="shrink-0 px-5 py-2.5 bg-green-600 hover:bg-green-700 rounded-lg font-semibold text-sm transition-colors"
-                  >
-                    Host
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {/* Create your own */}
-            <Link
-              href="/decks/new"
-              className="block bg-gray-900 rounded-xl p-5 border-2 border-dashed border-gray-700 hover:border-purple-500 transition-colors text-center"
-            >
-              <p className="text-purple-400 font-semibold text-lg mb-1">
-                + Create Your Own
-              </p>
-              <p className="text-gray-500 text-sm">
-                Build a custom card game with your own prompts and answers
-              </p>
-            </Link>
-          </div>
+          <DeckList
+            decks={decks}
+            filter={filter}
+            onHost={handleCreate}
+          />
         )}
       </div>
 
@@ -246,6 +217,96 @@ export default function HomeScreen() {
           Privacy Policy
         </Link>
       </div>
+    </div>
+  );
+}
+
+function DeckCard({ deck, onHost }: { deck: DeckSummary; onHost: (id: string) => void }) {
+  return (
+    <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3 className="font-bold text-lg">{deck.name}</h3>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${
+              deck.gameType === "joking_hazard"
+                ? "bg-orange-600/30 text-orange-300"
+                : "bg-red-600/30 text-red-300"
+            }`}>
+              {deck.gameType === "joking_hazard" ? "Joking Hazard" : "CAH"}
+            </span>
+          </div>
+          {deck.description && (
+            <p className="text-gray-400 text-sm mb-2">{deck.description}</p>
+          )}
+          <p className="text-gray-600 text-xs">
+            {deck.chaosCount} prompts · {deck.knowledgeCount} answers · {
+              deck.winCondition?.mode === "points"
+                ? `First to ${deck.winCondition.value} pts`
+                : `${deck.winCondition?.value || 10} rounds`
+            }
+          </p>
+        </div>
+        <button
+          onClick={() => onHost(deck.id)}
+          className="shrink-0 px-5 py-2.5 bg-green-600 hover:bg-green-700 rounded-lg font-semibold text-sm transition-colors"
+        >
+          Host
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DeckList({ decks, filter, onHost }: { decks: DeckSummary[]; filter: "all" | "cah" | "joking_hazard"; onHost: (id: string) => void }) {
+  const filtered = filter === "all" ? decks : decks.filter((d) => {
+    const gt = d.gameType === "joking_hazard" ? "joking_hazard" : "cah";
+    return gt === filter;
+  });
+
+  const featured = filtered.filter((d) => d.builtIn);
+  const community = filtered.filter((d) => !d.builtIn);
+
+  return (
+    <div className="space-y-6">
+      {featured.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-2">Featured</h3>
+          <div className="space-y-3">
+            {featured.map((deck) => (
+              <DeckCard key={deck.id} deck={deck} onHost={onHost} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {community.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Community</h3>
+          <div className="space-y-3">
+            {community.map((deck) => (
+              <DeckCard key={deck.id} deck={deck} onHost={onHost} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {filtered.length === 0 && (
+        <p className="text-gray-500 text-center py-4">No decks found for this game type.</p>
+      )}
+
+      {/* Create your own */}
+      <Link
+        href="/decks/new"
+        className="block bg-gray-900 rounded-xl p-5 border-2 border-dashed border-gray-700 hover:border-purple-500 transition-colors text-center"
+      >
+        <p className="text-purple-400 font-semibold text-lg mb-1">
+          + Create Your Own
+        </p>
+        <p className="text-gray-500 text-sm">
+          Build a custom card game with your own prompts and answers
+        </p>
+      </Link>
     </div>
   );
 }
