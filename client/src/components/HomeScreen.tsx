@@ -19,7 +19,7 @@ export default function HomeScreen() {
 
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "cah" | "joking_hazard" | "apples_to_apples">("all");
+  const [filter, setFilter] = useState<"all" | "cah" | "joking_hazard" | "apples_to_apples" | "uno">("all");
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState(codeFromUrl?.toUpperCase() || "");
   const [selectedDeck, setSelectedDeck] = useState<string | null>(null);
@@ -183,6 +183,7 @@ export default function HomeScreen() {
             ["cah", "Cards Against Humanity"],
             ["joking_hazard", "Joking Hazard"],
             ["apples_to_apples", "Apples to Apples"],
+            ["uno", "Uno"],
           ] as const).map(([value, label]) => (
             <button
               key={value}
@@ -234,9 +235,11 @@ function DeckCard({ deck, onHost }: { deck: DeckSummary; onHost: (id: string) =>
                 ? "bg-orange-600/30 text-orange-300"
                 : deck.gameType === "apples_to_apples"
                 ? "bg-green-600/30 text-green-300"
+                : deck.gameType === "uno"
+                ? "bg-blue-600/30 text-blue-300"
                 : "bg-red-600/30 text-red-300"
             }`}>
-              {deck.gameType === "joking_hazard" ? "Joking Hazard" : deck.gameType === "apples_to_apples" ? "Apples to Apples" : "CAH"}
+              {deck.gameType === "joking_hazard" ? "Joking Hazard" : deck.gameType === "apples_to_apples" ? "Apples to Apples" : deck.gameType === "uno" ? "Uno" : "CAH"}
             </span>
           </div>
           {deck.description && (
@@ -262,9 +265,9 @@ function DeckCard({ deck, onHost }: { deck: DeckSummary; onHost: (id: string) =>
   );
 }
 
-function DeckList({ decks, filter, onHost }: { decks: DeckSummary[]; filter: "all" | "cah" | "joking_hazard" | "apples_to_apples"; onHost: (id: string) => void }) {
+function DeckList({ decks, filter, onHost }: { decks: DeckSummary[]; filter: "all" | "cah" | "joking_hazard" | "apples_to_apples" | "uno"; onHost: (id: string) => void }) {
   const filtered = filter === "all" ? decks : decks.filter((d) => {
-    const gt = d.gameType === "joking_hazard" ? "joking_hazard" : d.gameType === "apples_to_apples" ? "apples_to_apples" : "cah";
+    const gt = d.gameType || "cah";
     return gt === filter;
   });
 

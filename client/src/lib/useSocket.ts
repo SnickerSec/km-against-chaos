@@ -12,6 +12,9 @@ import {
   KnowledgeCard,
   ChatMessage,
   MetaEffectNotification,
+  UnoPlayerView,
+  UnoCard,
+  UnoColor,
 } from "./store";
 
 export function useSocket() {
@@ -164,6 +167,33 @@ export function useSocket() {
     socket.on("media:sticker" as any, (url: string, playerName: string) => {
       setActiveSticker({ url, playerName });
       setTimeout(() => setActiveSticker(null), 1500);
+    });
+
+    // ── Uno Events ──
+
+    socket.on("uno:turn-update" as any, (view: UnoPlayerView) => {
+      useGameStore.getState().setUnoGameView(view);
+      if (useGameStore.getState().screen !== "game") {
+        setScreen("game");
+      }
+    });
+
+    socket.on("uno:round-over" as any, (winnerId: string, winnerName: string, scores: Record<string, number>, roundPoints: number) => {
+      useGameStore.getState().setUnoRoundWinner({ winnerId, winnerName, roundPoints });
+      setScores(scores);
+    });
+
+    socket.on("uno:game-over" as any, (scores: Record<string, number>) => {
+      setScores(scores);
+      setScreen("gameover");
+    });
+
+    socket.on("uno:uno-called" as any, (_playerId: string, _playerName: string) => {
+      // Could add a toast/animation here
+    });
+
+    socket.on("uno:uno-penalty" as any, (_playerId: string, _playerName: string) => {
+      // Could add a toast/animation here
     });
 
     return () => {
@@ -378,6 +408,54 @@ export function useSocket() {
     });
   };
 
+  const playUnoCard = (cardId: string, chosenColor?: UnoColor) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("uno:play-card" as any, cardId, chosenColor || null, (response: { success: boolean; error?: string }) => {
+      if (!response.success) {
+        setError(response.error || "Failed to play card");
+      }
+      useGameStore.setState({ selectedUnoCard: null, choosingColor: false });
+    });
+  };
+
+  const drawUnoCard = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("uno:draw-card" as any, (response: { success: boolean; error?: string }) => {
+      if (!response.success) {
+        setError(response.error || "Failed to draw card");
+      }
+    });
+  };
+
+  const callUno = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("uno:call-uno" as any, (response: { success: boolean; error?: string }) => {
+      if (!response.success) {
+        setError(response.error || "Can't call Uno");
+      }
+    });
+  };
+
+  const challengeUno = (targetId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("uno:challenge-uno" as any, targetId, (response: { success: boolean; error?: string }) => {
+      if (!response.success) {
+        setError(response.error || "Can't challenge");
+      }
+    });
+  };
+
+  const unoNextRound = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    useGameStore.setState({ unoRoundWinner: null });
+    socket.emit("uno:next-round" as any);
+  };
+
   return {
     socket: socketRef.current,
     createLobby,
@@ -396,5 +474,10 @@ export function useSocket() {
     kickPlayer,
     spectateGame,
     rematch,
+    playUnoCard,
+    drawUnoCard,
+    callUno,
+    challengeUno,
+    unoNextRound,
   };
 }

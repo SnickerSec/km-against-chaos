@@ -16,10 +16,13 @@ import MetaEffectOverlay from "./MetaEffectOverlay";
 import VoiceChat from "./VoiceChat";
 import RoundTimer from "./RoundTimer";
 import Chat from "./Chat";
+import UnoGameScreen from "./UnoGameScreen";
 
 export default function GameScreen() {
   const { round, hasSubmitted, winnerInfo, lobby, roundNumber, maxRounds, handBlurred, iconsRandomized, gameType } =
     useGameStore();
+
+  if (gameType === "uno") return <UnoGameScreen />;
   const { nextRound, leaveLobby, czarSetup } = useSocket();
   const socket = getSocket();
   const isCzar = round?.czarId === socket.id;

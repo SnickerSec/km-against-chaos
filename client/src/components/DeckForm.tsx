@@ -123,7 +123,20 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [gameType, setGameType] = useState(
     initial?.gameType === "joking_hazard" ? "joking-hazard"
     : initial?.gameType === "apples_to_apples" ? "apples-to-apples"
+    : initial?.gameType === "uno" ? "uno"
     : "cards-against-humanity"
+  );
+
+  // Uno template state
+  const [unoColorNames, setUnoColorNames] = useState<Record<string, string>>(
+    initial?.gameType === "uno" && initial?.chaosCards?.[0]
+      ? ((initial.chaosCards[0] as any).colorNames || { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" })
+      : { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" }
+  );
+  const [unoActionNames, setUnoActionNames] = useState<Record<string, string>>(
+    initial?.gameType === "uno" && initial?.chaosCards?.[0]
+      ? ((initial.chaosCards[0] as any).actionNames || {})
+      : {}
   );
   const [chaosCount, setChaosCount] = useState(10);
   const [knowledgeCount, setKnowledgeCount] = useState(25);
@@ -203,11 +216,21 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
     if (!name.trim()) { setError("Deck name is required"); return; }
 
     const isJH = gameType === "joking-hazard";
+    const isUno = gameType === "uno";
 
     let allChaos: CardInput[];
     let allKnowledge: CardInput[];
 
-    if (isJH) {
+    if (isUno) {
+      // Uno: store template as a single chaos card
+      const template = {
+        colorNames: unoColorNames,
+        actionNames: Object.keys(unoActionNames).length > 0 ? unoActionNames : undefined,
+        themeDescription: description.trim(),
+      };
+      allChaos = [{ text: JSON.stringify(template), pick: 1 } as any];
+      allKnowledge = [];
+    } else if (isJH) {
       // JH: all cards are in knowledgeCards. Auto-split:
       // - Red (bonus) cards → chaosCards (drawn from deck, trigger bonus rounds)
       // - ~30% of black cards → chaosCards (drawn as regular Panel 1 starters)
@@ -230,8 +253,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       allChaos = packs.flatMap((p) => p.chaosCards).filter((c) => c.text.trim());
       allKnowledge = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
 
-      if (allChaos.length < 5) { setError("Need at least 5 prompt cards with text across all packs"); return; }
-      if (allKnowledge.length < 15) { setError("Need at least 15 answer cards with text across all packs"); return; }
+      if (!isUno && allChaos.length < 5) { setError("Need at least 5 prompt cards with text across all packs"); return; }
+      if (!isUno && allKnowledge.length < 15) { setError("Need at least 15 answer cards with text across all packs"); return; }
     }
 
     const packData = packs.map((p) => ({
@@ -255,7 +278,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         flavorThemes,
         chaosLevel,
         wildcard: wildcard.trim(),
-        gameType: isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : "cah",
+        gameType: isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : "cah",
       });
     } catch (e: any) {
       setError(e.message);
@@ -279,15 +302,29 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
   const handleGenerateDeck = async (theme: string) => {
     const isJH = gameType === "joking-hazard";
+    const isUno = gameType === "uno";
     const deck = await generateDeckAI({
       theme, gameType,
-      chaosCount: isJH ? Math.round(knowledgeCount * 0.18) : chaosCount,
-      knowledgeCount: isJH ? knowledgeCount : knowledgeCount,
+      chaosCount: isJH ? Math.round(knowledgeCount * 0.18) : isUno ? 0 : chaosCount,
+      knowledgeCount: isJH ? knowledgeCount : isUno ? 0 : knowledgeCount,
       maturity, flavorThemes, chaosLevel,
       wildcard: wildcard.trim() || undefined,
     });
     setName(deck.name);
     setDescription(deck.description);
+
+    // For Uno, try to parse template from the response
+    if (isUno) {
+      try {
+        // AI might return template data in various formats
+        const templateData = (deck as any).template || (deck as any).unoTemplate;
+        if (templateData?.colorNames) {
+          setUnoColorNames(templateData.colorNames);
+          if (templateData.actionNames) setUnoActionNames(templateData.actionNames);
+        }
+      } catch {}
+      return;
+    }
     setPacks((prev) => {
       const basePack = prev.find((p) => p.type === "base");
       const rest = prev.filter((p) => p.type !== "base");
@@ -328,7 +365,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           onChange={(e) => {
             const gt = e.target.value;
             setGameType(gt);
-            if (gt === "apples-to-apples" && (maturity === "adult" || maturity === "raunchy")) {
+            if ((gt === "apples-to-apples" || gt === "uno") && (maturity === "adult" || maturity === "raunchy")) {
               setMaturity("kid-friendly");
             }
           }}
@@ -336,17 +373,66 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           <option value="cards-against-humanity">Cards Against Humanity</option>
           <option value="joking-hazard">Joking Hazard (Comic Strip)</option>
           <option value="apples-to-apples">Apples to Apples</option>
+          <option value="uno">Uno (Custom Theme)</option>
         </select>
         <p className="text-gray-500 text-xs mt-1">
           {gameType === "joking-hazard"
             ? "3-panel comic strip game — the Judge plays Panel 2, others compete for the funniest Panel 3"
             : gameType === "apples-to-apples"
             ? "Family-friendly party game — a Judge plays a Green card, players submit Red cards to match"
+            : gameType === "uno"
+            ? "Turn-based card matching game — custom-themed colors and action cards with standard Uno rules"
             : "Fill-in-the-blank party game — a Czar reads a prompt, players submit answers"}
         </p>
 
+        {/* Uno Template Editor */}
+        {gameType === "uno" && (
+          <div className="mt-4 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Color Names</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["red", "blue", "green", "yellow"] as const).map((color) => {
+                  const bgMap = { red: "border-red-600", blue: "border-blue-600", green: "border-green-600", yellow: "border-yellow-500" };
+                  return (
+                    <div key={color} className="flex items-center gap-2">
+                      <div className={`w-4 h-4 rounded-full border-2 ${bgMap[color]}`} style={{ backgroundColor: color === "yellow" ? "#eab308" : color }} />
+                      <input
+                        type="text"
+                        value={unoColorNames[color] || ""}
+                        onChange={(e) => setUnoColorNames({ ...unoColorNames, [color]: e.target.value })}
+                        placeholder={color.charAt(0).toUpperCase() + color.slice(1)}
+                        className="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-gray-600 text-xs mt-1">Name the 4 colors for your theme (e.g. Fire, Ice, Earth, Wind)</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Action Card Names (optional)</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["skip", "reverse", "draw_two", "wild", "wild_draw_four"] as const).map((action) => {
+                  const defaults: Record<string, string> = { skip: "Skip", reverse: "Reverse", draw_two: "Draw Two", wild: "Wild", wild_draw_four: "Wild Draw Four" };
+                  return (
+                    <input
+                      key={action}
+                      type="text"
+                      value={unoActionNames[action] || ""}
+                      onChange={(e) => setUnoActionNames({ ...unoActionNames, [action]: e.target.value })}
+                      placeholder={defaults[action]}
+                      className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                    />
+                  );
+                })}
+              </div>
+              <p className="text-gray-600 text-xs mt-1">Rename action cards to match your theme (leave blank for defaults)</p>
+            </div>
+          </div>
+        )}
+
         {/* Card counts — only on create */}
-        {!initial && (
+        {!initial && gameType !== "uno" && (
           gameType === "joking-hazard" ? (
             <div className="mt-3">
               <label className="block text-xs text-gray-400 mb-1">Panel cards to generate</label>
@@ -427,7 +513,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
               </label>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {MATURITY_LEVELS.filter((level) =>
-                  gameType === "apples-to-apples" ? level.id === "kid-friendly" || level.id === "moderate" : true
+                  (gameType === "apples-to-apples" || gameType === "uno") ? level.id === "kid-friendly" || level.id === "moderate" : true
                 ).map((level) => (
                   <button
                     key={level.id}
@@ -627,16 +713,18 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         </p>
       </div>
 
-      {/* Card totals */}
-      <div className="flex gap-4 text-sm">
-        <span className="text-gray-400">
-          Total: <span className="text-red-400 font-semibold">{totalChaos}</span> prompts,{" "}
-          <span className="text-purple-400 font-semibold">{totalKnowledge}</span> answers
-        </span>
-      </div>
+      {/* Card totals (not for Uno) */}
+      {gameType !== "uno" && (
+        <div className="flex gap-4 text-sm">
+          <span className="text-gray-400">
+            Total: <span className="text-red-400 font-semibold">{totalChaos}</span> prompts,{" "}
+            <span className="text-purple-400 font-semibold">{totalKnowledge}</span> answers
+          </span>
+        </div>
+      )}
 
-      {/* Card Packs */}
-      {packs.map((pack) => (
+      {/* Card Packs (not for Uno — Uno uses template editor above) */}
+      {gameType !== "uno" && packs.map((pack) => (
         <div
           key={pack.id}
           ref={(el) => {
@@ -659,8 +747,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         </div>
       ))}
 
-      {/* Add expansion / themed pack buttons (create mode only, after base has cards) */}
-      {!initial && baseHasCards && (
+      {/* Add expansion / themed pack buttons (create mode only, after base has cards, not for Uno) */}
+      {!initial && baseHasCards && gameType !== "uno" && (
         <div className="flex gap-3">
           <button
             type="button"

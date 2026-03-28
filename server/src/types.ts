@@ -44,7 +44,7 @@ export interface PlayerInfo {
   isSpectator?: boolean;
 }
 
-export type GameType = "cah" | "joking_hazard" | "apples_to_apples";
+export type GameType = "cah" | "joking_hazard" | "apples_to_apples" | "uno";
 
 // ── Game Types ──
 
@@ -117,6 +117,59 @@ export interface PlayerGameView {
   gameType?: GameType;
 }
 
+// ── Uno Types ──
+
+export type UnoColor = "red" | "blue" | "green" | "yellow";
+export type UnoCardType = "number" | "skip" | "reverse" | "draw_two" | "wild" | "wild_draw_four";
+
+export interface UnoCard {
+  id: string;
+  color: UnoColor | null;       // null for wild cards (unplayed)
+  type: UnoCardType;
+  value: number | null;          // 0-9 for number cards, null for action/wild
+  text: string;                  // Display text (themed)
+  colorLabel?: string;           // Themed color name, e.g. "Fire" instead of "red"
+}
+
+export interface UnoDeckTemplate {
+  colorNames: Record<UnoColor, string>;
+  actionNames?: {
+    skip?: string;
+    reverse?: string;
+    draw_two?: string;
+    wild?: string;
+    wild_draw_four?: string;
+  };
+  themeDescription?: string;
+}
+
+export interface UnoTurnState {
+  currentPlayerId: string;
+  phase: "playing" | "choosing_color" | "round_over";
+  direction: 1 | -1;
+  discardTop: UnoCard;
+  drawPileCount: number;
+  activeColor: UnoColor;
+  lastAction?: string;
+  turnDeadline: number;
+  playerCardCounts: Record<string, number>;
+  unoCalledBy?: string;
+  mustDraw: number;              // Pending draw-two/draw-four penalty
+  canChallenge?: string;         // Player ID that can be challenged (has 1 card, didn't call Uno)
+}
+
+export interface UnoPlayerView {
+  hand: UnoCard[];
+  turn: UnoTurnState;
+  scores: Record<string, number>;
+  roundNumber: number;
+  maxRounds: number;
+  gameOver: boolean;
+  playableCardIds: string[];
+  gameType: "uno";
+  deckTemplate: UnoDeckTemplate;
+}
+
 // ── Voice Chat (WebRTC signaling) ──
 
 export interface VoiceUser {
@@ -143,6 +196,11 @@ export interface ClientEvents {
   "chat:send": (message: string) => void;
   "chat:gif": (gifUrl: string) => void;
   "media:sticker": (url: string) => void;
+  "uno:play-card": (cardId: string, chosenColor: UnoColor | null, callback: (response: { success: boolean; error?: string }) => void) => void;
+  "uno:draw-card": (callback: (response: { success: boolean; drawnCard?: UnoCard; autoPlayed?: boolean; error?: string }) => void) => void;
+  "uno:call-uno": (callback: (response: { success: boolean; error?: string }) => void) => void;
+  "uno:challenge-uno": (targetId: string, callback: (response: { success: boolean; penalized?: boolean; error?: string }) => void) => void;
+  "uno:next-round": () => void;
 }
 
 // Server -> Client game events
@@ -176,4 +234,11 @@ export interface ServerEvents {
   "chat:message": (message: { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }) => void;
   "media:sticker": (url: string, playerName: string) => void;
   "error": (message: string) => void;
+  "uno:turn-update": (view: UnoPlayerView) => void;
+  "uno:card-played": (playerId: string, playerName: string, card: UnoCard, newColor?: UnoColor) => void;
+  "uno:player-drew": (playerId: string, playerName: string, newCount: number) => void;
+  "uno:uno-called": (playerId: string, playerName: string) => void;
+  "uno:uno-penalty": (playerId: string, playerName: string) => void;
+  "uno:round-over": (winnerId: string, winnerName: string, scores: Record<string, number>, roundPoints: number) => void;
+  "uno:game-over": (scores: Record<string, number>) => void;
 }

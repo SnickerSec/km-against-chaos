@@ -66,7 +66,58 @@ export interface RoundState {
   isBonus?: boolean;
 }
 
-export type GameType = "cah" | "joking_hazard" | "apples_to_apples";
+export type GameType = "cah" | "joking_hazard" | "apples_to_apples" | "uno";
+
+export type UnoColor = "red" | "blue" | "green" | "yellow";
+export type UnoCardType = "number" | "skip" | "reverse" | "draw_two" | "wild" | "wild_draw_four";
+
+export interface UnoCard {
+  id: string;
+  color: UnoColor | null;
+  type: UnoCardType;
+  value: number | null;
+  text: string;
+  colorLabel?: string;
+}
+
+export interface UnoDeckTemplate {
+  colorNames: Record<UnoColor, string>;
+  actionNames?: {
+    skip?: string;
+    reverse?: string;
+    draw_two?: string;
+    wild?: string;
+    wild_draw_four?: string;
+  };
+  themeDescription?: string;
+}
+
+export interface UnoTurnState {
+  currentPlayerId: string;
+  phase: "playing" | "choosing_color" | "round_over";
+  direction: 1 | -1;
+  discardTop: UnoCard;
+  drawPileCount: number;
+  activeColor: UnoColor;
+  lastAction?: string;
+  turnDeadline: number;
+  playerCardCounts: Record<string, number>;
+  unoCalledBy?: string;
+  mustDraw: number;
+  canChallenge?: string;
+}
+
+export interface UnoPlayerView {
+  hand: UnoCard[];
+  turn: UnoTurnState;
+  scores: Record<string, number>;
+  roundNumber: number;
+  maxRounds: number;
+  gameOver: boolean;
+  playableCardIds: string[];
+  gameType: "uno";
+  deckTemplate: UnoDeckTemplate;
+}
 
 export interface PlayerGameView {
   hand: KnowledgeCard[];
@@ -130,6 +181,15 @@ interface GameStore {
   // Lobby countdown
   countdown: number | null;
 
+  // Uno state
+  unoHand: UnoCard[];
+  unoTurn: UnoTurnState | null;
+  playableCardIds: string[];
+  selectedUnoCard: string | null;
+  choosingColor: boolean;
+  unoDeckTemplate: UnoDeckTemplate | null;
+  unoRoundWinner: { winnerId: string; winnerName: string; roundPoints: number } | null;
+
   // Actions
   setPlayerName: (name: string) => void;
   setLobby: (lobby: LobbyState | null) => void;
@@ -153,6 +213,11 @@ interface GameStore {
   setHandBlurred: (v: boolean) => void;
   setIconsRandomized: (v: boolean) => void;
   setCountdown: (v: number | null) => void;
+  setUnoGameView: (view: UnoPlayerView) => void;
+  setUnoTurn: (turn: UnoTurnState) => void;
+  selectUnoCard: (cardId: string | null) => void;
+  setChoosingColor: (v: boolean) => void;
+  setUnoRoundWinner: (info: { winnerId: string; winnerName: string; roundPoints: number } | null) => void;
   reset: () => void;
 }
 
@@ -181,6 +246,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   iconsRandomized: false,
   countdown: null,
   gameType: "cah",
+  unoHand: [],
+  unoTurn: null,
+  playableCardIds: [],
+  selectedUnoCard: null,
+  choosingColor: false,
+  unoDeckTemplate: null,
+  unoRoundWinner: null,
 
   setPlayerName: (name) => set({ playerName: name }),
   setLobby: (lobby) => set({ lobby }),
@@ -265,6 +337,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setIconsRandomized: (v) => set({ iconsRandomized: v }),
   setCountdown: (v) => set({ countdown: v }),
 
+  setUnoGameView: (view) =>
+    set({
+      unoHand: view.hand,
+      unoTurn: view.turn,
+      scores: view.scores,
+      roundNumber: view.roundNumber,
+      maxRounds: view.maxRounds,
+      playableCardIds: view.playableCardIds,
+      gameType: "uno",
+      unoDeckTemplate: view.deckTemplate,
+      selectedUnoCard: null,
+      choosingColor: false,
+    }),
+
+  setUnoTurn: (turn) => set({ unoTurn: turn }),
+
+  selectUnoCard: (cardId) => set({ selectedUnoCard: cardId }),
+
+  setChoosingColor: (v) => set({ choosingColor: v }),
+
+  setUnoRoundWinner: (info) => set({ unoRoundWinner: info }),
+
   reset: () =>
     set({
       playerName: "",
@@ -290,5 +384,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       iconsRandomized: false,
       countdown: null,
       gameType: "cah",
+      unoHand: [],
+      unoTurn: null,
+      playableCardIds: [],
+      selectedUnoCard: null,
+      choosingColor: false,
+      unoDeckTemplate: null,
+      unoRoundWinner: null,
     }),
 }));

@@ -47,6 +47,26 @@ import {
   getCurrentPhase,
 } from "./game.js";
 import {
+  createUnoGame,
+  getUnoPlayerView,
+  playCard as unoPlayCard,
+  drawCard as unoDrawCard,
+  callUno,
+  challengeUno,
+  advanceUnoRound,
+  botPlayUnoTurn,
+  handleUnoTurnTimeout,
+  getUnoPlayerIds,
+  getUnoCurrentPlayer,
+  isUnoGame,
+  cleanupUnoGame,
+  remapUnoGamePlayer,
+  getUnoScores,
+  isUnoGameOver,
+  getUnoPhase,
+} from "./unoGame.js";
+import type { UnoDeckTemplate, UnoColor } from "./types.js";
+import {
   registerSession,
   getSessionId,
   cancelDisconnectTimer,
@@ -430,6 +450,71 @@ function handleTimerExpiry(code: string) {
   }
 }
 
+// ── Uno Helpers ──
+
+function sendUnoTurnToPlayers(code: string) {
+  const playerIds = getUnoPlayerIds(code);
+  for (const pid of playerIds) {
+    const view = getUnoPlayerView(code, pid);
+    if (view) io.to(pid).emit("uno:turn-update", view);
+  }
+}
+
+const unoTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleUnoTurnTimer(code: string) {
+  clearUnoTurnTimer(code);
+  unoTurnTimers.set(code, setTimeout(() => {
+    unoTurnTimers.delete(code);
+    handleUnoTurnTimeout(code);
+    sendUnoTurnToPlayers(code);
+    triggerUnoBotTurn(code);
+    scheduleUnoTurnTimer(code);
+  }, TURN_TIMER_MS));
+}
+
+function clearUnoTurnTimer(code: string) {
+  const t = unoTurnTimers.get(code);
+  if (t) { clearTimeout(t); unoTurnTimers.delete(code); }
+}
+
+const TURN_TIMER_MS = 30_000;
+
+function triggerUnoBotTurn(code: string) {
+  const currentPid = getUnoCurrentPlayer(code);
+  if (!currentPid?.startsWith("bot-")) return;
+  const phase = getUnoPhase(code);
+  if (phase !== "playing") return;
+
+  setTimeout(() => {
+    if (!isUnoGame(code)) return;
+    const currentNow = getUnoCurrentPlayer(code);
+    if (currentNow !== currentPid) return; // turn already advanced
+
+    const result = botPlayUnoTurn(code, currentPid);
+    if (!result.success) return;
+
+    const playerName = getPlayerNameInLobby(code, currentPid) || currentPid;
+
+    if ("roundOver" in result && result.roundOver) {
+      const scores = getUnoScores(code);
+      io.to(code).emit("uno:round-over", result.winnerId!, playerName, scores, result.roundPoints || 0);
+      clearUnoTurnTimer(code);
+      if (result.gameOver) {
+        io.to(code).emit("uno:game-over", scores);
+      }
+    }
+
+    sendUnoTurnToPlayers(code);
+
+    if (!("roundOver" in result && result.roundOver)) {
+      clearUnoTurnTimer(code);
+      scheduleUnoTurnTimer(code);
+      triggerUnoBotTurn(code);
+    }
+  }, 1500 + Math.random() * 2000);
+}
+
 io.on("connection", (socket) => {
   const sessionId: string = socket.handshake.auth?.sessionId || socket.id;
   const { isReconnect, oldSocketId } = registerSession(sessionId, socket.id);
@@ -446,11 +531,15 @@ io.on("connection", (socket) => {
       socket.join(code);
 
       // Remap in game state too
-      remapGamePlayer(code, oldSocketId, socket.id);
+      if (isUnoGame(code)) {
+        remapUnoGamePlayer(code, oldSocketId, socket.id);
+      } else {
+        remapGamePlayer(code, oldSocketId, socket.id);
+      }
 
       // Get current game view if game is in progress
       const gameView = lobby.status === "playing"
-        ? getPlayerView(code, socket.id)
+        ? (isUnoGame(code) ? null : getPlayerView(code, socket.id))
         : null;
 
       // Send full state to the reconnected player
@@ -460,6 +549,12 @@ io.on("connection", (socket) => {
         chatHistory: getChatHistory(code),
         screen: lobby.status === "playing" ? "game" : "lobby",
       });
+
+      // For Uno, also send the Uno-specific view
+      if (isUnoGame(code) && lobby.status === "playing") {
+        const unoView = getUnoPlayerView(code, socket.id);
+        if (unoView) socket.emit("uno:turn-update", unoView);
+      }
 
       // Notify others the player is back
       socket.to(code).emit("lobby:player-reconnected", socket.id);
@@ -580,14 +675,29 @@ io.on("connection", (socket) => {
       let customChaos = undefined;
       let customKnowledge = undefined;
       let winCondition = undefined;
-      let gameType: "cah" | "joking_hazard" | "apples_to_apples" | undefined = undefined;
+      let gameType: "cah" | "joking_hazard" | "apples_to_apples" | "uno" | undefined = undefined;
+      let unoTemplate: UnoDeckTemplate | undefined = undefined;
       if (deckId) {
         const deck = await getDeck(deckId);
         if (deck) {
           customChaos = deck.chaosCards;
           customKnowledge = deck.knowledgeCards;
           winCondition = deck.winCondition;
-          gameType = deck.gameType as "cah" | "joking_hazard" | "apples_to_apples" | undefined;
+          gameType = deck.gameType as typeof gameType;
+          // For Uno, extract template from chaosCards[0].text (JSON string)
+          if (gameType === "uno" && deck.chaosCards?.length > 0) {
+            try {
+              const raw = deck.chaosCards[0] as any;
+              if (raw.colorNames) {
+                // Already parsed object
+                unoTemplate = raw as UnoDeckTemplate;
+              } else if (raw.text) {
+                // Template stored as JSON string in text field
+                const parsed = JSON.parse(raw.text);
+                if (parsed.colorNames) unoTemplate = parsed as UnoDeckTemplate;
+              }
+            } catch {}
+          }
         }
       }
 
@@ -599,16 +709,24 @@ io.on("connection", (socket) => {
       setTimeout(() => io.to(code).emit("lobby:countdown" as any, 2), 1000);
       setTimeout(() => io.to(code).emit("lobby:countdown" as any, 1), 2000);
       setTimeout(() => {
-        createGame(code, playerIds, customChaos, customKnowledge, winCondition, gameType);
-        const round = startRound(code);
-
         io.to(code).emit("lobby:countdown" as any, 0);
         io.to(code).emit("lobby:started");
 
-        if (round) {
-          sendRoundToPlayers(code);
-          triggerBotActions(code);
-          scheduleRoundTimer(code);
+        if (gameType === "uno") {
+          const template = unoTemplate || { colorNames: { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" } };
+          createUnoGame(code, playerIds, template, winCondition);
+          sendUnoTurnToPlayers(code);
+          triggerUnoBotTurn(code);
+          scheduleUnoTurnTimer(code);
+        } else {
+          createGame(code, playerIds, customChaos, customKnowledge, winCondition, gameType);
+          const round = startRound(code);
+
+          if (round) {
+            sendRoundToPlayers(code);
+            triggerBotActions(code);
+            scheduleRoundTimer(code);
+          }
         }
 
         console.log(`Game started in lobby ${code}`);
@@ -818,7 +936,9 @@ io.on("connection", (socket) => {
     }
 
     clearRoundTimer(code);
+    clearUnoTurnTimer(code);
     cleanupGame(code);
+    cleanupUnoGame(code);
 
     const result = resetLobbyForRematch(socket.id);
     if ("error" in result) {
@@ -830,6 +950,95 @@ io.on("connection", (socket) => {
     io.to(result.code).emit("lobby:updated", result.lobby);
     io.to(result.code).emit("game:rematch" as any);
     console.log(`Rematch started in lobby ${result.code}`);
+  });
+
+  // ── Uno Events ──
+
+  socket.on("uno:play-card", (cardId, chosenColor, callback) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
+
+    const result = unoPlayCard(code, socket.id, cardId, chosenColor || undefined);
+    if (!result.success) { callback({ success: false, error: result.error }); return; }
+
+    callback({ success: true });
+
+    const playerName = getPlayerNameInLobby(code, socket.id) || "???";
+
+    if (result.roundOver) {
+      const scores = getUnoScores(code);
+      io.to(code).emit("uno:round-over", result.winnerId!, playerName, scores, result.roundPoints || 0);
+      clearUnoTurnTimer(code);
+      if (result.gameOver) {
+        io.to(code).emit("uno:game-over", scores);
+      }
+    } else {
+      clearUnoTurnTimer(code);
+      scheduleUnoTurnTimer(code);
+    }
+
+    sendUnoTurnToPlayers(code);
+    if (!result.roundOver) triggerUnoBotTurn(code);
+  });
+
+  socket.on("uno:draw-card", (callback) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
+
+    const result = unoDrawCard(code, socket.id);
+    if (!result.success) { callback({ success: false, error: result.error }); return; }
+
+    callback({ success: true, drawnCard: result.drawnCard });
+
+    clearUnoTurnTimer(code);
+    scheduleUnoTurnTimer(code);
+    sendUnoTurnToPlayers(code);
+    triggerUnoBotTurn(code);
+  });
+
+  socket.on("uno:call-uno", (callback) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
+
+    const ok = callUno(code, socket.id);
+    if (!ok) { callback({ success: false, error: "Can't call Uno right now" }); return; }
+
+    callback({ success: true });
+    const playerName = getPlayerNameInLobby(code, socket.id) || "???";
+    io.to(code).emit("uno:uno-called", socket.id, playerName);
+    sendUnoTurnToPlayers(code);
+  });
+
+  socket.on("uno:challenge-uno", (targetId, callback) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
+
+    const result = challengeUno(code, socket.id, targetId);
+    if (!result.success) { callback({ success: false, error: "Can't challenge" }); return; }
+
+    callback({ success: true, penalized: result.penalized });
+    if (result.penalized) {
+      const targetName = getPlayerNameInLobby(code, targetId) || "???";
+      io.to(code).emit("uno:uno-penalty", targetId, targetName);
+    }
+    sendUnoTurnToPlayers(code);
+  });
+
+  socket.on("uno:next-round", () => {
+    const code = findPlayerLobby(socket.id);
+    if (!code || !isUnoGame(code)) return;
+
+    const result = advanceUnoRound(code);
+    if (result.gameOver) {
+      const scores = getUnoScores(code);
+      io.to(code).emit("uno:game-over", scores);
+      return;
+    }
+    if (result.started) {
+      sendUnoTurnToPlayers(code);
+      triggerUnoBotTurn(code);
+      scheduleUnoTurnTimer(code);
+    }
   });
 
   // ── Voice Chat Signaling ──
