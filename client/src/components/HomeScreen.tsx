@@ -187,6 +187,13 @@ export default function HomeScreen() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-bold text-lg">{deck.name}</h3>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        deck.gameType === "joking_hazard"
+                          ? "bg-orange-600/30 text-orange-300"
+                          : "bg-red-600/30 text-red-300"
+                      }`}>
+                        {deck.gameType === "joking_hazard" ? "Joking Hazard" : "Cards Against Humanity"}
+                      </span>
                       {deck.builtIn && (
                         <span className="text-xs bg-purple-600/30 text-purple-300 px-2 py-0.5 rounded-full">
                           Featured
