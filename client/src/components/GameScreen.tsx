@@ -6,6 +6,7 @@ import { getSocket } from "@/lib/socket";
 import PlayerHand from "./PlayerHand";
 import CzarView from "./CzarView";
 import RoundWinner from "./RoundWinner";
+import ComicPanel from "./ComicPanel";
 import ScoreBar from "./ScoreBar";
 import ReactionBar from "./ReactionBar";
 import ReactionOverlay from "./ReactionOverlay";
@@ -71,42 +72,22 @@ export default function GameScreen() {
                   Bonus Round — 2 Points
                 </span>
               </div>
-              <div className="flex gap-3 max-w-2xl mx-auto">
-                <div className="flex-1 bg-gray-900 border-2 border-gray-700 border-dashed rounded-xl p-4">
-                  <p className="text-xs text-blue-400 font-semibold mb-2 uppercase tracking-wider">Panel 1</p>
-                  <p className="text-gray-600 text-sm italic">Your setup</p>
-                </div>
-                <div className="flex-1 bg-gray-900 border-2 border-gray-700 border-dashed rounded-xl p-4">
-                  <p className="text-xs text-blue-400 font-semibold mb-2 uppercase tracking-wider">Panel 2</p>
-                  <p className="text-gray-600 text-sm italic">Your setup</p>
-                </div>
-                <div className="flex-1 bg-gray-900 border-2 border-red-500 rounded-xl p-4">
-                  <p className="text-xs text-red-400 font-semibold mb-2 uppercase tracking-wider">Panel 3</p>
-                  <p className="text-base font-medium leading-relaxed">{round.chaosCard.text}</p>
-                </div>
+              <div className="flex gap-2 sm:gap-3 max-w-2xl mx-auto">
+                <ComicPanel empty borderColor="gray" label="Panel 1" labelColor="text-blue-400" emptyText="Your setup" />
+                <ComicPanel empty borderColor="gray" label="Panel 2" labelColor="text-blue-400" emptyText="Your setup" />
+                <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} borderColor="red" label="Panel 3" labelColor="text-red-400" />
               </div>
             </div>
           ) : (
             /* REGULAR ROUND — drawn card is Panel 1, judge plays Panel 2, players submit Panel 3 */
-            <div className="flex gap-3 max-w-2xl mx-auto">
-              <div className="flex-1 bg-gray-900 border-2 border-gray-700 rounded-xl p-4">
-                <p className="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wider">Panel 1</p>
-                <p className="text-base font-medium leading-relaxed">{round.chaosCard.text}</p>
-              </div>
-              <div className={`flex-1 bg-gray-900 border-2 rounded-xl p-4 ${
-                round.czarSetupCard ? "border-purple-500" : "border-gray-700 border-dashed"
-              }`}>
-                <p className="text-xs text-purple-400 font-semibold mb-2 uppercase tracking-wider">Panel 2</p>
-                {round.czarSetupCard ? (
-                  <p className="text-base font-medium leading-relaxed">{round.czarSetupCard.text}</p>
-                ) : (
-                  <p className="text-gray-600 text-sm italic">Waiting for Judge...</p>
-                )}
-              </div>
-              <div className="flex-1 bg-gray-900 border-2 border-gray-700 border-dashed rounded-xl p-4">
-                <p className="text-xs text-green-400 font-semibold mb-2 uppercase tracking-wider">Panel 3</p>
-                <p className="text-gray-600 text-sm italic">Your punchline</p>
-              </div>
+            <div className="flex gap-2 sm:gap-3 max-w-2xl mx-auto">
+              <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} borderColor="black" label="Panel 1" labelColor="text-gray-400" />
+              {round.czarSetupCard ? (
+                <ComicPanel text={round.czarSetupCard.text} cardId={round.czarSetupCard.id} borderColor="purple" label="Panel 2" labelColor="text-purple-400" />
+              ) : (
+                <ComicPanel empty borderColor="gray" label="Panel 2" labelColor="text-purple-400" emptyText="Waiting for Judge..." />
+              )}
+              <ComicPanel empty borderColor="gray" label="Panel 3" labelColor="text-green-400" emptyText="Your punchline" />
             </div>
           )
         ) : (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useGameStore, type KnowledgeCard } from "@/lib/store";
+import ComicPanel from "./ComicPanel";
 
 interface Props {
   winnerInfo: {
@@ -31,38 +32,18 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
                 Bonus Round — 2 Points
               </span>
             </div>
-            <div className="flex gap-3 mb-6">
-              <div className="flex-1 bg-green-900/30 border-2 border-green-600 rounded-xl p-4">
-                <p className="text-xs text-green-400 font-semibold mb-2 uppercase tracking-wider">Panel 1</p>
-                <p className="text-base font-medium">{winnerInfo.cards[0]?.text}</p>
-              </div>
-              <div className="flex-1 bg-green-900/30 border-2 border-green-600 rounded-xl p-4">
-                <p className="text-xs text-green-400 font-semibold mb-2 uppercase tracking-wider">Panel 2</p>
-                <p className="text-base font-medium">{winnerInfo.cards[1]?.text}</p>
-              </div>
-              <div className="flex-1 bg-gray-900 border-2 border-red-500 rounded-xl p-4">
-                <p className="text-xs text-red-400 font-semibold mb-2 uppercase tracking-wider">Panel 3</p>
-                <p className="text-base font-medium">{round.chaosCard.text}</p>
-              </div>
+            <div className="flex gap-2 sm:gap-3 mb-6">
+              <ComicPanel text={winnerInfo.cards[0]?.text || ""} cardId={winnerInfo.cards[0]?.id} borderColor="green" label="Panel 1" labelColor="text-green-400" />
+              <ComicPanel text={winnerInfo.cards[1]?.text || ""} cardId={winnerInfo.cards[1]?.id} borderColor="green" label="Panel 2" labelColor="text-green-400" />
+              <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} borderColor="red" label="Panel 3" labelColor="text-red-400" />
             </div>
           </div>
         ) : (
           /* Regular round reveal: drawn card = Panel 1, judge = Panel 2, winner = Panel 3 */
-          <div className="flex gap-3 mb-6">
-            <div className="flex-1 bg-gray-900 border-2 border-gray-700 rounded-xl p-4">
-              <p className="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wider">Panel 1</p>
-              <p className="text-base font-medium">{round.chaosCard.text}</p>
-            </div>
-            <div className="flex-1 bg-gray-900 border-2 border-purple-500 rounded-xl p-4">
-              <p className="text-xs text-purple-400 font-semibold mb-2 uppercase tracking-wider">Panel 2</p>
-              <p className="text-base font-medium">{round.czarSetupCard?.text}</p>
-            </div>
-            <div className="flex-1 bg-green-900/30 border-2 border-green-600 rounded-xl p-4">
-              <p className="text-xs text-green-400 font-semibold mb-2 uppercase tracking-wider">Panel 3</p>
-              {winnerInfo.cards.map((card, i) => (
-                <p key={i} className="text-base font-medium">{card.text}</p>
-              ))}
-            </div>
+          <div className="flex gap-2 sm:gap-3 mb-6">
+            <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} borderColor="black" label="Panel 1" labelColor="text-gray-400" />
+            <ComicPanel text={round.czarSetupCard?.text || ""} cardId={round.czarSetupCard?.id} borderColor="purple" label="Panel 2" labelColor="text-purple-400" />
+            <ComicPanel text={winnerInfo.cards[0]?.text || ""} cardId={winnerInfo.cards[0]?.id} borderColor="green" label="Panel 3" labelColor="text-green-400" />
           </div>
         )
       ) : (
