@@ -1,6 +1,5 @@
 import { randomUUID } from "crypto";
 import type { ChaosCard, KnowledgeCard, GameType } from "./types.js";
-import { CHAOS_CARDS, KNOWLEDGE_CARDS } from "./deck.js";
 import pool from "./db.js";
 
 const MIN_CHAOS_CARDS = 5;
@@ -50,39 +49,11 @@ export interface DeckSummary {
 
 const DEFAULT_WIN_CONDITION: WinCondition = { mode: "rounds", value: 10 };
 
-// Built-in decks (always available, seeded to DB on startup)
-const BUILT_IN_DECKS: CustomDeck[] = [
-  {
-    id: "km-against-chaos",
-    name: "KM Against Chaos",
-    description: "A party game for Knowledge Management nerds. Chaos prompts meet Knowledge answers.",
-    chaosCards: CHAOS_CARDS,
-    knowledgeCards: KNOWLEDGE_CARDS,
-    winCondition: { mode: "rounds", value: 10 },
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    builtIn: true,
-  },
-];
+// No built-in decks — all decks are managed via the admin panel
+const BUILT_IN_DECKS: CustomDeck[] = [];
 
 export async function seedBuiltInDecks() {
-  for (const deck of BUILT_IN_DECKS) {
-    await pool.query(
-      `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, win_condition, built_in, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)
-       ON CONFLICT (id) DO NOTHING`,
-      [
-        deck.id,
-        deck.name,
-        deck.description,
-        JSON.stringify(deck.chaosCards),
-        JSON.stringify(deck.knowledgeCards),
-        JSON.stringify(deck.winCondition),
-        deck.createdAt,
-        deck.updatedAt,
-      ]
-    );
-  }
+  // No-op: built-in seeding removed. Use admin panel to feature decks.
 }
 
 function rowToDeck(row: any): CustomDeck {
