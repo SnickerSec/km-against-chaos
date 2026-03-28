@@ -95,9 +95,15 @@ CARD TYPES BY BORDER COLOR:
    Bonus round: red card = Panel 3 (fixed), players submit 2 cards for Panels 1+2.
    Winner gets 2 points. Red cards should be dramatic, absurd, or shocking endings.
 
+WORD COUNT — THIS IS CRITICAL:
+- ~25-30% of cards should have NO text at all — just a visual action described in 0 words. Use stage directions in brackets like "[crying]", "[on fire]", "[pointing accusingly]", "[dead]".
+- ~50-60% of cards should be 1-5 words. Short exclamations, single speech bubble lines: "OH GOD", "I'm a horse", "Wait!", "Not again", "This is fine".
+- The remaining cards can be up to 10 words MAX. Never exceed 10 words on a single card.
+- Think comic panel speech bubbles — one short sentence at most. Brevity is everything.
+
 ALL CARDS:
-- Complete sentences or phrases (NOT fill-in-the-blank, no blanks).
-- Short (2-12 words). Describe actions, reactions, situations, consequences.
+- Complete sentences, short phrases, exclamations, or wordless actions (NOT fill-in-the-blank, no blanks).
+- Describe actions, reactions, situations, consequences in as few words as possible.
 - Should work in many combinations — avoid cards that only pair with one other.
 - Humor: unexpected escalation, absurd consequences, deadpan observations.
 
