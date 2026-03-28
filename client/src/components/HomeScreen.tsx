@@ -95,7 +95,7 @@ export default function HomeScreen() {
       <div className="flex flex-col items-start mb-8">
         <div className="flex items-center justify-between w-full mb-2">
           <h1>
-            <svg viewBox="-10 0 240 58" className="w-64 h-auto block" aria-label="Decked">
+            <svg viewBox="-10 0 240 58" className="w-64 h-auto block -ml-3" aria-label="Decked">
             {/* Back card */}
             <rect x="2" y="4" width="34" height="46" rx="5" fill="#6b21a8" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-12 19 27)"/>
             {/* Middle card */}
