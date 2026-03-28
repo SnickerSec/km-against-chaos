@@ -52,4 +52,4 @@ server/src/
 
 ## Deploy
 Push to `master` on GitHub — Railway auto-deploys.
-Production URL: https://graceful-quietude-production.up.railway.app/
+Production URL: https://www.decked.gg (also https://decked.gg)
