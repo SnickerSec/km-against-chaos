@@ -149,7 +149,7 @@ export default function HomeScreen() {
               if (e.key === "Enter") handleJoin();
             }}
             maxLength={4}
-            className="min-w-0 flex-1 px-2 sm:px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-center text-xl sm:text-2xl tracking-[0.3em] font-mono"
+            className="min-w-0 flex-1 px-2 sm:px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-lg"
           />
           <button
             onClick={handleJoin}
