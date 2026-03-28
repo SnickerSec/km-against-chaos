@@ -7,6 +7,7 @@ import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { useAuthStore } from "@/lib/auth";
 import { fetchDecks, DeckSummary } from "@/lib/api";
+import GoogleSignIn from "@/components/GoogleSignIn";
 
 export default function HomeScreen() {
   const searchParams = useSearchParams();
@@ -89,6 +90,11 @@ export default function HomeScreen() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 min-h-screen">
+      {/* Sign in */}
+      <div className="flex justify-end mb-4">
+        <GoogleSignIn />
+      </div>
+
       {/* Header */}
       <div className="flex flex-col items-center mb-8">
         <h1 className="mb-2 w-full">
