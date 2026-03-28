@@ -329,7 +329,7 @@ function triggerBotCzarPick(code: string) {
         description,
       });
     }
-  }, 2000 + Math.random() * 2000); // 2-4s delay for czar pick
+  }, 8000 + Math.random() * 4000); // 8-12s delay for czar pick so players can read submissions
 }
 
 // ── Round Timer ──
