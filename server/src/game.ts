@@ -20,6 +20,8 @@ interface InternalGameState {
   czarIndex: number;
   chaosDeck: ChaosCard[];
   knowledgeDeck: KnowledgeCard[];
+  knowledgeDiscard: KnowledgeCard[]; // played cards waiting to be reshuffled
+  chaosDiscard: ChaosCard[];         // used chaos cards for reshuffling
   hands: Map<string, KnowledgeCard[]>;
   currentRound: InternalRound | null;
   scores: Map<string, number>;
@@ -46,6 +48,33 @@ interface InternalRound {
 }
 
 const games = new Map<string, InternalGameState>();
+
+// Reshuffle discard pile back into draw pile when it runs out
+function reshuffleKnowledge(game: InternalGameState): void {
+  if (game.knowledgeDiscard.length === 0) return;
+  game.knowledgeDeck.push(...shuffled(game.knowledgeDiscard));
+  game.knowledgeDiscard = [];
+}
+
+function reshuffleChaos(game: InternalGameState): void {
+  if (game.chaosDiscard.length === 0) return;
+  game.chaosDeck.push(...shuffled(game.chaosDiscard));
+  game.chaosDiscard = [];
+}
+
+// Draw a knowledge card, reshuffling if needed
+function drawKnowledge(game: InternalGameState): KnowledgeCard | null {
+  if (game.knowledgeDeck.length === 0) reshuffleKnowledge(game);
+  if (game.knowledgeDeck.length === 0) return null;
+  return game.knowledgeDeck.pop()!;
+}
+
+// Draw a chaos card, reshuffling if needed
+function drawChaos(game: InternalGameState): ChaosCard | null {
+  if (game.chaosDeck.length === 0) reshuffleChaos(game);
+  if (game.chaosDeck.length === 0) return null;
+  return game.chaosDeck.pop()!;
+}
 
 export function createGame(
   lobbyCode: string,
@@ -74,11 +103,13 @@ export function createGame(
     czarIndex: 0,
     chaosDeck,
     knowledgeDeck,
+    knowledgeDiscard: [],
+    chaosDiscard: [],
     hands,
     currentRound: null,
     scores,
     roundNumber: 0,
-    maxRounds: wc.mode === "rounds" ? Math.min(wc.value, chaosDeck.length) : chaosDeck.length,
+    maxRounds: wc.mode === "rounds" ? wc.value : Infinity,
     winMode: wc.mode,
     targetPoints: wc.mode === "points" ? wc.value : Infinity,
     gameOver: false,
@@ -93,13 +124,28 @@ export function startRound(lobbyCode: string): RoundState | null {
   if (!game || game.gameOver) return null;
 
   game.roundNumber++;
-  if (game.roundNumber > game.maxRounds || game.chaosDeck.length === 0) {
+  if (game.roundNumber > game.maxRounds) {
     game.gameOver = true;
     return null;
   }
 
+  // Discard the previous round's chaos card and submissions
+  if (game.currentRound) {
+    game.chaosDiscard.push(game.currentRound.chaosCard);
+    for (const cards of game.currentRound.submissions.values()) {
+      game.knowledgeDiscard.push(...cards);
+    }
+    if (game.currentRound.czarSetupCard) {
+      game.knowledgeDiscard.push(game.currentRound.czarSetupCard);
+    }
+  }
+
   const czarId = game.playerIds[game.czarIndex % game.playerIds.length];
-  const chaosCard = game.chaosDeck.pop()!;
+  const chaosCard = drawChaos(game);
+  if (!chaosCard) {
+    game.gameOver = true;
+    return null;
+  }
 
   const isJH = game.gameType === "joking_hazard";
   const isBonus = isJH && !!chaosCard.bonus;
@@ -205,9 +251,8 @@ export function czarSetup(
   if (idx === -1) return { success: false, error: "Card not in your hand" };
 
   const playedCard = hand.splice(idx, 1)[0];
-  if (game.knowledgeDeck.length > 0) {
-    hand.push(game.knowledgeDeck.pop()!);
-  }
+  const drawn = drawKnowledge(game);
+  if (drawn) hand.push(drawn);
 
   round.czarSetupCard = playedCard;
   round.phase = "submitting";
@@ -289,9 +334,8 @@ export function submitCards(
 
   // Draw replacements
   for (let i = 0; i < playedCards.length; i++) {
-    if (game.knowledgeDeck.length > 0) {
-      hand.push(game.knowledgeDeck.pop()!);
-    }
+    const drawn = drawKnowledge(game);
+    if (drawn) hand.push(drawn);
   }
 
   round.submissions.set(playerId, playedCards);
@@ -353,9 +397,8 @@ export function resetPlayerHand(lobbyCode: string, playerId: string): KnowledgeC
 
   const newHand: KnowledgeCard[] = [];
   for (let i = 0; i < HAND_SIZE; i++) {
-    if (game.knowledgeDeck.length > 0) {
-      newHand.push(game.knowledgeDeck.pop()!);
-    }
+    const drawn = drawKnowledge(game);
+    if (drawn) newHand.push(drawn);
   }
   game.hands.set(playerId, newHand);
   return newHand;
@@ -496,9 +539,8 @@ export function addPlayerToGame(lobbyCode: string, playerId: string): boolean {
   // Deal a hand from the remaining deck
   const hand: KnowledgeCard[] = [];
   for (let i = 0; i < HAND_SIZE; i++) {
-    if (game.knowledgeDeck.length > 0) {
-      hand.push(game.knowledgeDeck.pop()!);
-    }
+    const drawn = drawKnowledge(game);
+    if (drawn) hand.push(drawn);
   }
   game.hands.set(playerId, hand);
 
@@ -543,9 +585,8 @@ export function botSubmitCards(lobbyCode: string, botId: string): { success: boo
 
   // Draw replacements
   for (let i = 0; i < playedCards.length; i++) {
-    if (game.knowledgeDeck.length > 0) {
-      hand.push(game.knowledgeDeck.pop()!);
-    }
+    const drawn = drawKnowledge(game);
+    if (drawn) hand.push(drawn);
   }
 
   round.submissions.set(botId, playedCards);
@@ -581,9 +622,8 @@ export function forceSubmitForMissing(lobbyCode: string): string[] {
     }
 
     for (let i = 0; i < playedCards.length; i++) {
-      if (game.knowledgeDeck.length > 0) {
-        hand.push(game.knowledgeDeck.pop()!);
-      }
+      const drawn = drawKnowledge(game);
+      if (drawn) hand.push(drawn);
     }
 
     round.submissions.set(pid, playedCards);
