@@ -922,7 +922,7 @@ io.on("connection", (socket) => {
     io.to(code).emit("chat:message", msg);
   });
 
-  const ALLOWED_MEDIA_HOSTS = ["media.giphy.com", "media0.giphy.com", "media1.giphy.com", "media2.giphy.com", "media3.giphy.com", "media4.giphy.com", "media.tenor.com", "c.tenor.com"];
+  const ALLOWED_MEDIA_HOSTS = ["media.giphy.com", "media0.giphy.com", "media1.giphy.com", "media2.giphy.com", "media3.giphy.com", "media4.giphy.com", "media.tenor.com", "c.tenor.com", "static.klipy.com"];
 
   function isAllowedMediaUrl(url: string): boolean {
     try {
