@@ -104,13 +104,28 @@ async function tgcGet(path: string, params: Record<string, string> = {}): Promis
 }
 
 async function tgcUploadFile(sessionId: string, folderId: string, name: string, pngBuffer: Buffer): Promise<string> {
-  const formData = new FormData();
-  formData.append("session_id", sessionId);
-  formData.append("folder_id", folderId);
-  formData.append("name", name);
-  formData.append("file", new Blob([new Uint8Array(pngBuffer)], { type: "image/png" }), `${name}.png`);
+  // Build multipart form data manually for reliable Node.js compatibility
+  const boundary = `----DeckedUpload${Date.now()}`;
+  const fields: Record<string, string> = { session_id: sessionId, folder_id: folderId, name };
 
-  const res = await fetch(`${TGC_API}/file`, { method: "POST", body: formData });
+  let body = "";
+  for (const [key, val] of Object.entries(fields)) {
+    body += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${val}\r\n`;
+  }
+  body += `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}.png"\r\nContent-Type: image/png\r\n\r\n`;
+  const ending = `\r\n--${boundary}--\r\n`;
+
+  const bodyBuffer = Buffer.concat([
+    Buffer.from(body, "utf-8"),
+    pngBuffer,
+    Buffer.from(ending, "utf-8"),
+  ]);
+
+  const res = await fetch(`${TGC_API}/file`, {
+    method: "POST",
+    headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
+    body: bodyBuffer,
+  });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
   return (data.result || data).id;
@@ -195,6 +210,10 @@ router.get("/create", async (req, res) => {
   tgcSessions.delete(token);
   const { sessionId, userId, deckId } = session;
 
+  // Prevent request timeout (allow up to 10 minutes for large decks)
+  req.setTimeout(600000);
+  res.setTimeout(600000);
+
   // Set up SSE
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -203,16 +222,23 @@ router.get("/create", async (req, res) => {
     "X-Accel-Buffering": "no",
   });
 
+  // Send keepalive pings every 15s to prevent proxy/connection timeouts
+  const keepalive = setInterval(() => {
+    res.write(": keepalive\n\n");
+  }, 15000);
+
   const send = (data: { step: string; progress: number; total: number; detail?: string }) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
   const sendError = (message: string) => {
+    clearInterval(keepalive);
     res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
     res.end();
   };
 
   const sendDone = (cartUrl: string) => {
+    clearInterval(keepalive);
     res.write(`data: ${JSON.stringify({ done: true, cartUrl })}\n\n`);
     res.end();
   };
@@ -353,6 +379,7 @@ router.get("/create", async (req, res) => {
 
     sendDone(`https://www.thegamecrafter.com/cart/${cartId}`);
   } catch (err: any) {
+    clearInterval(keepalive);
     console.error("TGC create error:", err.message || err);
     sendError(err.message || "Failed to create order");
   }
