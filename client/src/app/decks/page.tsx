@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Icon } from "@iconify/react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { fetchDecks, fetchDeck, deleteDeck, fetchPacks, createDeckFromPacks, DeckSummary, PackSummary, API_URL } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import { getAuthHeaders } from "@/lib/auth";
@@ -12,7 +12,7 @@ import GoogleSignIn from "@/components/GoogleSignIn";
 
 type Tab = "my-decks" | "browse-packs";
 
-function DecksPageContent() {
+export default function DecksPage() {
   const [tab, setTab] = useState<Tab>("my-decks");
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +46,6 @@ function DecksPageContent() {
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const isModerator = useAuthStore((s) => s.isModerator);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const load = async () => {
     try {
@@ -77,20 +76,20 @@ function DecksPageContent() {
   // Handle TGC SSO callback
   const tgcStartedRef = useRef(false);
   useEffect(() => {
-    const tgcToken = searchParams.get("tgcToken");
-    const tgcErr = searchParams.get("tgcError");
-    if (tgcErr) {
-      setTgcError(decodeURIComponent(tgcErr));
-      window.history.replaceState({}, "", "/decks");
-      return;
-    }
-    if (!tgcToken || tgcStartedRef.current) return;
-    tgcStartedRef.current = true;
+    if (tgcStartedRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const tgcToken = params.get("tgcToken");
+    const tgcErr = params.get("tgcError");
+    if (!tgcToken && !tgcErr) return;
 
-    // Clear URL params without triggering re-render
+    tgcStartedRef.current = true;
     window.history.replaceState({}, "", "/decks");
 
-    // Start SSE stream
+    if (tgcErr) {
+      setTgcError(tgcErr);
+      return;
+    }
+
     setTgcProgress({ step: "Connecting", progress: 0, total: 0, detail: "Starting..." });
     const eventSource = new EventSource(`${API_URL}/api/print/tgc/create?token=${tgcToken}`);
     eventSource.onmessage = (e) => {
@@ -113,7 +112,7 @@ function DecksPageContent() {
       eventSource.close();
     };
     return () => eventSource.close();
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTabChange = (t: Tab) => {
     setTab(t);
@@ -600,10 +599,6 @@ function DecksPageContent() {
       )}
     </div>
   );
-}
-
-export default function DecksPage() {
-  return <Suspense><DecksPageContent /></Suspense>;
 }
 
 function PrintDropdown({ deckId, printing, onPdf, onTgc }: {
