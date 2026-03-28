@@ -90,15 +90,12 @@ export default function HomeScreen() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 min-h-screen">
-      {/* Sign in */}
-      <div className="flex justify-end mb-4">
-        <GoogleSignIn />
-      </div>
-
       {/* Header */}
       <div className="flex flex-col items-center mb-8">
-        <h1 className="mb-2 w-full">
-          <svg viewBox="-10 0 240 58" className="w-64 h-auto block mx-auto" aria-label="Decked">
+        <div className="flex items-center justify-between w-full mb-2">
+          <div className="w-32" />
+          <h1>
+            <svg viewBox="-10 0 240 58" className="w-64 h-auto block" aria-label="Decked">
             {/* Back card */}
             <rect x="2" y="4" width="34" height="46" rx="5" fill="#6b21a8" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-12 19 27)"/>
             {/* Middle card */}
@@ -110,7 +107,11 @@ export default function HomeScreen() {
             {/* "ecked" text */}
             <text x="58" y="42" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="42" fill="#c084fc" letterSpacing="2">ecked</text>
           </svg>
-        </h1>
+          </h1>
+          <div className="w-32 flex justify-end">
+            <GoogleSignIn />
+          </div>
+        </div>
         <p className="text-gray-400">
           Create and play custom card games
         </p>
@@ -136,7 +137,7 @@ export default function HomeScreen() {
       </div>
 
       {/* Join by Code — always visible */}
-      <div className="max-w-sm mx-auto mb-8">
+      <div className="mb-8">
         <div className="flex gap-2">
           <input
             ref={roomCodeRef}
