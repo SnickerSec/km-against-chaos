@@ -2,6 +2,7 @@
   "name": "decked",
   "version": "0.1.0",
   "private": true,
+  "workspaces": ["client", "server"],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm --prefix server run dev",
