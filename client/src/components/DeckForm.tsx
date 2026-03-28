@@ -34,6 +34,31 @@ const FLAVOR_THEMES = [
   { id: "horror-movie",     label: "Horror Movie",       icon: "mdi:ghost" },
   { id: "wild-west",        label: "Wild West",          icon: "mdi:pistol" },
   { id: "academia",         label: "Academia / PhD Life","icon": "mdi:school" },
+  { id: "superheroes",       label: "Superheroes",        icon: "mdi:shield-star" },
+  { id: "fairy-tales",       label: "Fairy Tales",        icon: "mdi:castle" },
+  { id: "pets-animals",      label: "Pets & Animals",     icon: "mdi:paw" },
+  { id: "sports",            label: "Sports",             icon: "mdi:trophy" },
+  { id: "road-trip",         label: "Road Trip",          icon: "mdi:car-convertible" },
+  { id: "holidays",          label: "Holidays",           icon: "mdi:party-popper" },
+  { id: "music-genres",      label: "Music Genres",       icon: "mdi:music-note" },
+  { id: "mythical-creatures",label: "Mythical Creatures",  icon: "mdi:unicorn" },
+  { id: "theme-park",        label: "Theme Park",         icon: "mdi:ferris-wheel" },
+  { id: "survival-island",   label: "Survival Island",    icon: "mdi:island" },
+  { id: "time-travel",       label: "Time Travel",        icon: "mdi:clock-fast" },
+  { id: "detective-noir",    label: "Detective Noir",     icon: "mdi:detective" },
+  { id: "pirate-adventure",  label: "Pirate Adventure",   icon: "mdi:pirate" },
+  { id: "breakfast-club",    label: "Breakfast Club",     icon: "mdi:food-croissant" },
+  { id: "sitcom-vibes",      label: "Sitcom Vibes",       icon: "mdi:sofa" },
+  { id: "high-school",       label: "High School",        icon: "mdi:bus-school" },
+  { id: "dating-disasters",  label: "Dating Disasters",   icon: "mdi:heart-broken" },
+  { id: "florida-man",       label: "Florida Man",        icon: "mdi:weather-sunny-alert" },
+  { id: "diy-fails",         label: "DIY Fails",          icon: "mdi:hammer-wrench" },
+  { id: "social-media",      label: "Social Media",       icon: "mdi:cellphone" },
+  { id: "mythology",         label: "World Mythology",    icon: "mdi:lightning-bolt-circle" },
+  { id: "heist-movie",       label: "Heist Movie",        icon: "mdi:safe" },
+  { id: "dad-jokes",         label: "Dad Jokes",          icon: "mdi:emoticon-wink" },
+  { id: "fast-food",         label: "Fast Food",          icon: "mdi:hamburger" },
+  { id: "camping",           label: "Camping",            icon: "mdi:campfire" },
 ];
 
 interface CardInput {
@@ -300,7 +325,13 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         <select
           className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
           value={gameType}
-          onChange={(e) => setGameType(e.target.value)}
+          onChange={(e) => {
+            const gt = e.target.value;
+            setGameType(gt);
+            if (gt === "apples-to-apples" && (maturity === "adult" || maturity === "raunchy")) {
+              setMaturity("kid-friendly");
+            }
+          }}
         >
           <option value="cards-against-humanity">Cards Against Humanity</option>
           <option value="joking-hazard">Joking Hazard (Comic Strip)</option>
@@ -395,7 +426,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
                 Content Safety
               </label>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {MATURITY_LEVELS.map((level) => (
+                {MATURITY_LEVELS.filter((level) =>
+                  gameType === "apples-to-apples" ? level.id === "kid-friendly" || level.id === "moderate" : true
+                ).map((level) => (
                   <button
                     key={level.id}
                     type="button"
