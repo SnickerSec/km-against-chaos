@@ -254,7 +254,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           <>
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Prompt cards to generate</label>
+                <label className="block text-xs text-gray-400 mb-1">
+                  {gameType === "joking-hazard" ? "Scene cards to generate" : "Prompt cards to generate"}
+                </label>
                 <input
                   type="number"
                   value={chaosCount}
@@ -265,7 +267,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Answer cards to generate</label>
+                <label className="block text-xs text-gray-400 mb-1">
+                  {gameType === "joking-hazard" ? "Panel cards to generate" : "Answer cards to generate"}
+                </label>
                 <input
                   type="number"
                   value={knowledgeCount}
@@ -277,7 +281,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
               </div>
             </div>
             <p className="text-gray-600 text-xs mt-1">
-              Answer cards must outnumber prompt cards. Max 30 prompts, 50 answers.
+              {gameType === "joking-hazard"
+                ? "Panel cards must outnumber scene cards. Max 30 scenes, 50 panels."
+                : "Answer cards must outnumber prompt cards. Max 30 prompts, 50 answers."}
             </p>
           </>
         )}
@@ -394,12 +400,12 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
                 className="w-full accent-orange-500"
               />
               <div className="flex justify-between text-xs text-gray-600 mt-0.5">
-                <span>0% — all fill-in-the-blank</span>
+                <span>0% — {gameType === "joking-hazard" ? "all comic panels" : "all fill-in-the-blank"}</span>
                 <span>50% — half are rule-breakers</span>
               </div>
               {chaosLevel > 0 && (
                 <p className="text-orange-400/80 text-xs mt-1">
-                  ~{chaosLevel}% of prompt cards will be meta cards that manipulate scores, UI, or hands
+                  ~{chaosLevel}% of {gameType === "joking-hazard" ? "scene" : "prompt"} cards will be meta cards that manipulate scores, UI, or hands
                 </p>
               )}
             </div>
@@ -427,7 +433,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
       {/* Top-level AI Deck Generator (create mode) / Add packs (edit mode) */}
       {!initial ? (
-        <DeckAIGenerate onGenerated={handleGenerateDeck} />
+        <DeckAIGenerate onGenerated={handleGenerateDeck} gameType={gameType} />
       ) : (
         <div className="flex gap-3">
           <button
@@ -740,6 +746,7 @@ function CardPackEditor({
 
           {/* Bulk Add */}
           <BulkAdd
+            gameType={gameType}
             onAddChaos={(cards) => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, ...cards] }))}
             onAddKnowledge={(cards) =>
               onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
@@ -857,10 +864,13 @@ function CardListEditor({
 function BulkAdd({
   onAddChaos,
   onAddKnowledge,
+  gameType = "cards-against-humanity",
 }: {
   onAddChaos: (cards: CardInput[]) => void;
   onAddKnowledge: (cards: CardInput[]) => void;
+  gameType?: string;
 }) {
+  const isJH = gameType === "joking-hazard";
   const [text, setText] = useState("");
   const [type, setType] = useState<"chaos" | "knowledge">("knowledge");
   const [open, setOpen] = useState(false);
@@ -902,7 +912,7 @@ function BulkAdd({
                   : "bg-gray-800 text-gray-400 hover:text-white"
               }`}
             >
-              Prompts
+              {isJH ? "Scenes" : "Prompts"}
             </button>
             <button
               onClick={() => setType("knowledge")}
@@ -912,7 +922,7 @@ function BulkAdd({
                   : "bg-gray-800 text-gray-400 hover:text-white"
               }`}
             >
-              Answers
+              {isJH ? "Panels" : "Answers"}
             </button>
           </div>
           <textarea
@@ -921,8 +931,12 @@ function BulkAdd({
             rows={3}
             placeholder={
               type === "chaos"
-                ? "The real reason for the outage was ___\nNobody told me about ___"
-                : "Undocumented tribal knowledge\nA 47-slide PowerPoint"
+                ? isJH
+                  ? "Two coworkers stare at a whiteboard\nA meeting that should have been an email"
+                  : "The real reason for the outage was ___\nNobody told me about ___"
+                : isJH
+                  ? "One of them quietly starts crying\nEveryone pretends nothing happened"
+                  : "Undocumented tribal knowledge\nA 47-slide PowerPoint"
             }
             className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none text-sm resize-none"
           />
@@ -942,9 +956,12 @@ function BulkAdd({
 
 function DeckAIGenerate({
   onGenerated,
+  gameType = "cards-against-humanity",
 }: {
   onGenerated: (theme: string) => Promise<void>;
+  gameType?: string;
 }) {
+  const isJH = gameType === "joking-hazard";
   const [theme, setTheme] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -969,7 +986,9 @@ function DeckAIGenerate({
         AI Deck Generator
       </p>
       <p className="text-gray-300 text-sm mb-4">
-        Describe a theme and AI will generate a deck name, description, and all the cards for you
+        {isJH
+          ? "Describe a theme and AI will generate scene cards and panel cards for a comic strip game"
+          : "Describe a theme and AI will generate a deck name, description, and all the cards for you"}
       </p>
       <div className="flex gap-2">
         <input
@@ -1094,7 +1113,7 @@ function AIGenerate({
       </div>
       <div className="flex gap-4">
         <label className="flex items-center gap-2 text-xs text-gray-400">
-          <span>Prompts</span>
+          <span>{gameType === "joking-hazard" ? "Scenes" : "Prompts"}</span>
           <input
             type="number"
             min={1}
@@ -1105,7 +1124,7 @@ function AIGenerate({
           />
         </label>
         <label className="flex items-center gap-2 text-xs text-gray-400">
-          <span>Answers</span>
+          <span>{gameType === "joking-hazard" ? "Panels" : "Answers"}</span>
           <input
             type="number"
             min={1}

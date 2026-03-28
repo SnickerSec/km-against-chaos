@@ -83,6 +83,19 @@ This is a Cards Against Humanity-style party game called "KM Against Chaos".
 - Knowledge cards are short, punchy ANSWER cards (2–10 words).
 - Cards should be clever, funny, and specific to the theme — never generic filler.`;
   }
+  if (gameType === "joking-hazard" || gameType === "joking_hazard") {
+    return `=== GAME ENGINE RULES ===
+This is a Joking Hazard-style 3-panel comic strip game (text-based, no images).
+- Chaos cards are SCENE CARDS (Panel 1) — drawn from the deck each round to set the scene.
+  They should describe a situation, setting, or opening beat (e.g. "Two coworkers stare at a whiteboard").
+  Scene cards do NOT use blanks. They are complete sentences or phrases. Always pick:1.
+- Knowledge cards are PANEL CARDS — held in player hands, used as both Panel 2 (setup) and Panel 3 (punchline).
+  They should be short reactions, consequences, or escalations (e.g. "One of them quietly starts crying").
+  Panel cards are complete phrases, NOT fill-in-the-blank.
+- The Judge plays a Panel card as Panel 2 (the setup), then other players compete with Panel 3 (the punchline).
+- Cards should work in many combinations — avoid cards that only make sense with one specific scene.
+- Humor comes from unexpected escalation, absurd consequences, and deadpan observations.`;
+  }
   return "Generate prompt cards and answer cards appropriate for the game type.";
 }
 
@@ -162,10 +175,15 @@ function buildDynamicSection(ctx: GenerateContext, cc: number, kc: number, metaC
     ? `\nWILDCARD CONTEXT (hyper-niche — weave this into cards where it fits): "${ctx.wildcard.trim()}"`
     : "";
 
+  const isJH = ctx.gameType === "joking-hazard" || ctx.gameType === "joking_hazard";
   const standardCount = cc - metaCount;
-  const cardBreakdown = metaCount > 0
-    ? `Generate exactly ${standardCount} standard fill-in-the-blank Chaos cards AND ${metaCount} Meta/Rule-Breaker Chaos cards (${cc} total), plus ${kc} Knowledge cards.`
-    : `Generate exactly ${cc} Chaos cards (prompts) and ${kc} Knowledge cards (answers).`;
+  const cardBreakdown = isJH
+    ? (metaCount > 0
+      ? `Generate exactly ${standardCount} standard Scene cards AND ${metaCount} Meta/Rule-Breaker Scene cards (${cc} total), plus ${kc} Panel cards.`
+      : `Generate exactly ${cc} Scene cards (Panel 1) and ${kc} Panel cards (for hands).`)
+    : (metaCount > 0
+      ? `Generate exactly ${standardCount} standard fill-in-the-blank Chaos cards AND ${metaCount} Meta/Rule-Breaker Chaos cards (${cc} total), plus ${kc} Knowledge cards.`
+      : `Generate exactly ${cc} Chaos cards (prompts) and ${kc} Knowledge cards (answers).`);
 
   return `=== GENERATION REQUEST ===
 Theme: "${ctx.theme}"${deckContext}
