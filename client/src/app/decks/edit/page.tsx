@@ -12,7 +12,7 @@ function EditDeckContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
   const router = useRouter();
-  const { user, loading: authLoading, restore } = useAuthStore();
+  const { user, loading: authLoading, restore, isAdmin, isModerator } = useAuthStore();
   const [deck, setDeck] = useState<CustomDeck | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +36,7 @@ function EditDeckContent() {
     fetchDeck(id)
       .then((d) => {
         setDeck(d);
-        if (user && d.ownerId && d.ownerId !== user.id) {
+        if (user && d.ownerId && d.ownerId !== user.id && !isAdmin && !isModerator) {
           setError("You don't own this deck");
         }
       })
