@@ -16,6 +16,7 @@ export interface DeckSummary {
   winCondition: WinCondition;
   builtIn?: boolean;
   ownerId?: string | null;
+  ownerName?: string | null;
   maturity?: string;
   flavorThemes?: string[];
   chaosLevel?: number;

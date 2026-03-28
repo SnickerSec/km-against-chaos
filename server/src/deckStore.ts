@@ -39,6 +39,7 @@ export interface DeckSummary {
   winCondition: WinCondition;
   builtIn?: boolean;
   ownerId?: string | null;
+  ownerName?: string | null;
   maturity?: string;
   flavorThemes?: string[];
   chaosLevel?: number;
@@ -119,11 +120,14 @@ function builtInDeckSummaries(): DeckSummary[] {
 export async function listDecks(): Promise<DeckSummary[]> {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, description, built_in, win_condition, owner_id,
-              maturity, flavor_themes, chaos_level, wildcard, remixed_from, game_type,
-              jsonb_array_length(chaos_cards) as chaos_count,
-              jsonb_array_length(knowledge_cards) as knowledge_count
-       FROM decks ORDER BY built_in DESC, created_at DESC`
+      `SELECT d.id, d.name, d.description, d.built_in, d.win_condition, d.owner_id,
+              d.maturity, d.flavor_themes, d.chaos_level, d.wildcard, d.remixed_from, d.game_type,
+              jsonb_array_length(d.chaos_cards) as chaos_count,
+              jsonb_array_length(d.knowledge_cards) as knowledge_count,
+              u.name as owner_name
+       FROM decks d
+       LEFT JOIN users u ON d.owner_id = u.id
+       ORDER BY d.built_in DESC, d.created_at DESC`
     );
     return rows.map((r: any) => ({
       id: r.id,
@@ -134,6 +138,7 @@ export async function listDecks(): Promise<DeckSummary[]> {
       winCondition: r.win_condition || DEFAULT_WIN_CONDITION,
       builtIn: r.built_in,
       ownerId: r.owner_id || null,
+      ownerName: r.owner_name || null,
       maturity: r.maturity || "adult",
       flavorThemes: r.flavor_themes || [],
       chaosLevel: r.chaos_level ?? 0,

@@ -240,6 +240,7 @@ function DeckCard({ deck, onHost }: { deck: DeckSummary; onHost: (id: string) =>
             <p className="text-gray-400 text-sm mb-2">{deck.description}</p>
           )}
           <p className="text-gray-600 text-xs">
+            {deck.ownerName && <span>by {deck.ownerName} · </span>}
             {deck.chaosCount} prompts · {deck.knowledgeCount} answers · {
               deck.winCondition?.mode === "points"
                 ? `First to ${deck.winCondition.value} pts`
