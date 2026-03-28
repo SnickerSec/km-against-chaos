@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { fetchDecks, deleteDeck, fetchPacks, createDeckFromPacks, DeckSummary, PackSummary } from "@/lib/api";
+import { fetchDecks, fetchDeck, deleteDeck, fetchPacks, createDeckFromPacks, DeckSummary, PackSummary } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
+import { generateDeckPdf } from "@/lib/printDeck";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
 type Tab = "my-decks" | "browse-packs";
@@ -32,6 +33,8 @@ export default function DecksPage() {
   const [building, setBuilding] = useState(false);
   const [buildError, setBuildError] = useState<string | null>(null);
   const [showBuildForm, setShowBuildForm] = useState(false);
+
+  const [printing, setPrinting] = useState<string | null>(null);
 
   const user = useAuthStore((s) => s.user);
   const isAdmin = useAuthStore((s) => s.isAdmin);
@@ -81,6 +84,18 @@ export default function DecksPage() {
       setDecks(decks.filter((d) => d.id !== id));
     } catch (e: any) {
       setError(e.message);
+    }
+  };
+
+  const handlePrint = async (deckId: string) => {
+    setPrinting(deckId);
+    try {
+      const full = await fetchDeck(deckId);
+      await generateDeckPdf(full);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setPrinting(null);
     }
   };
 
@@ -285,6 +300,18 @@ export default function DecksPage() {
                     </p>
                   </div>
                   <div className="flex gap-2 ml-4">
+                    <button
+                      onClick={() => handlePrint(deck.id)}
+                      disabled={printing === deck.id}
+                      className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors disabled:opacity-50"
+                      title="Download print-ready PDF"
+                    >
+                      {printing === deck.id ? (
+                        <Icon icon="mdi:loading" className="animate-spin" width={14} />
+                      ) : (
+                        <Icon icon="mdi:printer" width={14} />
+                      )}
+                    </button>
                     {user && !isOwner(deck) && (
                       <button
                         onClick={() => handleRemix(deck.id)}

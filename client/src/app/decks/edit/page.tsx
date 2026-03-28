@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import DeckForm from "@/components/DeckForm";
 import { fetchDeck, updateDeck, CustomDeck } from "@/lib/api";
+import { generateDeckPdf } from "@/lib/printDeck";
 import { useAuthStore } from "@/lib/auth";
 
 function EditDeckContent() {
@@ -67,9 +68,17 @@ function EditDeckContent() {
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Edit Deck</h1>
-        <Link href="/decks" className="text-gray-400 hover:text-white text-sm">
-          Back to Decks
-        </Link>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => generateDeckPdf(deck)}
+            className="text-gray-400 hover:text-purple-400 text-sm transition-colors flex items-center gap-1"
+          >
+            Print PDF
+          </button>
+          <Link href="/decks" className="text-gray-400 hover:text-white text-sm">
+            Back to Decks
+          </Link>
+        </div>
       </div>
 
       <DeckForm

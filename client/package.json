@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@iconify/react": "^6.0.2",
+    "jspdf": "^4.2.1",
     "next": "^15.3.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
