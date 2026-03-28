@@ -27,6 +27,7 @@ const CARD_W = 825;
 const CARD_H = 1125;
 const SAFE_X = 38;
 const SAFE_Y = 38;
+const INNER_W = CARD_W - SAFE_X * 2;
 const INNER_H = CARD_H - SAFE_Y * 2;
 
 function escapeXml(str: string): string {
@@ -49,39 +50,90 @@ function wrapText(text: string, maxCharsPerLine: number): string[] {
   return lines;
 }
 
-function generateCardSvg(text: string, type: "chaos" | "knowledge", pick?: number): string {
+async function renderTextImage(text: string, width: number, height: number, options: {
+  fontSize: number;
+  color: string;
+  fontWeight?: string;
+  align?: string;
+}): Promise<Buffer> {
+  const { fontSize, color, fontWeight = "bold", align = "start" } = options;
+  const rgbaColor = color === "#ffffff" ? "rgba(255,255,255,1)"
+    : color === "#141414" ? "rgba(20,20,20,1)"
+    : color === "#c83232" ? "rgba(200,50,50,1)"
+    : color === "#6440a0" ? "rgba(100,64,160,1)"
+    : "rgba(192,132,252,1)";
+
+  return sharp({
+    text: {
+      text: `<span foreground="${rgbaColor}" font_weight="${fontWeight}" font_size="${Math.round(fontSize * 1024)}">${escapeXml(text)}</span>`,
+      width,
+      height,
+      align: align as any,
+      rgba: true,
+    },
+  }).png().toBuffer();
+}
+
+async function renderCardPng(text: string, type: "chaos" | "knowledge", pick?: number): Promise<Buffer> {
   const isChaos = type === "chaos";
-  const bg = isChaos ? "#141414" : "#ffffff";
+  const bg = isChaos ? { r: 20, g: 20, b: 20, alpha: 255 } : { r: 255, g: 255, b: 255, alpha: 255 };
   const textColor = isChaos ? "#ffffff" : "#141414";
   const labelColor = isChaos ? "#c83232" : "#6440a0";
   const label = isChaos ? "PROMPT" : "ANSWER";
 
-  const maxChars = 28;
-  const lines = wrapText(text, maxChars);
-  const fontSize = lines.length > 6 ? 32 : lines.length > 4 ? 36 : 42;
-  const lineHeight = fontSize * 1.35;
-  const totalTextH = lines.length * lineHeight;
-  const textStartY = SAFE_Y + 120 + (INNER_H - 160 - totalTextH) / 2 + fontSize;
+  // Create base card
+  let card = sharp({
+    create: { width: CARD_W, height: CARD_H, channels: 4, background: bg },
+  });
 
-  const textLines = lines
-    .map((line, i) => `<text x="${SAFE_X + 30}" y="${textStartY + i * lineHeight}" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="${fontSize}" fill="${textColor}">${escapeXml(line)}</text>`)
-    .join("\n");
+  const composites: sharp.OverlayOptions[] = [];
 
-  const pickLabel = isChaos && pick && pick > 1
-    ? `<text x="${SAFE_X + 30}" y="${CARD_H - SAFE_Y - 30}" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="28" fill="${labelColor}">PICK ${pick}</text>`
-    : "";
+  // Render label
+  try {
+    const labelImg = await renderTextImage(label, INNER_W, 40, { fontSize: 22, color: labelColor });
+    composites.push({ input: labelImg, top: SAFE_Y + 30, left: SAFE_X + 30 });
+  } catch {}
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">
-  <rect width="${CARD_W}" height="${CARD_H}" fill="${bg}" rx="24"/>
-  <text x="${SAFE_X + 30}" y="${SAFE_Y + 60}" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="28" fill="${labelColor}">${label}</text>
-  ${textLines}
-  ${pickLabel}
-</svg>`;
+  // Render main text
+  if (text) {
+    try {
+      const textAreaW = CARD_W - (SAFE_X + 30) * 2;
+      const textAreaH = CARD_H - 250;
+      const textImg = await renderTextImage(text, textAreaW, textAreaH, { fontSize: 32, color: textColor });
+      const meta = await sharp(textImg).metadata();
+      const textTop = SAFE_Y + 100 + Math.max(0, Math.floor((textAreaH - (meta.height || 0)) / 2));
+      composites.push({ input: textImg, top: textTop, left: SAFE_X + 30 });
+    } catch {}
+  }
+
+  // Render pick indicator
+  if (isChaos && pick && pick > 1) {
+    try {
+      const pickImg = await renderTextImage(`PICK ${pick}`, 200, 36, { fontSize: 20, color: labelColor });
+      composites.push({ input: pickImg, top: CARD_H - SAFE_Y - 50, left: SAFE_X + 30 });
+    } catch {}
+  }
+
+  return card.composite(composites).png().toBuffer();
 }
 
-async function renderCardPng(text: string, type: "chaos" | "knowledge", pick?: number): Promise<Buffer> {
-  const svg = generateCardSvg(text, type, pick);
-  return sharp(Buffer.from(svg)).png().toBuffer();
+async function renderBackPng(): Promise<Buffer> {
+  const bg = { r: 107, g: 33, b: 168, alpha: 255 }; // #6b21a8
+  const card = sharp({
+    create: { width: CARD_W, height: CARD_H, channels: 4, background: bg },
+  });
+
+  try {
+    const textImg = await renderTextImage("DECKED", CARD_W - 100, 100, {
+      fontSize: 52, color: "#c084fc", align: "centre",
+    });
+    const meta = await sharp(textImg).metadata();
+    const top = Math.floor((CARD_H - (meta.height || 80)) / 2);
+    const left = Math.floor((CARD_W - (meta.width || 400)) / 2);
+    return card.composite([{ input: textImg, top, left }]).png().toBuffer();
+  } catch {
+    return card.png().toBuffer();
+  }
 }
 
 // ── TGC API helpers ──
@@ -297,11 +349,7 @@ router.get("/create", async (req, res) => {
     send({ step: "Setting up", progress: 0, total: totalCards, detail: "Uploading card back..." });
 
     // Upload card back
-    const backSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">
-      <rect width="${CARD_W}" height="${CARD_H}" fill="#6b21a8" rx="24"/>
-      <text x="${CARD_W / 2}" y="${CARD_H / 2}" text-anchor="middle" dominant-baseline="central" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="72" fill="#c084fc">DECKED</text>
-    </svg>`;
-    const backPng = await sharp(Buffer.from(backSvg)).png().toBuffer();
+    const backPng = await renderBackPng();
     const backFileId = await tgcUploadFile(sessionId, folderId, "card_back", backPng);
 
     // Create and populate prompt deck
