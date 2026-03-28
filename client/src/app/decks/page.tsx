@@ -251,7 +251,7 @@ export default function DecksPage() {
 
           {loading ? (
             <p className="text-gray-400">Loading decks...</p>
-          ) : decks.length === 0 ? (
+          ) : (user ? decks.filter((d) => isOwner(d)) : []).length === 0 ? (
             <div className="text-center py-12 bg-gray-900 rounded-xl">
               <p className="text-gray-400 text-lg mb-2">No custom decks yet</p>
               <p className="text-gray-500 text-sm">
@@ -260,7 +260,7 @@ export default function DecksPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {decks.map((deck) => (
+              {decks.filter((d) => isOwner(d) || isAdmin || isModerator).map((deck) => (
                 <div
                   key={deck.id}
                   className="flex items-center justify-between bg-gray-900 rounded-xl p-4"
