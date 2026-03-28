@@ -68,6 +68,11 @@ export default function AdminPage() {
   const [usersError, setUsersError] = useState<string | null>(null);
   const [roleStatus, setRoleStatus] = useState<Record<string, { success?: boolean; error?: string }>>({});
 
+  // Deck featured management
+  const [adminDecks, setAdminDecks] = useState<{ id: string; name: string; builtIn: boolean; ownerId: string | null; gameType: string; chaosCount: number; knowledgeCount: number }[]>([]);
+  const [decksLoading, setDecksLoading] = useState(false);
+  const [featuredStatus, setFeaturedStatus] = useState<Record<string, { success?: boolean; error?: string }>>({});
+
   useEffect(() => {
     restore();
   }, [restore]);
@@ -87,6 +92,13 @@ export default function AdminPage() {
       .then((r) => r.json())
       .then((data) => { setUsers(data); setUsersLoading(false); })
       .catch((e) => { setUsersError(e.message); setUsersLoading(false); });
+
+    // Fetch decks for featured management
+    setDecksLoading(true);
+    fetch(`${API_URL}/api/admin/decks`, { headers: getAuthHeaders() })
+      .then((r) => r.json())
+      .then((data) => { setAdminDecks(data); setDecksLoading(false); })
+      .catch(() => setDecksLoading(false));
   }, [user, isAdmin]);
 
   useEffect(() => {
@@ -207,6 +219,27 @@ export default function AdminPage() {
       setTimeout(() => setRoleStatus((prev) => ({ ...prev, [userId]: {} })), 2000);
     } catch (e: any) {
       setRoleStatus((prev) => ({ ...prev, [userId]: { error: e.message } }));
+    }
+  };
+
+  const handleToggleFeatured = async (deckId: string, featured: boolean) => {
+    setFeaturedStatus((prev) => ({ ...prev, [deckId]: {} }));
+    try {
+      const res = await fetch(`${API_URL}/api/admin/decks/${deckId}/featured`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ featured }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setFeaturedStatus((prev) => ({ ...prev, [deckId]: { error: data.error || "Failed" } }));
+        return;
+      }
+      setAdminDecks((prev) => prev.map((d) => d.id === deckId ? { ...d, builtIn: featured } : d));
+      setFeaturedStatus((prev) => ({ ...prev, [deckId]: { success: true } }));
+      setTimeout(() => setFeaturedStatus((prev) => ({ ...prev, [deckId]: {} })), 2000);
+    } catch (e: any) {
+      setFeaturedStatus((prev) => ({ ...prev, [deckId]: { error: e.message } }));
     }
   };
 
@@ -468,6 +501,60 @@ export default function AdminPage() {
 
           {!usersLoading && users.length === 0 && !usersError && (
             <p className="text-gray-500 text-sm">No users found.</p>
+          )}
+        </div>
+
+        {/* Featured Decks */}
+        <div className="bg-gray-900 rounded-xl p-6">
+          <h2 className="text-xl font-semibold mb-2">Featured Decks</h2>
+          <p className="text-gray-400 text-sm mb-5">
+            Toggle which decks appear in the Featured section on the home page.
+          </p>
+
+          {decksLoading && <p className="text-gray-400 text-sm">Loading decks...</p>}
+
+          {!decksLoading && adminDecks.length > 0 && (
+            <div className="space-y-2">
+              {adminDecks.map((d) => (
+                <div key={d.id} className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3">
+                  <button
+                    onClick={() => handleToggleFeatured(d.id, !d.builtIn)}
+                    className={`w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ${
+                      d.builtIn ? "bg-purple-600" : "bg-gray-600"
+                    }`}
+                  >
+                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                      d.builtIn ? "left-5" : "left-1"
+                    }`} />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-white truncate">{d.name}</p>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                        d.gameType === "joking_hazard"
+                          ? "bg-orange-600/30 text-orange-300"
+                          : "bg-red-600/30 text-red-300"
+                      }`}>
+                        {d.gameType === "joking_hazard" ? "JH" : "CAH"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">{d.chaosCount} prompts · {d.knowledgeCount} answers</p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    {featuredStatus[d.id]?.success && (
+                      <span className="text-green-400 text-xs">Saved</span>
+                    )}
+                    {featuredStatus[d.id]?.error && (
+                      <span className="text-red-400 text-xs">{featuredStatus[d.id].error}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!decksLoading && adminDecks.length === 0 && (
+            <p className="text-gray-500 text-sm">No decks found.</p>
           )}
         </div>
       </div>

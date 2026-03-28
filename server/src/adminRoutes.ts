@@ -289,4 +289,46 @@ router.put("/users/:id/role", requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// List all decks (for featured management)
+router.get("/decks", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, built_in, owner_id, game_type,
+              jsonb_array_length(chaos_cards) as chaos_count,
+              jsonb_array_length(knowledge_cards) as knowledge_count
+       FROM decks ORDER BY built_in DESC, created_at DESC`
+    );
+    res.json(rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      builtIn: r.built_in,
+      ownerId: r.owner_id || null,
+      gameType: r.game_type || "cah",
+      chaosCount: parseInt(r.chaos_count),
+      knowledgeCount: parseInt(r.knowledge_count),
+    })));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Toggle featured (built_in) status on a deck
+router.put("/decks/:id/featured", async (req, res) => {
+  const { featured } = (req as any).body;
+  if (typeof featured !== "boolean") {
+    res.status(400).json({ error: "featured (boolean) is required" });
+    return;
+  }
+  try {
+    const { rows } = await pool.query(
+      "UPDATE decks SET built_in = $1 WHERE id = $2 RETURNING id, name, built_in",
+      [featured, req.params.id]
+    );
+    if (rows.length === 0) { res.status(404).json({ error: "Deck not found" }); return; }
+    res.json({ id: rows[0].id, name: rows[0].name, builtIn: rows[0].built_in });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;
