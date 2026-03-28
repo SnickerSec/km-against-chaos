@@ -10,16 +10,23 @@ function getApiKeyId(): string {
   return process.env.TGC_API_KEY_ID || "";
 }
 
-// Pending TGC orders: sso_id -> { deckId, sessionId }
-const pendingOrders = new Map<string, { deckId: string }>();
+// Store TGC sessions after SSO callback (token -> { sessionId, userId, deckId })
+const tgcSessions = new Map<string, { sessionId: string; userId: string; deckId: string; createdAt: number }>();
+
+// Cleanup old sessions (older than 30 min)
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [key, val] of tgcSessions) {
+    if (val.createdAt < cutoff) tgcSessions.delete(key);
+  }
+}, 60 * 1000);
 
 // ── Card image generation ──
 
-const CARD_W = 825; // poker size with bleed at 300 DPI
+const CARD_W = 825;
 const CARD_H = 1125;
-const SAFE_X = 38; // ~1/8" bleed
+const SAFE_X = 38;
 const SAFE_Y = 38;
-const INNER_W = CARD_W - SAFE_X * 2;
 const INNER_H = CARD_H - SAFE_Y * 2;
 
 function escapeXml(str: string): string {
@@ -42,18 +49,13 @@ function wrapText(text: string, maxCharsPerLine: number): string[] {
   return lines;
 }
 
-function generateCardSvg(
-  text: string,
-  type: "chaos" | "knowledge",
-  pick?: number
-): string {
+function generateCardSvg(text: string, type: "chaos" | "knowledge", pick?: number): string {
   const isChaos = type === "chaos";
   const bg = isChaos ? "#141414" : "#ffffff";
   const textColor = isChaos ? "#ffffff" : "#141414";
   const labelColor = isChaos ? "#c83232" : "#6440a0";
   const label = isChaos ? "PROMPT" : "ANSWER";
 
-  // Estimate font size and wrapping
   const maxChars = 28;
   const lines = wrapText(text, maxChars);
   const fontSize = lines.length > 6 ? 32 : lines.length > 4 ? 36 : 42;
@@ -121,7 +123,7 @@ router.get("/status", (_req, res) => {
   res.json({ configured: !!getApiKeyId() });
 });
 
-// Step 1: Start SSO flow — redirect user to TGC for auth
+// Step 1: Start SSO flow
 router.get("/auth", requireAuth, (req, res) => {
   const apiKeyId = getApiKeyId();
   if (!apiKeyId) {
@@ -144,7 +146,7 @@ router.get("/auth", requireAuth, (req, res) => {
   res.json({ url: ssoUrl });
 });
 
-// Step 2: SSO callback — TGC redirects here after user authorizes
+// Step 2: SSO callback — store session and redirect to client progress page
 router.get("/callback", async (req, res) => {
   const { sso_id, deckId } = req.query as { sso_id: string; deckId: string };
 
@@ -154,24 +156,79 @@ router.get("/callback", async (req, res) => {
   }
 
   try {
-    // Get TGC session from SSO
     const session = await tgcPost(`/session/sso/${sso_id}`, {
       private_key: process.env.TGC_PRIVATE_KEY || "",
     });
-    const sessionId = session.id;
-    const userId = session.user_id;
 
-    // Fetch deck
+    // Generate a token to identify this order
+    const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    tgcSessions.set(token, {
+      sessionId: session.id,
+      userId: session.user_id,
+      deckId,
+      createdAt: Date.now(),
+    });
+
+    const clientUrl = process.env.CLIENT_URL || "https://www.decked.gg";
+    res.redirect(`${clientUrl}/decks?tgcToken=${token}`);
+  } catch (err: any) {
+    console.error("TGC SSO error:", err.message || err);
+    const clientUrl = process.env.CLIENT_URL || "https://www.decked.gg";
+    res.redirect(`${clientUrl}/decks?tgcError=${encodeURIComponent(err.message || "SSO failed")}`);
+  }
+});
+
+// Step 3: SSE endpoint — streams progress as cards are created
+router.get("/create", async (req, res) => {
+  const token = req.query.token as string;
+  if (!token) {
+    res.status(400).json({ error: "token is required" });
+    return;
+  }
+
+  const session = tgcSessions.get(token);
+  if (!session) {
+    res.status(404).json({ error: "Session expired or invalid" });
+    return;
+  }
+
+  tgcSessions.delete(token);
+  const { sessionId, userId, deckId } = session;
+
+  // Set up SSE
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+
+  const send = (data: { step: string; progress: number; total: number; detail?: string }) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const sendError = (message: string) => {
+    res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+    res.end();
+  };
+
+  const sendDone = (cartUrl: string) => {
+    res.write(`data: ${JSON.stringify({ done: true, cartUrl })}\n\n`);
+    res.end();
+  };
+
+  try {
     const deck = await getDeck(deckId);
-    if (!deck) {
-      res.status(404).send("Deck not found");
-      return;
-    }
+    if (!deck) { sendError("Deck not found"); return; }
 
-    // Create or get designer
+    const totalCards = deck.chaosCards.length + deck.knowledgeCards.length;
+    let processed = 0;
+
+    send({ step: "Setting up", progress: 0, total: totalCards, detail: "Creating designer..." });
+
+    // Get or create designer
     let designerId: string;
     try {
-      // Try to get user's existing designers
       const userData = await tgcGet(`/user/${userId}/designers`, { session_id: sessionId });
       const items = userData.items || [];
       if (items.length > 0) {
@@ -180,7 +237,6 @@ router.get("/callback", async (req, res) => {
         throw new Error("no designers");
       }
     } catch {
-      // Create a new designer for this user
       try {
         const designer = await tgcPost("/designer", {
           session_id: sessionId,
@@ -189,11 +245,14 @@ router.get("/callback", async (req, res) => {
         });
         designerId = designer.id;
       } catch (designerErr: any) {
-        throw new Error(`Designer setup failed: ${designerErr.message}. You may need to revoke app access at thegamecrafter.com and re-authorize.`);
+        sendError(`Designer setup failed: ${designerErr.message}`);
+        return;
       }
     }
 
-    // Create a folder for card images
+    send({ step: "Setting up", progress: 0, total: totalCards, detail: "Creating game..." });
+
+    // Create folder
     const folder = await tgcPost("/folder", {
       session_id: sessionId,
       name: deck.name,
@@ -206,11 +265,13 @@ router.get("/callback", async (req, res) => {
       session_id: sessionId,
       name: deck.name,
       designer_id: designerId,
-      description: deck.description || `A custom card game created with Decked.`,
+      description: deck.description || "A custom card game created with Decked.",
     });
     const gameId = game.id;
 
-    // Generate and upload card back image
+    send({ step: "Setting up", progress: 0, total: totalCards, detail: "Uploading card back..." });
+
+    // Upload card back
     const backSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">
       <rect width="${CARD_W}" height="${CARD_H}" fill="#6b21a8" rx="24"/>
       <text x="${CARD_W / 2}" y="${CARD_H / 2}" text-anchor="middle" dominant-baseline="central" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="72" fill="#c084fc">DECKED</text>
@@ -218,63 +279,70 @@ router.get("/callback", async (req, res) => {
     const backPng = await sharp(Buffer.from(backSvg)).png().toBuffer();
     const backFileId = await tgcUploadFile(sessionId, folderId, "card_back", backPng);
 
-    // Create poker deck for prompt cards
-    let promptDeckId: string | null = null;
+    // Create and populate prompt deck
     if (deck.chaosCards.length > 0) {
+      send({ step: "Prompt cards", progress: 0, total: totalCards, detail: "Creating prompt deck..." });
+
       const promptDeck = await tgcPost("/pokerdeck", {
         session_id: sessionId,
         name: "Prompt Cards",
         game_id: gameId,
         back_id: backFileId,
       });
-      promptDeckId = promptDeck.id;
+      const promptDeckId = promptDeck.id;
 
-      // Upload and create prompt cards in batches
       for (let i = 0; i < deck.chaosCards.length; i++) {
         const card = deck.chaosCards[i];
+        processed++;
+        send({ step: "Prompt cards", progress: processed, total: totalCards, detail: `Uploading prompt ${i + 1}/${deck.chaosCards.length}` });
+
         const png = await renderCardPng(card.text, "chaos", card.pick);
         const fileId = await tgcUploadFile(sessionId, folderId, `prompt_${i + 1}`, png);
         await tgcPost("/card", {
           session_id: sessionId,
           name: `Prompt ${i + 1}`,
-          deck_id: promptDeckId!,
+          deck_id: promptDeckId,
           face_id: fileId,
           back_from: "Deck",
         });
       }
     }
 
-    // Create poker deck for answer cards
-    let answerDeckId: string | null = null;
+    // Create and populate answer deck
     if (deck.knowledgeCards.length > 0) {
+      send({ step: "Answer cards", progress: processed, total: totalCards, detail: "Creating answer deck..." });
+
       const answerDeck = await tgcPost("/pokerdeck", {
         session_id: sessionId,
         name: "Answer Cards",
         game_id: gameId,
         back_id: backFileId,
       });
-      answerDeckId = answerDeck.id;
+      const answerDeckId = answerDeck.id;
 
-      // Upload and create answer cards in batches
       for (let i = 0; i < deck.knowledgeCards.length; i++) {
         const card = deck.knowledgeCards[i];
+        processed++;
+        send({ step: "Answer cards", progress: processed, total: totalCards, detail: `Uploading answer ${i + 1}/${deck.knowledgeCards.length}` });
+
         const png = await renderCardPng(card.text, "knowledge");
         const fileId = await tgcUploadFile(sessionId, folderId, `answer_${i + 1}`, png);
         await tgcPost("/card", {
           session_id: sessionId,
           name: `Answer ${i + 1}`,
-          deck_id: answerDeckId!,
+          deck_id: answerDeckId,
           face_id: fileId,
           back_from: "Deck",
         });
       }
     }
 
-    // Create cart and add game
+    // Create cart
+    send({ step: "Finishing", progress: totalCards, total: totalCards, detail: "Adding to cart..." });
+
     const cart = await tgcPost("/cart", { session_id: sessionId });
     const cartId = cart.id;
 
-    // Get the game's SKU to add to cart
     const gameData = await tgcGet(`/game/${gameId}`, { session_id: sessionId });
     if (gameData.sku_id) {
       await tgcPost(`/cart/${cartId}/sku/${gameData.sku_id}`, {
@@ -283,13 +351,10 @@ router.get("/callback", async (req, res) => {
       });
     }
 
-    // Redirect to TGC cart
-    const clientUrl = process.env.CLIENT_URL || "https://www.decked.gg";
-    res.redirect(`https://www.thegamecrafter.com/cart/${cartId}`);
+    sendDone(`https://www.thegamecrafter.com/cart/${cartId}`);
   } catch (err: any) {
-    console.error("TGC integration error:", err.message || err);
-    const clientUrl = process.env.CLIENT_URL || "https://www.decked.gg";
-    res.redirect(`${clientUrl}/decks?tgcError=${encodeURIComponent(err.message || "Failed to create order")}`);
+    console.error("TGC create error:", err.message || err);
+    sendError(err.message || "Failed to create order");
   }
 });
 
