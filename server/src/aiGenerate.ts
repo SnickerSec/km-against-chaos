@@ -121,15 +121,21 @@ function buildMaturityRules(maturity: string): string {
 - Dark humor is okay if it stays tasteful (think The Office, not South Park).
 - Avoid slurs, graphic violence, or explicit sexual content.`;
     case "raunchy":
-      return `=== CONTENT SAFETY: RAUNCHY (EXPLICIT) ===
-- Explicit adult content, dark humor, profanity, and offensive jokes are permitted.
-- Push boundaries — this is for adults who want the uncensored experience.
-- No actual hate speech targeting real protected groups, but everything else is fair game.`;
+      return `=== CONTENT SAFETY: RAUNCHY (EXPLICIT — R-RATED / NC-17) ===
+- This deck is EXPLICITLY meant to be filthy, vulgar, and sexually charged. The user chose "Raunchy" mode because they WANT Cards Against Humanity-level shock humor.
+- USE profanity freely: shit, fuck, ass, damn, hell, etc. Cards that are too clean FAIL the brief.
+- Include cards about: sex, bodily functions, drugs, drinking, embarrassing situations, crude anatomy humor, awkward hookups, and wildly inappropriate workplace/family scenarios.
+- Dark humor and morbid jokes are expected. Think South Park, Always Sunny, or the worst Cards Against Humanity cards.
+- Tone: genuinely shocking, laugh-out-loud gross, the kind of cards that make people cover their mouth. If a card could be in a PG-13 movie, it's too tame.
+- Do NOT self-censor, hedge, or water down. Every card should make someone uncomfortable while laughing.
+- The only hard rule: no hate speech targeting real protected groups.`;
     default: // "adult"
       return `=== CONTENT SAFETY: ADULT (STANDARD CAH) ===
-- Standard Cards Against Humanity tone: edgy, dark, politically incorrect, mildly profane.
+- Standard Cards Against Humanity tone: edgy, dark, politically incorrect, and profane.
+- Casual profanity is fine and expected (shit, damn, ass, hell). Don't shy away from it.
 - Humor should punch at institutions, absurdity, and human behavior — not at individuals.
-- Think "uncomfortable but funny" — the kind of thing that makes people say "oh no" then laugh.`;
+- Think "uncomfortable but funny" — the kind of thing that makes people say "oh no" then laugh.
+- Cards that could appear in a PG movie are too safe. Aim for a hard R.`;
   }
 }
 
