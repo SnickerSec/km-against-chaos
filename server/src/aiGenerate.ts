@@ -89,9 +89,10 @@ This is a Custom-Themed Uno card game. You are creating a THEME TEMPLATE, not in
 The game uses standard Uno mechanics (108 cards: 4 colors, numbers 0-9, Skip, Reverse, Draw Two, Wild, Wild Draw Four).
 
 Your job is to create a thematic skin:
-- 4 custom color names (replacing Red, Blue, Green, Yellow) — should be thematic and fun
-- Optional custom names for the 5 action cards (Skip, Reverse, Draw Two, Wild, Wild Draw Four)
-- The theme should be family-friendly and creative
+- 4 custom color names (replacing Red, Blue, Green, Yellow) — must be thematic, evocative, and match the flavor/wildcard context
+- Custom names for the 5 action cards (Skip, Reverse, Draw Two, Wild, Wild Draw Four) — these should be thematic and fun
+- The color names and action names should feel cohesive with the deck's theme, content safety level, and any flavor themes or wildcard context provided
+- If a chaos level > 0 is specified, also include "customActions" — an array of themed special action card names and short descriptions that replace some standard actions to mix up gameplay (e.g. "Swap Hands", "Draw Until Match", "Skip Everyone")
 
 OUTPUT FORMAT (JSON only, no chaosCards/knowledgeCards):
 {
@@ -99,7 +100,8 @@ OUTPUT FORMAT (JSON only, no chaosCards/knowledgeCards):
   "description": "A fun deck description",
   "template": {
     "colorNames": { "red": "Fire", "blue": "Ice", "green": "Earth", "yellow": "Wind" },
-    "actionNames": { "skip": "Freeze", "reverse": "Time Warp", "draw_two": "Double Strike", "wild": "Chaos", "wild_draw_four": "Annihilation" }
+    "actionNames": { "skip": "Freeze", "reverse": "Time Warp", "draw_two": "Double Strike", "wild": "Chaos", "wild_draw_four": "Annihilation" },
+    "customActions": [{ "name": "Hand Swap", "description": "Swap your entire hand with another player" }]
   }
 }`;
   }

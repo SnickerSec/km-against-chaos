@@ -480,52 +480,6 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
         {pillarsOpen && (
           <div className="px-4 pb-4 space-y-5 border-t border-gray-800 pt-4">
-            {/* Uno Template Editor */}
-            {gameType === "uno" && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Color Names</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["red", "blue", "green", "yellow"] as const).map((color) => {
-                      const bgMap = { red: "border-red-600", blue: "border-blue-600", green: "border-green-600", yellow: "border-yellow-500" };
-                      return (
-                        <div key={color} className="flex items-center gap-2">
-                          <div className={`w-4 h-4 rounded-full border-2 ${bgMap[color]}`} style={{ backgroundColor: color === "yellow" ? "#eab308" : color }} />
-                          <input
-                            type="text"
-                            value={unoColorNames[color] || ""}
-                            onChange={(e) => setUnoColorNames({ ...unoColorNames, [color]: e.target.value })}
-                            placeholder={color.charAt(0).toUpperCase() + color.slice(1)}
-                            className="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="text-gray-600 text-xs mt-1">Name the 4 colors for your theme (e.g. Fire, Ice, Earth, Wind)</p>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Action Card Names (optional)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["skip", "reverse", "draw_two", "wild", "wild_draw_four"] as const).map((action) => {
-                      const defaults: Record<string, string> = { skip: "Skip", reverse: "Reverse", draw_two: "Draw Two", wild: "Wild", wild_draw_four: "Wild Draw Four" };
-                      return (
-                        <input
-                          key={action}
-                          type="text"
-                          value={unoActionNames[action] || ""}
-                          onChange={(e) => setUnoActionNames({ ...unoActionNames, [action]: e.target.value })}
-                          placeholder={defaults[action]}
-                          className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-                        />
-                      );
-                    })}
-                  </div>
-                  <p className="text-gray-600 text-xs mt-1">Rename action cards to match your theme (leave blank for defaults)</p>
-                </div>
-              </div>
-            )}
-
             {/* Pillar 1: Maturity */}
             <div>
               <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
@@ -603,7 +557,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
             {/* Pillar 3: Chaos Level */}
             <div>
               <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">
-                Chaos Level — <span className="text-orange-400">{chaosLevel}%</span> meta cards
+                Chaos Level — <span className="text-orange-400">{chaosLevel}%</span>{gameType === "uno" ? " custom actions" : " meta cards"}
               </label>
               <input
                 type="range"
@@ -615,12 +569,14 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
                 className="w-full accent-orange-500"
               />
               <div className="flex justify-between text-xs text-gray-600 mt-0.5">
-                <span>0% — {gameType === "joking-hazard" ? "all comic panels" : gameType === "apples-to-apples" ? "all adjective prompts" : "all fill-in-the-blank"}</span>
-                <span>50% — half are rule-breakers</span>
+                <span>0% — {gameType === "uno" ? "standard Uno actions" : gameType === "joking-hazard" ? "all comic panels" : gameType === "apples-to-apples" ? "all adjective prompts" : "all fill-in-the-blank"}</span>
+                <span>50% — {gameType === "uno" ? "half are custom actions" : "half are rule-breakers"}</span>
               </div>
               {chaosLevel > 0 && (
                 <p className="text-orange-400/80 text-xs mt-1">
-                  ~{chaosLevel}% of {gameType === "joking-hazard" ? "scene" : gameType === "apples-to-apples" ? "green" : "prompt"} cards will be meta cards that manipulate scores, UI, or hands
+                  {gameType === "uno"
+                    ? `~${chaosLevel}% of action cards will be replaced with custom themed actions that mix up gameplay`
+                    : `~${chaosLevel}% of ${gameType === "joking-hazard" ? "scene" : gameType === "apples-to-apples" ? "green" : "prompt"} cards will be meta cards that manipulate scores, UI, or hands`}
                 </p>
               )}
             </div>
@@ -684,6 +640,52 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           onChange={(e) => setDescription(e.target.value)}
           className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
         />
+
+        {/* Uno Theme — color names & action names under deck info */}
+        {gameType === "uno" && (
+          <div className="bg-gray-900 rounded-xl p-4 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Color Names</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["red", "blue", "green", "yellow"] as const).map((color) => {
+                  const bgMap = { red: "border-red-600", blue: "border-blue-600", green: "border-green-600", yellow: "border-yellow-500" };
+                  return (
+                    <div key={color} className="flex items-center gap-2">
+                      <div className={`w-4 h-4 rounded-full border-2 ${bgMap[color]}`} style={{ backgroundColor: color === "yellow" ? "#eab308" : color }} />
+                      <input
+                        type="text"
+                        value={unoColorNames[color] || ""}
+                        onChange={(e) => setUnoColorNames({ ...unoColorNames, [color]: e.target.value })}
+                        placeholder={color.charAt(0).toUpperCase() + color.slice(1)}
+                        className="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-gray-600 text-xs mt-1">Name the 4 colors for your theme (e.g. Fire, Ice, Earth, Wind) — auto-filled by AI generation</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Action Card Names (optional)</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["skip", "reverse", "draw_two", "wild", "wild_draw_four"] as const).map((action) => {
+                  const defaults: Record<string, string> = { skip: "Skip", reverse: "Reverse", draw_two: "Draw Two", wild: "Wild", wild_draw_four: "Wild Draw Four" };
+                  return (
+                    <input
+                      key={action}
+                      type="text"
+                      value={unoActionNames[action] || ""}
+                      onChange={(e) => setUnoActionNames({ ...unoActionNames, [action]: e.target.value })}
+                      placeholder={defaults[action]}
+                      className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                    />
+                  );
+                })}
+              </div>
+              <p className="text-gray-600 text-xs mt-1">Rename action cards to match your theme — auto-filled by AI generation</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Win Condition */}
