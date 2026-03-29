@@ -149,8 +149,6 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [flavorThemes, setFlavorThemes] = useState<string[]>(initial?.flavorThemes || []);
   const [chaosLevel, setChaosLevel] = useState(initial?.chaosLevel ?? 0);
   const [wildcard, setWildcard] = useState(initial?.wildcard || "");
-  const [pillarsOpen, setPillarsOpen] = useState(false);
-  const [themeSearch, setThemeSearch] = useState("");
 
   const [packs, setPacks] = useState<CardPack[]>(() => {
     if (initial?.packs && initial.packs.length > 0) {
@@ -456,156 +454,23 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         )}
       </div>
 
-      {/* 4-Pillar Generation Settings */}
-      <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setPillarsOpen(!pillarsOpen)}
-          className="flex items-center justify-between w-full p-4 text-left"
-        >
-          <div className="flex items-center gap-2">
-            <Icon icon="mdi:tune-variant" className="text-purple-400" width={18} />
-            <span className="font-semibold text-sm text-gray-200">Generation Settings</span>
-            <span className="text-xs text-gray-500 ml-1">
-              {[
-                MATURITY_LEVELS.find((m) => m.id === maturity)?.label || "Adult",
-                flavorThemes.length > 0 ? `${flavorThemes.length} theme${flavorThemes.length !== 1 ? "s" : ""}` : null,
-                chaosLevel > 0 ? `${chaosLevel}% chaos` : null,
-                wildcard.trim() ? "wildcard" : null,
-              ].filter(Boolean).join(" · ")}
-            </span>
-          </div>
-          <Icon icon={pillarsOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-500" width={18} />
-        </button>
+      {/* AI Generation — settings + generate button merged */}
+      <AIGenerationPanel
+        gameType={gameType}
+        isCreate={!initial}
+        maturity={maturity}
+        setMaturity={setMaturity}
+        flavorThemes={flavorThemes}
+        setFlavorThemes={setFlavorThemes}
+        chaosLevel={chaosLevel}
+        setChaosLevel={setChaosLevel}
+        wildcard={wildcard}
+        setWildcard={setWildcard}
+        onGenerate={handleGenerateDeck}
+      />
 
-        {pillarsOpen && (
-          <div className="px-4 pb-4 space-y-5 border-t border-gray-800 pt-4">
-            {/* Pillar 1: Maturity */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
-                Content Safety
-              </label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {MATURITY_LEVELS.filter((level) =>
-                  (gameType === "apples-to-apples" || gameType === "uno" || gameType === "codenames") ? level.id === "kid-friendly" || level.id === "moderate" : true
-                ).map((level) => (
-                  <button
-                    key={level.id}
-                    type="button"
-                    onClick={() => setMaturity(level.id)}
-                    className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-sm font-medium transition-colors ${
-                      maturity === level.id
-                        ? "bg-purple-600/30 border-purple-500 text-purple-200"
-                        : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500"
-                    }`}
-                  >
-                    <Icon icon={level.icon} width={20} />
-                    <span className="text-xs">{level.label}</span>
-                  </button>
-                ))}
-              </div>
-              <p className="text-gray-600 text-xs mt-1">
-                {MATURITY_LEVELS.find((m) => m.id === maturity)?.desc}
-              </p>
-            </div>
-
-            {/* Pillar 2: Flavor Themes */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
-                Flavor Themes
-                {flavorThemes.length > 0 && (
-                  <span className="ml-2 text-purple-400 normal-case font-normal">
-                    {flavorThemes.length} selected
-                  </span>
-                )}
-              </label>
-              <input
-                type="text"
-                value={themeSearch}
-                onChange={(e) => setThemeSearch(e.target.value)}
-                placeholder="Search themes..."
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm mb-2"
-              />
-              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                {FLAVOR_THEMES.filter((t) =>
-                  t.label.toLowerCase().includes(themeSearch.toLowerCase())
-                ).map((theme) => {
-                  const active = flavorThemes.includes(theme.id);
-                  return (
-                    <button
-                      key={theme.id}
-                      type="button"
-                      onClick={() =>
-                        setFlavorThemes(
-                          active ? flavorThemes.filter((id) => id !== theme.id) : [...flavorThemes, theme.id]
-                        )
-                      }
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                        active
-                          ? "bg-cyan-600/30 border-cyan-500 text-cyan-200"
-                          : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600"
-                      }`}
-                    >
-                      <Icon icon={theme.icon} width={13} />
-                      {theme.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Pillar 3: Chaos Level */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">
-                Chaos Level — <span className="text-orange-400">{chaosLevel}%</span>{gameType === "uno" ? " custom actions" : " meta cards"}
-              </label>
-              <input
-                type="range"
-                min={0}
-                max={50}
-                step={5}
-                value={chaosLevel}
-                onChange={(e) => setChaosLevel(parseInt(e.target.value))}
-                className="w-full accent-orange-500"
-              />
-              <div className="flex justify-between text-xs text-gray-600 mt-0.5">
-                <span>0% — {gameType === "uno" ? "standard Uno actions" : gameType === "joking-hazard" ? "all comic panels" : gameType === "apples-to-apples" ? "all adjective prompts" : "all fill-in-the-blank"}</span>
-                <span>50% — {gameType === "uno" ? "half are custom actions" : "half are rule-breakers"}</span>
-              </div>
-              {chaosLevel > 0 && (
-                <p className="text-orange-400/80 text-xs mt-1">
-                  {gameType === "uno"
-                    ? `~${chaosLevel}% of action cards will be replaced with custom themed actions that mix up gameplay`
-                    : `~${chaosLevel}% of ${gameType === "joking-hazard" ? "scene" : gameType === "apples-to-apples" ? "green" : "prompt"} cards will be meta cards that manipulate scores, UI, or hands`}
-                </p>
-              )}
-            </div>
-
-            {/* Pillar 4: Wildcard */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">
-                Wildcard Context
-              </label>
-              <input
-                type="text"
-                value={wildcard}
-                onChange={(e) => setWildcard(e.target.value)}
-                placeholder='e.g. "Inside jokes about our team", "References to our podcast"'
-                maxLength={200}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm"
-              />
-              <p className="text-gray-600 text-xs mt-1">
-                Hyper-niche context woven into the AI-generated cards for maximum personalization
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Top-level AI Deck Generator (create mode) / Add packs (edit mode) */}
-      {!initial ? (
-        <DeckAIGenerate onGenerated={handleGenerateDeck} gameType={gameType} />
-      ) : (
+      {/* Add packs (edit mode only) */}
+      {initial && (
         <div className="flex gap-3">
           <button
             type="button"
@@ -1341,24 +1206,42 @@ function BulkAdd({
 
 /* ── Top-level AI Deck Generator ── */
 
-function DeckAIGenerate({
-  onGenerated,
-  gameType = "cards-against-humanity",
+function AIGenerationPanel({
+  gameType,
+  isCreate,
+  maturity,
+  setMaturity,
+  flavorThemes,
+  setFlavorThemes,
+  chaosLevel,
+  setChaosLevel,
+  wildcard,
+  setWildcard,
+  onGenerate,
 }: {
-  onGenerated: (theme: string) => Promise<void>;
-  gameType?: string;
+  gameType: string;
+  isCreate: boolean;
+  maturity: string;
+  setMaturity: (v: string) => void;
+  flavorThemes: string[];
+  setFlavorThemes: (v: string[]) => void;
+  chaosLevel: number;
+  setChaosLevel: (v: number) => void;
+  wildcard: string;
+  setWildcard: (v: string) => void;
+  onGenerate: (theme: string) => Promise<void>;
 }) {
-  const isJH = gameType === "joking-hazard";
   const [theme, setTheme] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [themeSearch, setThemeSearch] = useState("");
 
   const handleGenerate = async () => {
     if (!theme.trim()) return;
     setGenerating(true);
     setError(null);
     try {
-      await onGenerated(theme.trim());
+      await onGenerate(theme.trim());
       setTheme("");
     } catch (e: any) {
       setError(e.message);
@@ -1368,43 +1251,157 @@ function DeckAIGenerate({
   };
 
   return (
-    <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 rounded-xl p-6 border border-purple-500/40">
-      <p className="text-xl font-bold text-purple-100 mb-1">
-        AI Deck Generator
-      </p>
-      <p className="text-gray-300 text-sm mb-4">
-        {isJH
-          ? "Describe a theme and AI will generate scene cards and panel cards for a comic strip game"
-          : gameType === "codenames"
-          ? "Describe a theme and AI will generate a word pool for the Codenames grid"
-          : "Describe a theme and AI will generate a deck name, description, and all the cards for you"}
-      </p>
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={theme}
-          onChange={(e) => {
-            setTheme(e.target.value);
-            setError(null);
-          }}
-          placeholder='e.g. "Corporate Buzzwords", "IT Service Desk", "Dad Jokes"'
-          className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-          onKeyDown={(e) => e.key === "Enter" && !generating && handleGenerate()}
-        />
-        <button
-          onClick={handleGenerate}
-          disabled={generating || !theme.trim()}
-          className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg font-semibold transition-colors whitespace-nowrap"
-        >
-          {generating ? "Generating..." : "Generate Deck"}
-        </button>
+    <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-xl border border-purple-500/30 overflow-hidden">
+      <div className="p-5 space-y-5">
+        {/* Header + Theme input (create mode) */}
+        {isCreate && (
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Icon icon="mdi:creation" className="text-purple-400" width={20} />
+              <span className="font-bold text-lg text-purple-100">AI Deck Generator</span>
+            </div>
+            <p className="text-gray-400 text-xs mb-3">
+              {gameType === "joking-hazard"
+                ? "Describe a theme — AI generates scene & panel cards"
+                : gameType === "codenames"
+                ? "Describe a theme — AI generates a word pool for the grid"
+                : gameType === "uno"
+                ? "Describe a theme — AI generates themed color names, action cards, and deck info"
+                : "Describe a theme — AI generates deck name, description, and all cards"}
+            </p>
+            <input
+              type="text"
+              value={theme}
+              onChange={(e) => { setTheme(e.target.value); setError(null); }}
+              placeholder='e.g. "Corporate Buzzwords", "IT Service Desk", "Dad Jokes"'
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+              onKeyDown={(e) => e.key === "Enter" && !generating && handleGenerate()}
+            />
+          </div>
+        )}
+
+        {!isCreate && (
+          <div className="flex items-center gap-2">
+            <Icon icon="mdi:tune-variant" className="text-purple-400" width={18} />
+            <span className="font-semibold text-sm text-gray-200">Generation Settings</span>
+          </div>
+        )}
+
+        {/* Content Safety */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Content Safety</label>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {MATURITY_LEVELS.filter((level) =>
+              (gameType === "apples-to-apples" || gameType === "uno" || gameType === "codenames") ? level.id === "kid-friendly" || level.id === "moderate" : true
+            ).map((level) => (
+              <button
+                key={level.id}
+                type="button"
+                onClick={() => setMaturity(level.id)}
+                className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-sm font-medium transition-colors ${
+                  maturity === level.id
+                    ? "bg-purple-600/30 border-purple-500 text-purple-200"
+                    : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500"
+                }`}
+              >
+                <Icon icon={level.icon} width={20} />
+                <span className="text-xs">{level.label}</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-gray-600 text-xs mt-1">{MATURITY_LEVELS.find((m) => m.id === maturity)?.desc}</p>
+        </div>
+
+        {/* Flavor Themes */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
+            Flavor Themes
+            {flavorThemes.length > 0 && (
+              <span className="ml-2 text-purple-400 normal-case font-normal">{flavorThemes.length} selected</span>
+            )}
+          </label>
+          <input
+            type="text"
+            value={themeSearch}
+            onChange={(e) => setThemeSearch(e.target.value)}
+            placeholder="Search themes..."
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm mb-2"
+          />
+          <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+            {FLAVOR_THEMES.filter((t) => t.label.toLowerCase().includes(themeSearch.toLowerCase())).map((ft) => {
+              const active = flavorThemes.includes(ft.id);
+              return (
+                <button
+                  key={ft.id}
+                  type="button"
+                  onClick={() => setFlavorThemes(active ? flavorThemes.filter((id) => id !== ft.id) : [...flavorThemes, ft.id])}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                    active
+                      ? "bg-cyan-600/30 border-cyan-500 text-cyan-200"
+                      : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600"
+                  }`}
+                >
+                  <Icon icon={ft.icon} width={13} />
+                  {ft.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Chaos Level */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">
+            Chaos Level — <span className="text-orange-400">{chaosLevel}%</span>{gameType === "uno" ? " custom actions" : " meta cards"}
+          </label>
+          <input type="range" min={0} max={50} step={5} value={chaosLevel} onChange={(e) => setChaosLevel(parseInt(e.target.value))} className="w-full accent-orange-500" />
+          <div className="flex justify-between text-xs text-gray-600 mt-0.5">
+            <span>0% — {gameType === "uno" ? "standard Uno actions" : gameType === "joking-hazard" ? "all comic panels" : gameType === "apples-to-apples" ? "all adjective prompts" : "all fill-in-the-blank"}</span>
+            <span>50% — {gameType === "uno" ? "half are custom actions" : "half are rule-breakers"}</span>
+          </div>
+          {chaosLevel > 0 && (
+            <p className="text-orange-400/80 text-xs mt-1">
+              {gameType === "uno"
+                ? `~${chaosLevel}% of action cards will be replaced with custom themed actions that mix up gameplay`
+                : `~${chaosLevel}% of ${gameType === "joking-hazard" ? "scene" : gameType === "apples-to-apples" ? "green" : "prompt"} cards will be meta cards that manipulate scores, UI, or hands`}
+            </p>
+          )}
+        </div>
+
+        {/* Wildcard Context */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">Wildcard Context</label>
+          <input
+            type="text"
+            value={wildcard}
+            onChange={(e) => setWildcard(e.target.value)}
+            placeholder='e.g. "Inside jokes about our team", "References to our podcast"'
+            maxLength={200}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm"
+          />
+          <p className="text-gray-600 text-xs mt-1">Hyper-niche context woven into the AI-generated cards</p>
+        </div>
+
+        {/* Generate button (create mode) */}
+        {isCreate && (
+          <div>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={generating || !theme.trim()}
+              className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg font-semibold text-lg transition-colors"
+            >
+              {generating ? "Generating..." : "Generate Deck"}
+            </button>
+            {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+            {generating && (
+              <p className="text-purple-300 text-sm mt-2 animate-pulse">
+                AI is building your deck — this may take a moment...
+              </p>
+            )}
+          </div>
+        )}
       </div>
-      {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
-      {generating && (
-        <p className="text-purple-300 text-sm mt-3 animate-pulse">
-          AI is building your deck — generating name, description, and cards...
-        </p>
-      )}
     </div>
   );
 }
