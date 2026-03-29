@@ -1234,15 +1234,16 @@ function AIGenerationPanel({
   const [theme, setTheme] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [themeSearch, setThemeSearch] = useState("");
   const [open, setOpen] = useState(!isCreate ? true : false);
 
   const handleGenerate = async () => {
-    if (!theme.trim()) return;
+    if (!theme.trim() && flavorThemes.length === 0) return;
     setGenerating(true);
     setError(null);
     try {
-      await onGenerate(theme.trim());
+      // If no custom text, build theme from selected presets
+      const themeText = theme.trim() || flavorThemes.map(id => FLAVOR_THEMES.find(t => t.id === id)?.label).filter(Boolean).join(", ");
+      await onGenerate(themeText);
       setTheme("");
     } catch (e: any) {
       setError(e.message);
@@ -1270,7 +1271,7 @@ function AIGenerationPanel({
                 MATURITY_LEVELS.find((m) => m.id === maturity)?.label,
                 flavorThemes.length > 0 ? `${flavorThemes.length} theme${flavorThemes.length !== 1 ? "s" : ""}` : null,
                 chaosLevel > 0 ? `${chaosLevel}% chaos` : null,
-                wildcard.trim() ? "wildcard" : null,
+                wildcard.trim() ? "custom context" : null,
               ].filter(Boolean).join(" · ")}
             </span>
           )}
@@ -1280,28 +1281,70 @@ function AIGenerationPanel({
 
       {open && (
       <div className="px-5 pb-5 space-y-5">
-        {/* Theme input (create mode) */}
-        {isCreate && (
-          <div>
-            <p className="text-gray-400 text-xs mb-3">
-              {gameType === "joking-hazard"
-                ? "Describe a theme — AI generates scene & panel cards"
-                : gameType === "codenames"
-                ? "Describe a theme — AI generates a word pool for the grid"
-                : gameType === "uno"
-                ? "Describe a theme — AI generates themed color names, action cards, and deck info"
-                : "Describe a theme — AI generates deck name, description, and all cards"}
-            </p>
-            <input
-              type="text"
-              value={theme}
-              onChange={(e) => { setTheme(e.target.value); setError(null); }}
-              placeholder='e.g. "Corporate Buzzwords", "IT Service Desk", "Dad Jokes"'
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-              onKeyDown={(e) => e.key === "Enter" && !generating && handleGenerate()}
-            />
+        {/* Theme — unified search/select presets + custom prompt */}
+        <div>
+          <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
+            Theme
+            {flavorThemes.length > 0 && (
+              <span className="ml-2 text-purple-400 normal-case font-normal">{flavorThemes.length} selected</span>
+            )}
+          </label>
+          <p className="text-gray-500 text-xs mb-2">
+            Select preset themes below, type a custom theme, or both
+          </p>
+
+          {/* Selected theme chips */}
+          {flavorThemes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {flavorThemes.map((id) => {
+                const ft = FLAVOR_THEMES.find((t) => t.id === id);
+                return ft ? (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setFlavorThemes(flavorThemes.filter((fid) => fid !== id))}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-600/30 border border-cyan-500 text-cyan-200 text-xs font-medium transition-colors hover:bg-cyan-600/50"
+                  >
+                    <Icon icon={ft.icon} width={12} />
+                    {ft.label}
+                    <Icon icon="mdi:close" width={12} className="ml-0.5 opacity-60" />
+                  </button>
+                ) : null;
+              })}
+            </div>
+          )}
+
+          {/* Input — filters presets + doubles as custom theme prompt */}
+          <input
+            type="text"
+            value={theme}
+            onChange={(e) => { setTheme(e.target.value); setError(null); }}
+            placeholder={isCreate
+              ? 'Search presets or type a custom theme (e.g. "IT Service Desk")'
+              : "Search preset themes..."
+            }
+            className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+            onKeyDown={(e) => e.key === "Enter" && isCreate && !generating && handleGenerate()}
+          />
+
+          {/* Preset theme chips — filtered by input text */}
+          <div className="flex flex-wrap gap-2 mt-2 max-h-32 overflow-y-auto">
+            {FLAVOR_THEMES
+              .filter((t) => !flavorThemes.includes(t.id))
+              .filter((t) => !theme.trim() || t.label.toLowerCase().includes(theme.toLowerCase()))
+              .map((ft) => (
+                <button
+                  key={ft.id}
+                  type="button"
+                  onClick={() => setFlavorThemes([...flavorThemes, ft.id])}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600"
+                >
+                  <Icon icon={ft.icon} width={13} />
+                  {ft.label}
+                </button>
+              ))}
           </div>
-        )}
+        </div>
 
         {/* Content Safety */}
         <div>
@@ -1326,43 +1369,6 @@ function AIGenerationPanel({
             ))}
           </div>
           <p className="text-gray-600 text-xs mt-1">{MATURITY_LEVELS.find((m) => m.id === maturity)?.desc}</p>
-        </div>
-
-        {/* Flavor Themes */}
-        <div>
-          <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
-            Flavor Themes
-            {flavorThemes.length > 0 && (
-              <span className="ml-2 text-purple-400 normal-case font-normal">{flavorThemes.length} selected</span>
-            )}
-          </label>
-          <input
-            type="text"
-            value={themeSearch}
-            onChange={(e) => setThemeSearch(e.target.value)}
-            placeholder="Search themes..."
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 text-sm mb-2"
-          />
-          <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-            {FLAVOR_THEMES.filter((t) => t.label.toLowerCase().includes(themeSearch.toLowerCase())).map((ft) => {
-              const active = flavorThemes.includes(ft.id);
-              return (
-                <button
-                  key={ft.id}
-                  type="button"
-                  onClick={() => setFlavorThemes(active ? flavorThemes.filter((id) => id !== ft.id) : [...flavorThemes, ft.id])}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                    active
-                      ? "bg-cyan-600/30 border-cyan-500 text-cyan-200"
-                      : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600"
-                  }`}
-                >
-                  <Icon icon={ft.icon} width={13} />
-                  {ft.label}
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* Chaos Level */}
@@ -1404,7 +1410,7 @@ function AIGenerationPanel({
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={generating || !theme.trim()}
+              disabled={generating || (!theme.trim() && flavorThemes.length === 0)}
               className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg font-semibold text-lg transition-colors"
             >
               {generating ? "Generating..." : "Generate Deck"}
