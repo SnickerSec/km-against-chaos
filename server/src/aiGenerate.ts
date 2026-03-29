@@ -294,9 +294,33 @@ ${ctx.packType !== "base" ? `{
 }
 
 function buildDeckPrompt(ctx: GenerateContext, cc: number, kc: number): string {
-  const metaCount = Math.round(cc * ((ctx.chaosLevel ?? 0) / 100));
   const maturity = ctx.maturity || "adult";
   const flavorThemes = ctx.flavorThemes || [];
+  const isUno = ctx.gameType === "uno";
+
+  // Uno gets a special prompt — no card counts, just template generation
+  if (isUno) {
+    const wildcardSection = ctx.wildcard?.trim()
+      ? `\nWILDCARD CONTEXT (weave this into the theme names): "${ctx.wildcard.trim()}"`
+      : "";
+    const chaosSection = (ctx.chaosLevel ?? 0) > 0
+      ? `\nChaos Level: ${ctx.chaosLevel}% — include ${Math.max(1, Math.round((ctx.chaosLevel ?? 0) / 10))} custom action cards in the "customActions" array.`
+      : "";
+
+    return [
+      buildEngineRules(ctx.gameType),
+      buildMaturityRules(maturity),
+      flavorThemes.length > 0 ? buildFlavorRules(flavorThemes) : "",
+    ].filter(Boolean).join("\n\n") + `
+
+=== GENERATION REQUEST ===
+Theme: "${ctx.theme}"${wildcardSection}${chaosSection}
+
+The color names and action card names MUST reflect the theme, content safety, and any wildcard context above.
+Respond ONLY with valid JSON, no other text.`;
+  }
+
+  const metaCount = Math.round(cc * ((ctx.chaosLevel ?? 0) / 100));
 
   const sections = [
     buildEngineRules(ctx.gameType),
