@@ -20,6 +20,7 @@ export interface LobbyState {
   deckName: string;
   gameType: string;
   winCondition: { mode: string; value: number };
+  houseRules?: { unoStacking?: boolean };
   status: "waiting" | "playing" | "finished";
   rematchVotes?: number;
   rematchVoters?: string[];
@@ -123,6 +124,7 @@ export interface UnoPlayerView {
   deckTemplate: UnoDeckTemplate;
   winMode?: string;
   targetPoints?: number;
+  stackingEnabled?: boolean;
 }
 
 export interface PlayerGameView {
@@ -197,6 +199,7 @@ interface GameStore {
   unoRoundWinner: { winnerId: string; winnerName: string; roundPoints: number } | null;
   unoWinMode: string;
   unoTargetPoints: number;
+  unoStackingEnabled: boolean;
 
   // Actions
   setPlayerName: (name: string) => void;
@@ -263,6 +266,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   unoRoundWinner: null,
   unoWinMode: "rounds",
   unoTargetPoints: Infinity,
+  unoStackingEnabled: false,
 
   setPlayerName: (name) => set({ playerName: name }),
   setLobby: (lobby) => set({ lobby }),
@@ -359,6 +363,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       unoDeckTemplate: view.deckTemplate,
       unoWinMode: view.winMode || "rounds",
       unoTargetPoints: view.targetPoints || Infinity,
+      unoStackingEnabled: view.stackingEnabled || false,
       selectedUnoCard: null,
       choosingColor: false,
     }),
@@ -405,5 +410,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       unoRoundWinner: null,
       unoWinMode: "rounds",
       unoTargetPoints: Infinity,
+      unoStackingEnabled: false,
     }),
 }));

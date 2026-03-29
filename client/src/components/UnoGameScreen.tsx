@@ -31,7 +31,7 @@ export default function UnoGameScreen() {
   const {
     unoHand, unoTurn, playableCardIds, selectedUnoCard, choosingColor,
     unoDeckTemplate, unoRoundWinner, lobby, roundNumber, maxRounds, scores,
-    unoWinMode, unoTargetPoints,
+    unoWinMode, unoTargetPoints, unoStackingEnabled,
   } = useGameStore();
   const { playUnoCard, drawUnoCard, callUno, challengeUno, unoNextRound, leaveLobby } = useSocket();
   const socket = getSocket();
@@ -154,6 +154,15 @@ export default function UnoGameScreen() {
             <UnoCard card={unoTurn.discardTop} />
           </div>
         </div>
+
+        {/* Stacking Pending Draw Indicator */}
+        {unoStackingEnabled && unoTurn.mustDraw > 0 && (
+          <div className="bg-red-600/20 border border-red-500 rounded-lg px-4 py-2 text-center animate-pulse">
+            <span className="text-red-400 font-bold text-sm">
+              Draw {unoTurn.mustDraw} pending! {isMyTurn ? "Stack or draw!" : ""}
+            </span>
+          </div>
+        )}
 
         {/* Last Action */}
         {unoTurn.lastAction && (

@@ -30,7 +30,7 @@ function formatWinCondition(mode: string, value: number, gameType: string): stri
 
 export default function LobbyScreen() {
   const { lobby, error, countdown } = useGameStore();
-  const { leaveLobby, startGame, addBot, removeBot, kickPlayer, changeDeck } = useSocket();
+  const { leaveLobby, startGame, addBot, removeBot, kickPlayer, changeDeck, setHouseRules } = useSocket();
   const [showDeckPicker, setShowDeckPicker] = useState(false);
 
   if (!lobby) return null;
@@ -64,6 +64,24 @@ export default function LobbyScreen() {
               Change
             </button>
           )}
+        </div>
+      )}
+      {lobby.gameType === "uno" && isHost && (
+        <div className="flex items-center gap-2 mb-2">
+          <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={lobby.houseRules?.unoStacking || false}
+              onChange={(e) => setHouseRules({ ...lobby.houseRules, unoStacking: e.target.checked })}
+              className="accent-purple-500 w-3.5 h-3.5"
+            />
+            Allow Stacking (+2/+4)
+          </label>
+        </div>
+      )}
+      {lobby.gameType === "uno" && !isHost && lobby.houseRules?.unoStacking && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs text-gray-400">Stacking (+2/+4) enabled</span>
         </div>
       )}
       <h2 className="text-2xl font-bold mb-4">Lobby</h2>

@@ -403,6 +403,20 @@ export function getLobbyDeckId(code: string): string | undefined {
   return lobbies.get(code)?.deckId;
 }
 
+export function getLobbyDeckName(code: string): string | undefined {
+  return lobbies.get(code)?.deckName;
+}
+
+export function getLobbyGameType(code: string): string | undefined {
+  return lobbies.get(code)?.gameType;
+}
+
+export function isPlayerBot(code: string, playerId: string): boolean {
+  const lobby = lobbies.get(code);
+  if (!lobby) return false;
+  return lobby.players.get(playerId)?.isBot || false;
+}
+
 export function setLobbyHouseRules(socketId: string, houseRules: { unoStacking?: boolean }): { code: string; lobby: LobbyState } | { error: string } {
   const code = playerLobby.get(socketId);
   if (!code) return { error: "You are not in a lobby" };

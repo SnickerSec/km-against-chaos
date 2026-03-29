@@ -476,6 +476,16 @@ export function useSocket() {
     socket.emit("uno:next-round" as any);
   };
 
+  const setHouseRules = (houseRules: { unoStacking?: boolean }) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("lobby:set-house-rules" as any, houseRules, (response: { success: boolean; error?: string }) => {
+      if (!response.success) {
+        setError(response.error || "Failed to set house rules");
+      }
+    });
+  };
+
   return {
     socket: socketRef.current,
     createLobby,
@@ -501,5 +511,6 @@ export function useSocket() {
     callUno,
     challengeUno,
     unoNextRound,
+    setHouseRules,
   };
 }
