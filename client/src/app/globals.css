@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent 300ms tap delay on mobile */
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Prevent text selection on game elements */
+.select-none-deep * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 @keyframes float-up {
   0% {
     opacity: 1;

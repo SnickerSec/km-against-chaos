@@ -24,6 +24,7 @@ function lobbyToState(lobby: Lobby): LobbyState {
     deckName: lobby.deckName,
     gameType: lobby.gameType,
     winCondition: lobby.winCondition,
+    houseRules: lobby.houseRules,
     status: lobby.status,
     rematchVotes: lobby.rematchVotes.size,
     rematchVoters: [...lobby.rematchVotes],
@@ -64,6 +65,7 @@ export function createLobby(socketId: string, playerName: string, deckId: string
     deckName,
     gameType: (gameType as any) || "cah",
     winCondition: winCondition || { mode: "rounds", value: 10 },
+    houseRules: {},
     status: "waiting",
     maxPlayers: 10,
     createdAt: new Date(),
@@ -399,6 +401,25 @@ export function getPlayerNameInLobby(code: string, playerId: string): string | u
 
 export function getLobbyDeckId(code: string): string | undefined {
   return lobbies.get(code)?.deckId;
+}
+
+export function setLobbyHouseRules(socketId: string, houseRules: { unoStacking?: boolean }): { code: string; lobby: LobbyState } | { error: string } {
+  const code = playerLobby.get(socketId);
+  if (!code) return { error: "You are not in a lobby" };
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return { error: "Lobby not found" };
+
+  if (lobby.hostId !== socketId) return { error: "Only the host can change house rules" };
+  if (lobby.status !== "waiting") return { error: "Cannot change rules while playing" };
+
+  lobby.houseRules = houseRules;
+
+  return { code, lobby: lobbyToState(lobby) };
+}
+
+export function getLobbyHouseRules(code: string): { unoStacking?: boolean } | undefined {
+  return lobbies.get(code)?.houseRules;
 }
 
 export function remapPlayer(

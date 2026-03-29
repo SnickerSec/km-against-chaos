@@ -24,6 +24,7 @@ interface InternalUnoGame {
   turnDeadline: number;
   lastAction?: string;
   deckTemplate: UnoDeckTemplate;
+  stackingEnabled: boolean;
   vulnerablePlayer?: string; // player with 1 card who hasn't called Uno yet
 }
 
@@ -75,9 +76,15 @@ function shuffle<T>(arr: T[]): T[] {
 
 // ── Validation ──
 
-export function isValidPlay(card: UnoCard, discardTop: UnoCard, activeColor: UnoColor, pendingDraw: number): boolean {
-  // If there's a pending draw, only matching draw cards can be played (but we don't stack, so nothing)
-  if (pendingDraw > 0) return false;
+export function isValidPlay(card: UnoCard, discardTop: UnoCard, activeColor: UnoColor, pendingDraw: number, stackingEnabled: boolean = false): boolean {
+  // If there's a pending draw...
+  if (pendingDraw > 0) {
+    if (!stackingEnabled) return false;
+    // Stacking: allow draw_two on draw_two, wild_draw_four on anything pending
+    if (card.type === "draw_two" && discardTop.type === "draw_two") return true;
+    if (card.type === "wild_draw_four") return true;
+    return false;
+  }
   // Wild cards can always be played
   if (card.type === "wild" || card.type === "wild_draw_four") return true;
   // Match color
@@ -89,8 +96,8 @@ export function isValidPlay(card: UnoCard, discardTop: UnoCard, activeColor: Uno
   return false;
 }
 
-function getPlayableCardIds(hand: UnoCard[], discardTop: UnoCard, activeColor: UnoColor, pendingDraw: number): string[] {
-  return hand.filter(c => isValidPlay(c, discardTop, activeColor, pendingDraw)).map(c => c.id);
+function getPlayableCardIds(hand: UnoCard[], discardTop: UnoCard, activeColor: UnoColor, pendingDraw: number, stackingEnabled: boolean = false): string[] {
+  return hand.filter(c => isValidPlay(c, discardTop, activeColor, pendingDraw, stackingEnabled)).map(c => c.id);
 }
 
 // ── Draw from pile (with reshuffle) ──
@@ -118,6 +125,7 @@ export function createUnoGame(
   playerIds: string[],
   template: UnoDeckTemplate,
   winCondition?: { mode: "rounds" | "points" | "single_round" | "lowest_score"; value: number },
+  houseRules?: { unoStacking?: boolean },
 ): void {
   const deck = shuffle(generateUnoDeck(template));
 
@@ -187,6 +195,7 @@ export function createUnoGame(
     unoCalledPlayers: new Set(),
     turnDeadline: Date.now() + TURN_TIME_MS,
     deckTemplate: template,
+    stackingEnabled: houseRules?.unoStacking || false,
   };
 
   games.set(lobbyCode, game);
@@ -208,7 +217,7 @@ export function getUnoPlayerView(lobbyCode: string, playerId: string): UnoPlayer
 
   const isMyTurn = game.playerIds[game.currentPlayerIndex] === playerId;
   const playable = isMyTurn && game.phase === "playing"
-    ? getPlayableCardIds(hand, discardTop, game.activeColor, game.pendingDraw)
+    ? getPlayableCardIds(hand, discardTop, game.activeColor, game.pendingDraw, game.stackingEnabled)
     : [];
 
   return {
@@ -236,6 +245,7 @@ export function getUnoPlayerView(lobbyCode: string, playerId: string): UnoPlayer
     deckTemplate: game.deckTemplate,
     winMode: game.winMode,
     targetPoints: game.targetPoints,
+    stackingEnabled: game.stackingEnabled,
   };
 }
 
@@ -268,7 +278,7 @@ export function playCard(
   const card = hand[cardIndex];
   const discardTop = game.discardPile[game.discardPile.length - 1];
 
-  if (!isValidPlay(card, discardTop, game.activeColor, game.pendingDraw)) {
+  if (!isValidPlay(card, discardTop, game.activeColor, game.pendingDraw, game.stackingEnabled)) {
     return { success: false, error: "Invalid play" };
   }
 
@@ -290,16 +300,23 @@ export function playCard(
     game.activeColor = chosenColor;
 
     if (card.type === "wild_draw_four") {
-      game.pendingDraw = 4;
-      game.lastAction = `${pName} played ${card.text}! Next player draws 4`;
-      advanceTurn(game);
-      // Next player draws 4 and loses turn
-      const nextPid = game.playerIds[game.currentPlayerIndex];
-      const drawn = drawFromPile(game, 4);
-      game.hands.get(nextPid)!.push(...drawn);
-      game.pendingDraw = 0;
-      game.lastAction = `${pName} played ${card.text}! ${nextPid.startsWith("bot-") ? nextPid.replace("bot-", "Bot ") : "Player"} draws 4`;
-      advanceTurn(game);
+      if (game.stackingEnabled) {
+        // Stacking: accumulate penalty and pass to next player
+        game.pendingDraw += 4;
+        game.lastAction = `${pName} played ${card.text}! Draw penalty is now ${game.pendingDraw}`;
+        advanceTurn(game);
+      } else {
+        game.pendingDraw = 4;
+        game.lastAction = `${pName} played ${card.text}! Next player draws 4`;
+        advanceTurn(game);
+        // Next player draws 4 and loses turn
+        const nextPid = game.playerIds[game.currentPlayerIndex];
+        const drawn = drawFromPile(game, 4);
+        game.hands.get(nextPid)!.push(...drawn);
+        game.pendingDraw = 0;
+        game.lastAction = `${pName} played ${card.text}! ${nextPid.startsWith("bot-") ? nextPid.replace("bot-", "Bot ") : "Player"} draws 4`;
+        advanceTurn(game);
+      }
     } else {
       game.lastAction = `${pName} played ${card.text}`;
       advanceTurn(game);
@@ -323,12 +340,19 @@ export function playCard(
     }
   } else if (card.type === "draw_two") {
     game.activeColor = card.color!;
-    advanceTurn(game);
-    const nextPid = game.playerIds[game.currentPlayerIndex];
-    const drawn = drawFromPile(game, 2);
-    game.hands.get(nextPid)!.push(...drawn);
-    game.lastAction = `${pName} played ${card.text}! ${nextPid.startsWith("bot-") ? nextPid.replace("bot-", "Bot ") : "Player"} draws 2`;
-    advanceTurn(game); // skip the drawing player
+    if (game.stackingEnabled) {
+      // Stacking: accumulate penalty and pass to next player
+      game.pendingDraw += 2;
+      game.lastAction = `${pName} played ${card.text}! Draw penalty is now ${game.pendingDraw}`;
+      advanceTurn(game);
+    } else {
+      advanceTurn(game);
+      const nextPid = game.playerIds[game.currentPlayerIndex];
+      const drawn = drawFromPile(game, 2);
+      game.hands.get(nextPid)!.push(...drawn);
+      game.lastAction = `${pName} played ${card.text}! ${nextPid.startsWith("bot-") ? nextPid.replace("bot-", "Bot ") : "Player"} draws 2`;
+      advanceTurn(game); // skip the drawing player
+    }
   } else {
     // Number card
     game.activeColor = card.color!;
@@ -415,6 +439,22 @@ export function drawCard(lobbyCode: string, playerId: string): DrawCardResult {
   if (game.phase !== "playing") return { success: false, error: "Not in playing phase" };
   if (game.playerIds[game.currentPlayerIndex] !== playerId) return { success: false, error: "Not your turn" };
 
+  const pName = playerId.startsWith("bot-") ? playerId.replace("bot-", "Bot ") : "Player";
+
+  // If there's a pending draw (stacking mode), draw the full accumulated penalty
+  if (game.pendingDraw > 0 && game.stackingEnabled) {
+    const hand = game.hands.get(playerId)!;
+    const drawn = drawFromPile(game, game.pendingDraw);
+    hand.push(...drawn);
+    game.lastAction = `${pName} couldn't stack — draws ${game.pendingDraw}!`;
+    game.pendingDraw = 0;
+    game.vulnerablePlayer = undefined;
+    advanceTurn(game);
+    game.turnDeadline = Date.now() + TURN_TIME_MS;
+    game.unoCalledPlayers.clear();
+    return { success: true, drawnCard: drawn.length > 0 ? drawn[drawn.length - 1] : undefined };
+  }
+
   const drawn = drawFromPile(game, 1);
   if (drawn.length === 0) {
     // No cards to draw — skip turn
@@ -427,7 +467,7 @@ export function drawCard(lobbyCode: string, playerId: string): DrawCardResult {
   const hand = game.hands.get(playerId)!;
   hand.push(card);
 
-  game.lastAction = `${playerId.startsWith("bot-") ? playerId.replace("bot-", "Bot ") : "Player"} drew a card`;
+  game.lastAction = `${pName} drew a card`;
   game.vulnerablePlayer = undefined;
 
   // Player drew — advance turn (official rules: can play drawn card if valid, but for simplicity advance)
@@ -572,7 +612,7 @@ export function botPlayUnoTurn(lobbyCode: string, botId: string): PlayCardResult
   if (!hand) return { success: false };
 
   const discardTop = game.discardPile[game.discardPile.length - 1];
-  const playable = hand.filter(c => isValidPlay(c, discardTop, game.activeColor, game.pendingDraw));
+  const playable = hand.filter(c => isValidPlay(c, discardTop, game.activeColor, game.pendingDraw, game.stackingEnabled));
 
   if (playable.length > 0) {
     // Strategy: prefer number cards, then action cards, wilds last

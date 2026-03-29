@@ -83,7 +83,7 @@ export default function PlayerHand({
                 : "Pick a card from your hand"}
         </p>
       )}
-      <div className={`grid grid-cols-1 gap-3 max-w-lg mx-auto transition-all duration-500 ${blurred ? "blur-md select-none pointer-events-none" : ""}`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto transition-all duration-500 ${blurred ? "blur-md select-none pointer-events-none" : ""}`}>
         {hand.map((card) => {
           const selIndex = selectedCards.indexOf(card.id);
           const isSelected = selIndex !== -1;

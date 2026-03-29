@@ -16,6 +16,7 @@ export interface Lobby {
   deckName: string;
   gameType: GameType;
   winCondition: { mode: string; value: number };
+  houseRules?: { unoStacking?: boolean };
   status: "waiting" | "playing" | "finished";
   maxPlayers: number;
   createdAt: Date;
@@ -36,6 +37,7 @@ export interface LobbyState {
   deckName: string;
   gameType: GameType;
   winCondition: { mode: string; value: number };
+  houseRules?: { unoStacking?: boolean };
   status: "waiting" | "playing" | "finished";
   rematchVotes: number;
   rematchVoters: string[];
@@ -177,6 +179,7 @@ export interface UnoPlayerView {
   deckTemplate: UnoDeckTemplate;
   winMode: "rounds" | "points" | "single_round" | "lowest_score";
   targetPoints: number;
+  stackingEnabled: boolean;
 }
 
 // ── Voice Chat (WebRTC signaling) ──
