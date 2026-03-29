@@ -403,55 +403,6 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
             : "Fill-in-the-blank party game — a Czar reads a prompt, players submit answers"}
         </p>
 
-        {/* Card counts — only on create */}
-        {!initial && gameType !== "uno" && gameType !== "codenames" && (
-          gameType === "joking-hazard" ? (
-            <div className="mt-3">
-              <label className="block text-xs text-gray-400 mb-1">Panel cards to generate</label>
-              <input
-                type="number"
-                value={knowledgeCount}
-                onChange={(e) => setKnowledgeCount(Math.max(20, Math.min(80, parseInt(e.target.value) || 40)))}
-                min={20}
-                max={80}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-              />
-              <p className="text-gray-600 text-xs mt-1">
-                AI will generate ~15-20% as red (bonus) cards. Min 20, max 80.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Prompt cards to generate</label>
-                  <input
-                    type="number"
-                    value={chaosCount}
-                    onChange={(e) => handleChaosCount(parseInt(e.target.value) || 10)}
-                    min={5}
-                    max={30}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Answer cards to generate</label>
-                  <input
-                    type="number"
-                    value={knowledgeCount}
-                    onChange={(e) => handleKnowledgeCount(parseInt(e.target.value) || 25)}
-                    min={chaosCount + 1}
-                    max={50}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              </div>
-              <p className="text-gray-600 text-xs mt-1">
-                Answer cards must outnumber prompt cards. Max 30 prompts, 50 answers.
-              </p>
-            </>
-          )
-        )}
       </div>
 
       {/* AI Generation — settings + generate button merged */}
@@ -466,6 +417,10 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         setChaosLevel={setChaosLevel}
         wildcard={wildcard}
         setWildcard={setWildcard}
+        chaosCount={chaosCount}
+        setChaosCount={handleChaosCount}
+        knowledgeCount={knowledgeCount}
+        setKnowledgeCount={handleKnowledgeCount}
         onGenerate={handleGenerateDeck}
       />
 
@@ -1217,6 +1172,10 @@ function AIGenerationPanel({
   setChaosLevel,
   wildcard,
   setWildcard,
+  chaosCount,
+  setChaosCount,
+  knowledgeCount,
+  setKnowledgeCount,
   onGenerate,
 }: {
   gameType: string;
@@ -1229,6 +1188,10 @@ function AIGenerationPanel({
   setChaosLevel: (v: number) => void;
   wildcard: string;
   setWildcard: (v: string) => void;
+  chaosCount: number;
+  setChaosCount: (v: number) => void;
+  knowledgeCount: number;
+  setKnowledgeCount: (v: number) => void;
   onGenerate: (theme: string) => Promise<void>;
 }) {
   const [theme, setTheme] = useState("");
@@ -1403,6 +1366,53 @@ function AIGenerationPanel({
           />
           <p className="text-gray-600 text-xs mt-1">Hyper-niche context woven into the AI-generated cards</p>
         </div>
+
+        {/* Card counts (create mode, not Uno/Codenames) */}
+        {isCreate && gameType !== "uno" && gameType !== "codenames" && (
+          gameType === "joking-hazard" ? (
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">Cards to Generate</label>
+              <input
+                type="number"
+                value={knowledgeCount}
+                onChange={(e) => setKnowledgeCount(Math.max(20, Math.min(80, parseInt(e.target.value) || 40)))}
+                min={20}
+                max={80}
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+              />
+              <p className="text-gray-600 text-xs mt-1">Panel cards (AI generates ~15-20% as red bonus cards). Min 20, max 80.</p>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">Cards to Generate</label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Prompt cards</label>
+                  <input
+                    type="number"
+                    value={chaosCount}
+                    onChange={(e) => setChaosCount(parseInt(e.target.value) || 10)}
+                    min={5}
+                    max={30}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Answer cards</label>
+                  <input
+                    type="number"
+                    value={knowledgeCount}
+                    onChange={(e) => setKnowledgeCount(parseInt(e.target.value) || 25)}
+                    min={chaosCount + 1}
+                    max={50}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+              <p className="text-gray-600 text-xs mt-1">Answers must outnumber prompts. Max 30 prompts, 50 answers.</p>
+            </div>
+          )
+        )}
 
         {/* Generate button (create mode) */}
         {isCreate && (
