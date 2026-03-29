@@ -89,6 +89,7 @@ function EditDeckContent() {
           chaosLevel: deck.chaosLevel,
           wildcard: deck.wildcard,
           packs: deck.packs,
+          gameType: deck.gameType,
         }}
         submitLabel="Save Changes"
         onSubmit={async (data) => {
