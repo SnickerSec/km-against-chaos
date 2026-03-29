@@ -12,6 +12,30 @@ import GoogleSignIn from "@/components/GoogleSignIn";
 
 type Tab = "my-decks" | "browse-packs";
 
+const GAME_TYPE_INFO: Record<string, { label: string; color: string; bg: string }> = {
+  cah:             { label: "CAH",           color: "text-red-300",    bg: "bg-red-600/20 border-red-600/40" },
+  joking_hazard:   { label: "Joking Hazard", color: "text-orange-300", bg: "bg-orange-600/20 border-orange-600/40" },
+  apples_to_apples:{ label: "A2A",           color: "text-green-300",  bg: "bg-green-600/20 border-green-600/40" },
+  uno:             { label: "Uno",           color: "text-yellow-300", bg: "bg-yellow-600/20 border-yellow-600/40" },
+};
+
+function GameTypeBadge({ gameType }: { gameType?: string }) {
+  const info = GAME_TYPE_INFO[gameType || "cah"] || GAME_TYPE_INFO.cah;
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-semibold ${info.color} ${info.bg}`}>
+      {info.label}
+    </span>
+  );
+}
+
+const GAME_TYPE_FILTERS = [
+  { id: "all", label: "All" },
+  { id: "cah", label: "CAH" },
+  { id: "joking_hazard", label: "Joking Hazard" },
+  { id: "apples_to_apples", label: "Apples to Apples" },
+  { id: "uno", label: "Uno" },
+];
+
 export default function DecksPage() {
   const [tab, setTab] = useState<Tab>("my-decks");
   const [decks, setDecks] = useState<DeckSummary[]>([]);
@@ -36,7 +60,7 @@ export default function DecksPage() {
   const [showBuildForm, setShowBuildForm] = useState(false);
 
   const [printing, setPrinting] = useState<string | null>(null);
-
+  const [gameTypeFilter, setGameTypeFilter] = useState<string>("all");
 
   const user = useAuthStore((s) => s.user);
   const isAdmin = useAuthStore((s) => s.isAdmin);
@@ -281,43 +305,73 @@ export default function DecksPage() {
             </p>
           )}
 
+          {/* Game type filter */}
+          <div className="flex gap-1.5 mb-4 flex-wrap">
+            {GAME_TYPE_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setGameTypeFilter(f.id)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  gameTypeFilter === f.id
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
           {loading ? (
             <p className="text-gray-400">Loading decks...</p>
-          ) : (user ? decks.filter((d) => isOwner(d)) : []).length === 0 ? (
-            <div className="text-center py-12 bg-gray-900 rounded-xl">
-              <p className="text-gray-400 text-lg mb-2">No custom decks yet</p>
-              <p className="text-gray-500 text-sm">
-                {user ? "Create one or import a JSON file to get started" : "Sign in to create decks"}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {decks.filter((d) => isOwner(d) || isAdmin || isModerator).map((deck) => (
-                <div
-                  key={deck.id}
-                  className="flex items-center justify-between bg-gray-900 rounded-xl p-4"
-                >
-                  <div className="flex-1 min-w-0">
-                    {(isOwner(deck) || isAdmin || isModerator) ? (
-                      <Link
-                        href={`/decks/edit?id=${deck.id}`}
-                        className="font-semibold text-lg hover:text-purple-400 transition-colors"
-                      >
-                        {deck.name}
-                      </Link>
-                    ) : (
-                      <span className="font-semibold text-lg">{deck.name}</span>
-                    )}
-                    {deck.description && (
-                      <p className="text-gray-400 text-sm truncate">{deck.description}</p>
-                    )}
-                    <p className="text-gray-500 text-xs mt-1">
-                      {deck.chaosCount} prompts · {deck.knowledgeCount} answers
-                      {deck.builtIn && " · Built-in"}
-                    </p>
-                  </div>
+          ) : (() => {
+            const visible = decks
+              .filter((d) => isOwner(d) || isAdmin || isModerator)
+              .filter((d) => gameTypeFilter === "all" || (d.gameType || "cah") === gameTypeFilter);
+            return visible.length === 0 ? (
+              <div className="text-center py-12 bg-gray-900 rounded-xl">
+                <p className="text-gray-400 text-lg mb-2">
+                  {gameTypeFilter !== "all" ? "No decks match this filter" : "No custom decks yet"}
+                </p>
+                <p className="text-gray-500 text-sm">
+                  {gameTypeFilter !== "all"
+                    ? "Try a different game type or create a new deck"
+                    : user ? "Create one or import a JSON file to get started" : "Sign in to create decks"}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {visible.map((deck) => (
+                  <div
+                    key={deck.id}
+                    className="flex items-center justify-between bg-gray-900 rounded-xl p-4"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        {(isOwner(deck) || isAdmin || isModerator) ? (
+                          <Link
+                            href={`/decks/edit?id=${deck.id}`}
+                            className="font-semibold text-lg hover:text-purple-400 transition-colors"
+                          >
+                            {deck.name}
+                          </Link>
+                        ) : (
+                          <span className="font-semibold text-lg">{deck.name}</span>
+                        )}
+                        <GameTypeBadge gameType={deck.gameType} />
+                      </div>
+                      {deck.description && (
+                        <p className="text-gray-400 text-sm truncate">{deck.description}</p>
+                      )}
+                      <p className="text-gray-500 text-xs mt-1">
+                        {deck.gameType === "uno"
+                          ? "108 cards · Custom themed Uno"
+                          : `${deck.chaosCount} prompts · ${deck.knowledgeCount} answers`}
+                        {deck.builtIn && " · Built-in"}
+                      </p>
+                    </div>
                   <div className="flex gap-2 ml-4">
                     <PrintDropdown
                       deckId={deck.id}
@@ -344,8 +398,9 @@ export default function DecksPage() {
                   </div>
                 </div>
               ))}
-            </div>
-          )}
+              </div>
+            );
+          })()}
         </>
       )}
 
