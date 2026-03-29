@@ -15,9 +15,10 @@ import packRoutes from "./packRoutes.js";
 import mediaRoutes from "./mediaRoutes.js";
 import tgcRoutes from "./tgcRoutes.js";
 import statsRoutes from "./statsRoutes.js";
+import friendRoutes from "./friendRoutes.js";
 import { recordGameResult } from "./statsStore.js";
 import { getDeck, seedBuiltInDecks } from "./deckStore.js";
-import { initDb } from "./db.js";
+import pool, { initDb } from "./db.js";
 import {
   createGame,
   startRound,
@@ -149,6 +150,7 @@ app.use("/api/packs", apiLimiter, packRoutes);
 app.use("/api/gifs", staticLimiter, mediaRoutes);
 app.use("/api/print/tgc", apiLimiter, tgcRoutes);
 app.use(apiLimiter, statsRoutes);
+app.use(apiLimiter, friendRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [
@@ -729,6 +731,11 @@ io.on("connection", (socket) => {
       }
 
       callback({ success: true });
+
+      // Increment deck play count
+      if (deckId) {
+        pool.query("UPDATE decks SET play_count = COALESCE(play_count, 0) + 1 WHERE id = $1", [deckId]).catch(() => {});
+      }
 
       // 3-2-1 countdown before game starts
       const code = result.code;

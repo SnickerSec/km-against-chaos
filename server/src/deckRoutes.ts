@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomBytes } from "crypto";
 import {
   listDecks,
   getDeck,
@@ -14,6 +15,7 @@ import {
 } from "./deckStore.js";
 import { generateCards, generateDeck } from "./aiGenerate.js";
 import { requireAuth, requireModeratorOrAdmin } from "./auth.js";
+import pool from "./db.js";
 
 const router = Router();
 
@@ -73,9 +75,10 @@ function requireAiRateLimit(req: any, res: any, next: any) {
 }
 
 // List all decks
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
-    res.json(await listDecks());
+    const { search, gameType, sort } = req.query as { search?: string; gameType?: string; sort?: string };
+    res.json(await listDecks({ search, gameType, sort }));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -124,6 +127,42 @@ router.post("/:id/remix", requireAuth, async (req, res) => {
     res.status(201).json(deck);
   } catch (e: any) {
     res.status(e.message === "Source deck not found" ? 404 : 500).json({ error: e.message });
+  }
+});
+
+// Rate a deck
+router.post("/:id/rate", requireAuth, async (req: any, res) => {
+  try {
+    let body = req.body;
+    if (typeof body === "string") body = JSON.parse(body);
+    const { rating } = body;
+    const deckId = req.params.id;
+    const userId = req.user.id;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: "Rating must be 1-5" });
+    }
+
+    const id = randomBytes(8).toString("hex");
+
+    // Upsert rating
+    await pool.query(`
+      INSERT INTO deck_ratings (id, deck_id, user_id, rating)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (deck_id, user_id)
+      DO UPDATE SET rating = $4
+    `, [id, deckId, userId, rating]);
+
+    // Update avg_rating on the deck
+    await pool.query(`
+      UPDATE decks SET avg_rating = (
+        SELECT COALESCE(AVG(rating), 0) FROM deck_ratings WHERE deck_id = $1
+      ) WHERE id = $1
+    `, [deckId]);
+
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
 });
 

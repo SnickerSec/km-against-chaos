@@ -46,6 +46,8 @@ export interface DeckSummary {
   wildcard?: string;
   remixedFrom?: string | null;
   gameType?: GameType;
+  playCount?: number;
+  avgRating?: number;
 }
 
 const DEFAULT_WIN_CONDITION: WinCondition = { mode: "rounds", value: 10 };
@@ -122,17 +124,50 @@ function builtInDeckSummaries(): DeckSummary[] {
   }));
 }
 
-export async function listDecks(): Promise<DeckSummary[]> {
+export async function listDecks(options?: { search?: string; gameType?: string; sort?: string }): Promise<DeckSummary[]> {
   try {
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (options?.search) {
+      conditions.push(`(d.name ILIKE $${paramIdx} OR d.description ILIKE $${paramIdx})`);
+      params.push(`%${options.search}%`);
+      paramIdx++;
+    }
+
+    if (options?.gameType) {
+      conditions.push(`d.game_type = $${paramIdx}`);
+      params.push(options.gameType);
+      paramIdx++;
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    let orderBy: string;
+    switch (options?.sort) {
+      case "popular":
+        orderBy = "d.built_in DESC, COALESCE(d.play_count, 0) DESC, d.created_at DESC";
+        break;
+      case "rating":
+        orderBy = "d.built_in DESC, COALESCE(d.avg_rating, 0) DESC, d.created_at DESC";
+        break;
+      default:
+        orderBy = "d.built_in DESC, d.created_at DESC";
+    }
+
     const { rows } = await pool.query(
       `SELECT d.id, d.name, d.description, d.built_in, d.win_condition, d.owner_id,
               d.maturity, d.flavor_themes, d.chaos_level, d.wildcard, d.remixed_from, d.game_type,
+              d.play_count, d.avg_rating,
               jsonb_array_length(d.chaos_cards) as chaos_count,
               jsonb_array_length(d.knowledge_cards) as knowledge_count,
               u.name as owner_name
        FROM decks d
        LEFT JOIN users u ON d.owner_id = u.id
-       ORDER BY d.built_in DESC, d.created_at DESC`
+       ${whereClause}
+       ORDER BY ${orderBy}`,
+      params
     );
     return rows.map((r: any) => ({
       id: r.id,
@@ -150,6 +185,8 @@ export async function listDecks(): Promise<DeckSummary[]> {
       wildcard: r.wildcard || "",
       remixedFrom: r.remixed_from || null,
       gameType: (r.game_type as GameType) || "cah",
+      playCount: parseInt(r.play_count) || 0,
+      avgRating: parseFloat(r.avg_rating) || 0,
     }));
   } catch (err) {
     console.error("Database query failed in listDecks, returning built-in decks:", err);

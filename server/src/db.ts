@@ -125,6 +125,39 @@ export async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_game_history_ended ON game_history(ended_at DESC)
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS friendships (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      friend_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, friend_id)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_friendships_user ON friendships(user_id)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_friendships_friend ON friendships(friend_id)
+  `);
+
+  // Deck discovery columns
+  await pool.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS play_count INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS avg_rating NUMERIC(3,2) DEFAULT 0`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS deck_ratings (
+      id TEXT PRIMARY KEY,
+      deck_id TEXT REFERENCES decks(id) ON DELETE CASCADE,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(deck_id, user_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_deck_ratings_deck ON deck_ratings(deck_id)`);
+
   console.log("Database initialized");
 }
 

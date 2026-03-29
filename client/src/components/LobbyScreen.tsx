@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Icon } from "@iconify/react";
 import DeckPicker from "./DeckPicker";
@@ -32,6 +32,29 @@ export default function LobbyScreen() {
   const { lobby, error, countdown } = useGameStore();
   const { leaveLobby, startGame, addBot, removeBot, kickPlayer, changeDeck, setHouseRules } = useSocket();
   const [showDeckPicker, setShowDeckPicker] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const getInviteUrl = () =>
+    `${typeof window !== "undefined" ? window.location.origin : ""}?code=${lobby?.code}`;
+
+  const copyInviteLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(getInviteUrl());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  }, [lobby?.code]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const shareInviteLink = useCallback(async () => {
+    const url = getInviteUrl();
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Join my Decked game!", url });
+      } catch {}
+    } else {
+      copyInviteLink();
+    }
+  }, [lobby?.code, copyInviteLink]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!lobby) return null;
 
@@ -99,6 +122,20 @@ export default function LobbyScreen() {
           />
         </div>
         <p className="text-gray-500 text-xs mt-2">Scan to join on your phone</p>
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={copyInviteLink}
+            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs font-medium transition-colors"
+          >
+            {copied ? "Copied!" : "Copy Invite Link"}
+          </button>
+          <button
+            onClick={shareInviteLink}
+            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-medium transition-colors"
+          >
+            Share
+          </button>
+        </div>
       </div>
 
       <div className="w-full max-w-sm mb-6">

@@ -23,6 +23,8 @@ export interface DeckSummary {
   wildcard?: string;
   remixedFrom?: string | null;
   gameType?: string;
+  playCount?: number;
+  avgRating?: number;
 }
 
 export interface CustomDeck {
@@ -71,9 +73,24 @@ export interface PackSummary {
   builtIn: boolean;
 }
 
-export async function fetchDecks(): Promise<DeckSummary[]> {
-  const res = await fetch(`${API_URL}/api/decks`);
+export async function fetchDecks(options?: { search?: string; gameType?: string; sort?: string }): Promise<DeckSummary[]> {
+  const params = new URLSearchParams();
+  if (options?.search) params.set("search", options.search);
+  if (options?.gameType) params.set("gameType", options.gameType);
+  if (options?.sort) params.set("sort", options.sort);
+  const qs = params.toString();
+  const res = await fetch(`${API_URL}/api/decks${qs ? `?${qs}` : ""}`);
   if (!res.ok) throw new Error("Failed to fetch decks");
+  return res.json();
+}
+
+export async function rateDeck(deckId: string, rating: number) {
+  const res = await fetch(`${API_URL}/api/decks/${deckId}/rate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ rating }),
+  });
+  if (!res.ok) throw new Error("Failed to rate deck");
   return res.json();
 }
 
@@ -233,6 +250,43 @@ export async function fetchLeaderboard(gameType?: string) {
   const params = gameType ? `?gameType=${gameType}` : '';
   const res = await fetch(`${API_URL}/api/stats/leaderboard${params}`);
   if (!res.ok) throw new Error("Failed to fetch leaderboard");
+  return res.json();
+}
+
+// Friends API
+
+export async function fetchFriends() {
+  const res = await fetch(`${API_URL}/api/friends`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch friends");
+  return res.json();
+}
+
+export async function sendFriendRequest(email: string) {
+  const res = await fetch(`${API_URL}/api/friends/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ email }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to send request");
+  return data;
+}
+
+export async function acceptFriendRequest(friendshipId: string) {
+  const res = await fetch(`${API_URL}/api/friends/${friendshipId}/accept`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to accept");
+  return res.json();
+}
+
+export async function removeFriend(friendshipId: string) {
+  const res = await fetch(`${API_URL}/api/friends/${friendshipId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to remove");
   return res.json();
 }
 
