@@ -16,7 +16,7 @@ interface InternalUnoGame {
   phase: "playing" | "choosing_color" | "round_over";
   roundNumber: number;
   maxRounds: number;
-  winMode: "rounds" | "points";
+  winMode: "rounds" | "points" | "single_round" | "lowest_score";
   targetPoints: number;
   gameOver: boolean;
   pendingDraw: number;
@@ -117,7 +117,7 @@ export function createUnoGame(
   lobbyCode: string,
   playerIds: string[],
   template: UnoDeckTemplate,
-  winCondition?: { mode: "rounds" | "points"; value: number },
+  winCondition?: { mode: "rounds" | "points" | "single_round" | "lowest_score"; value: number },
 ): void {
   const deck = shuffle(generateUnoDeck(template));
 
@@ -173,9 +173,15 @@ export function createUnoGame(
     activeColor,
     phase: "playing",
     roundNumber: 1,
-    maxRounds: winCondition?.mode === "rounds" ? winCondition.value : 10,
+    maxRounds: winCondition?.mode === "rounds" ? winCondition.value
+      : winCondition?.mode === "single_round" ? 1
+      : winCondition?.mode === "lowest_score" ? 999
+      : 10,
     winMode: winCondition?.mode || "rounds",
-    targetPoints: winCondition?.mode === "points" ? winCondition.value : Infinity,
+    targetPoints: winCondition?.mode === "points" ? winCondition.value
+      : winCondition?.mode === "lowest_score" ? winCondition.value
+      : winCondition?.mode === "single_round" ? Infinity
+      : Infinity,
     gameOver: false,
     pendingDraw: 0,
     unoCalledPlayers: new Set(),
@@ -228,6 +234,8 @@ export function getUnoPlayerView(lobbyCode: string, playerId: string): UnoPlayer
     playableCardIds: playable,
     gameType: "uno",
     deckTemplate: game.deckTemplate,
+    winMode: game.winMode,
+    targetPoints: game.targetPoints,
   };
 }
 
@@ -335,15 +343,47 @@ export function playCard(
 
   // Check win — hand empty
   if (hand.length === 0) {
-    const roundPoints = computeRoundScore(game);
-    game.scores.set(playerId, (game.scores.get(playerId) || 0) + roundPoints);
     game.phase = "round_over";
-    game.lastAction = `${pName} wins the round! (+${roundPoints} points)`;
+    let roundPoints = 0;
 
-    // Check game over
-    if (game.winMode === "points" && (game.scores.get(playerId) || 0) >= game.targetPoints) {
-      game.gameOver = true;
-    } else if (game.winMode === "rounds" && game.roundNumber >= game.maxRounds) {
+    if (game.winMode === "lowest_score") {
+      // Each player gets their own remaining card values as points (bad for them)
+      for (const [pid, pHand] of game.hands) {
+        if (pHand.length === 0) continue; // winner gets 0
+        let pts = 0;
+        for (const card of pHand) {
+          if (card.type === "number") pts += card.value || 0;
+          else if (card.type === "skip" || card.type === "reverse" || card.type === "draw_two") pts += 20;
+          else pts += 50;
+        }
+        game.scores.set(pid, (game.scores.get(pid) || 0) + pts);
+      }
+      // roundPoints for display: total points dealt out this round
+      roundPoints = computeRoundScore(game);
+      game.lastAction = `${pName} wins the round! Opponents add their card points.`;
+
+      // Check if any player hit the limit
+      for (const [pid, score] of game.scores) {
+        if (score >= game.targetPoints) {
+          game.gameOver = true;
+          break;
+        }
+      }
+    } else {
+      // Standard scoring: winner banks all opponents' card values
+      roundPoints = computeRoundScore(game);
+      game.scores.set(playerId, (game.scores.get(playerId) || 0) + roundPoints);
+      game.lastAction = `${pName} wins the round! (+${roundPoints} points)`;
+
+      // Check game over
+      if (game.winMode === "points" && (game.scores.get(playerId) || 0) >= game.targetPoints) {
+        game.gameOver = true;
+      } else if (game.winMode === "rounds" && game.roundNumber >= game.maxRounds) {
+        game.gameOver = true;
+      }
+    }
+
+    if (game.winMode === "single_round") {
       game.gameOver = true;
     }
 
@@ -458,10 +498,26 @@ export function advanceUnoRound(lobbyCode: string): { started: boolean; gameOver
 
   if (game.gameOver) return { started: false, gameOver: true };
 
+  // single_round should never advance — game is over after 1 round
+  if (game.winMode === "single_round") {
+    game.gameOver = true;
+    return { started: false, gameOver: true };
+  }
+
   game.roundNumber++;
   if (game.winMode === "rounds" && game.roundNumber > game.maxRounds) {
     game.gameOver = true;
     return { started: false, gameOver: true };
+  }
+
+  // For lowest_score, check if any player hit the limit
+  if (game.winMode === "lowest_score") {
+    for (const [, score] of game.scores) {
+      if (score >= game.targetPoints) {
+        game.gameOver = true;
+        return { started: false, gameOver: true };
+      }
+    }
   }
 
   // Re-deal

@@ -68,7 +68,7 @@ interface CardInput {
 }
 
 interface WinCondition {
-  mode: "rounds" | "points";
+  mode: "rounds" | "points" | "single_round" | "lowest_score";
   value: number;
 }
 
@@ -118,7 +118,7 @@ function makeId() {
 export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [name, setName] = useState(initial?.name || "");
   const [description, setDescription] = useState(initial?.description || "");
-  const [winMode, setWinMode] = useState<"rounds" | "points">(initial?.winCondition?.mode || "rounds");
+  const [winMode, setWinMode] = useState<WinCondition["mode"]>(initial?.winCondition?.mode || "rounds");
   const [winValue, setWinValue] = useState(initial?.winCondition?.value || 10);
   const [gameType, setGameType] = useState(
     initial?.gameType === "joking_hazard" ? "joking-hazard"
@@ -368,6 +368,13 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
             if ((gt === "apples-to-apples" || gt === "uno") && (maturity === "adult" || maturity === "raunchy")) {
               setMaturity("kid-friendly");
             }
+            if (gt === "uno") {
+              setWinMode("single_round");
+              setWinValue(500);
+            } else if (gameType === "uno") {
+              setWinMode("rounds");
+              setWinValue(10);
+            }
           }}
         >
           <option value="cards-against-humanity">Cards Against Humanity</option>
@@ -384,52 +391,6 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
             ? "Turn-based card matching game — custom-themed colors and action cards with standard Uno rules"
             : "Fill-in-the-blank party game — a Czar reads a prompt, players submit answers"}
         </p>
-
-        {/* Uno Template Editor */}
-        {gameType === "uno" && (
-          <div className="mt-4 space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Color Names</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(["red", "blue", "green", "yellow"] as const).map((color) => {
-                  const bgMap = { red: "border-red-600", blue: "border-blue-600", green: "border-green-600", yellow: "border-yellow-500" };
-                  return (
-                    <div key={color} className="flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded-full border-2 ${bgMap[color]}`} style={{ backgroundColor: color === "yellow" ? "#eab308" : color }} />
-                      <input
-                        type="text"
-                        value={unoColorNames[color] || ""}
-                        onChange={(e) => setUnoColorNames({ ...unoColorNames, [color]: e.target.value })}
-                        placeholder={color.charAt(0).toUpperCase() + color.slice(1)}
-                        className="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="text-gray-600 text-xs mt-1">Name the 4 colors for your theme (e.g. Fire, Ice, Earth, Wind)</p>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Action Card Names (optional)</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(["skip", "reverse", "draw_two", "wild", "wild_draw_four"] as const).map((action) => {
-                  const defaults: Record<string, string> = { skip: "Skip", reverse: "Reverse", draw_two: "Draw Two", wild: "Wild", wild_draw_four: "Wild Draw Four" };
-                  return (
-                    <input
-                      key={action}
-                      type="text"
-                      value={unoActionNames[action] || ""}
-                      onChange={(e) => setUnoActionNames({ ...unoActionNames, [action]: e.target.value })}
-                      placeholder={defaults[action]}
-                      className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
-                    />
-                  );
-                })}
-              </div>
-              <p className="text-gray-600 text-xs mt-1">Rename action cards to match your theme (leave blank for defaults)</p>
-            </div>
-          </div>
-        )}
 
         {/* Card counts — only on create */}
         {!initial && gameType !== "uno" && (
@@ -506,6 +467,52 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
         {pillarsOpen && (
           <div className="px-4 pb-4 space-y-5 border-t border-gray-800 pt-4">
+            {/* Uno Template Editor */}
+            {gameType === "uno" && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Color Names</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["red", "blue", "green", "yellow"] as const).map((color) => {
+                      const bgMap = { red: "border-red-600", blue: "border-blue-600", green: "border-green-600", yellow: "border-yellow-500" };
+                      return (
+                        <div key={color} className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded-full border-2 ${bgMap[color]}`} style={{ backgroundColor: color === "yellow" ? "#eab308" : color }} />
+                          <input
+                            type="text"
+                            value={unoColorNames[color] || ""}
+                            onChange={(e) => setUnoColorNames({ ...unoColorNames, [color]: e.target.value })}
+                            placeholder={color.charAt(0).toUpperCase() + color.slice(1)}
+                            className="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-gray-600 text-xs mt-1">Name the 4 colors for your theme (e.g. Fire, Ice, Earth, Wind)</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Action Card Names (optional)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["skip", "reverse", "draw_two", "wild", "wild_draw_four"] as const).map((action) => {
+                      const defaults: Record<string, string> = { skip: "Skip", reverse: "Reverse", draw_two: "Draw Two", wild: "Wild", wild_draw_four: "Wild Draw Four" };
+                      return (
+                        <input
+                          key={action}
+                          type="text"
+                          value={unoActionNames[action] || ""}
+                          onChange={(e) => setUnoActionNames({ ...unoActionNames, [action]: e.target.value })}
+                          placeholder={defaults[action]}
+                          className="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                        />
+                      );
+                    })}
+                  </div>
+                  <p className="text-gray-600 text-xs mt-1">Rename action cards to match your theme (leave blank for defaults)</p>
+                </div>
+              </div>
+            )}
+
             {/* Pillar 1: Maturity */}
             <div>
               <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
@@ -669,48 +676,113 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       {/* Win Condition */}
       <div className="bg-gray-900 rounded-xl p-4">
         <h2 className="text-sm font-semibold text-gray-300 mb-3">Win Condition</h2>
-        <div className="flex gap-3 mb-3">
-          <button
-            type="button"
-            onClick={() => setWinMode("rounds")}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
-              winMode === "rounds"
-                ? "bg-purple-600 text-white"
-                : "bg-gray-800 text-gray-400 hover:text-white"
-            }`}
-          >
-            Round-based
-          </button>
-          <button
-            type="button"
-            onClick={() => setWinMode("points")}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
-              winMode === "points"
-                ? "bg-purple-600 text-white"
-                : "bg-gray-800 text-gray-400 hover:text-white"
-            }`}
-          >
-            First to N points
-          </button>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="text-gray-400 text-sm whitespace-nowrap">
-            {winMode === "rounds" ? "Number of rounds:" : "Points to win:"}
-          </label>
-          <input
-            type="number"
-            min={1}
-            max={winMode === "rounds" ? 50 : 25}
-            value={winValue}
-            onChange={(e) => setWinValue(Math.max(1, parseInt(e.target.value) || 1))}
-            className="w-20 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm text-center focus:outline-none focus:border-purple-500"
-          />
-        </div>
-        <p className="text-gray-600 text-xs mt-2">
-          {winMode === "rounds"
-            ? `Game ends after ${winValue} round${winValue !== 1 ? "s" : ""}. Highest score wins.`
-            : `First player to reach ${winValue} point${winValue !== 1 ? "s" : ""} wins instantly.`}
-        </p>
+        {gameType === "uno" ? (
+          <>
+            <div className="flex gap-2 mb-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => { setWinMode("single_round"); setWinValue(500); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+                  winMode === "single_round"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                Single Round
+              </button>
+              <button
+                type="button"
+                onClick={() => { setWinMode("points"); setWinValue(500); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+                  winMode === "points"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                First to 500
+              </button>
+              <button
+                type="button"
+                onClick={() => { setWinMode("lowest_score"); setWinValue(500); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+                  winMode === "lowest_score"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                Lowest Score
+              </button>
+            </div>
+            {(winMode === "points" || winMode === "lowest_score") && (
+              <div className="flex items-center gap-3 mb-2">
+                <label className="text-gray-400 text-sm whitespace-nowrap">
+                  {winMode === "points" ? "Points to win:" : "Point limit:"}
+                </label>
+                <input
+                  type="number"
+                  min={50}
+                  max={1000}
+                  step={50}
+                  value={winValue}
+                  onChange={(e) => setWinValue(Math.max(50, Math.min(1000, parseInt(e.target.value) || 500)))}
+                  className="w-24 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm text-center focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            )}
+            <p className="text-gray-600 text-xs mt-2">
+              {winMode === "single_round"
+                ? "First to empty their hand wins. One round, no scoring."
+                : winMode === "points"
+                ? `Official rules: winner banks opponents' card points each round. First to ${winValue} wins.`
+                : `Play until someone hits ${winValue} points. Each player keeps their own remaining card points. Lowest total score wins.`}
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="flex gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setWinMode("rounds")}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+                  winMode === "rounds"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                Round-based
+              </button>
+              <button
+                type="button"
+                onClick={() => setWinMode("points")}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+                  winMode === "points"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                First to N points
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-gray-400 text-sm whitespace-nowrap">
+                {winMode === "rounds" ? "Number of rounds:" : "Points to win:"}
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={winMode === "rounds" ? 50 : 25}
+                value={winValue}
+                onChange={(e) => setWinValue(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-20 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm text-center focus:outline-none focus:border-purple-500"
+              />
+            </div>
+            <p className="text-gray-600 text-xs mt-2">
+              {winMode === "rounds"
+                ? `Game ends after ${winValue} round${winValue !== 1 ? "s" : ""}. Highest score wins.`
+                : `First player to reach ${winValue} point${winValue !== 1 ? "s" : ""} wins instantly.`}
+            </p>
+          </>
+        )}
       </div>
 
       {/* Card totals (not for Uno) */}

@@ -168,6 +168,8 @@ export interface UnoPlayerView {
   playableCardIds: string[];
   gameType: "uno";
   deckTemplate: UnoDeckTemplate;
+  winMode: "rounds" | "points" | "single_round" | "lowest_score";
+  targetPoints: number;
 }
 
 // ── Voice Chat (WebRTC signaling) ──

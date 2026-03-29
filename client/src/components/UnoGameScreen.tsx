@@ -31,6 +31,7 @@ export default function UnoGameScreen() {
   const {
     unoHand, unoTurn, playableCardIds, selectedUnoCard, choosingColor,
     unoDeckTemplate, unoRoundWinner, lobby, roundNumber, maxRounds, scores,
+    unoWinMode, unoTargetPoints,
   } = useGameStore();
   const { playUnoCard, drawUnoCard, callUno, challengeUno, unoNextRound, leaveLobby } = useSocket();
   const socket = getSocket();
@@ -87,7 +88,13 @@ export default function UnoGameScreen() {
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800">
         <span className="text-sm text-gray-400 inline-flex items-center gap-2">
-          Round {roundNumber}/{maxRounds}
+          {unoWinMode === "single_round"
+            ? "Single Round"
+            : unoWinMode === "points"
+            ? `Round ${roundNumber} \u00B7 First to ${unoTargetPoints}`
+            : unoWinMode === "lowest_score"
+            ? `Round ${roundNumber} \u00B7 Lowest Score Wins`
+            : `Round ${roundNumber}/${maxRounds}`}
           {unoTurn.turnDeadline && !isRoundOver && (
             <RoundTimer deadline={unoTurn.turnDeadline} />
           )}
@@ -159,14 +166,32 @@ export default function UnoGameScreen() {
             unoRoundWinner && (
               <div className="space-y-3">
                 <p className="text-lg font-bold text-yellow-400">
-                  {unoRoundWinner.winnerName} wins the round! (+{unoRoundWinner.roundPoints} pts)
+                  {unoWinMode === "single_round"
+                    ? `${unoRoundWinner.winnerName} wins!`
+                    : unoWinMode === "lowest_score"
+                    ? `${unoRoundWinner.winnerName} emptied their hand! Others add card points.`
+                    : `${unoRoundWinner.winnerName} wins the round! (+${unoRoundWinner.roundPoints} pts)`}
                 </p>
-                <button
-                  onClick={unoNextRound}
-                  className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-medium transition-colors"
-                >
-                  Next Round
-                </button>
+                {unoWinMode === "lowest_score" && (
+                  <div className="text-sm text-gray-300 space-y-1">
+                    {lobby?.players.map(p => (
+                      <div key={p.id} className="flex justify-between max-w-xs mx-auto">
+                        <span>{p.name}</span>
+                        <span className={scores[p.id] >= unoTargetPoints ? "text-red-400 font-bold" : "text-gray-400"}>
+                          {scores[p.id] || 0} pts
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {unoWinMode !== "single_round" && (
+                  <button
+                    onClick={unoNextRound}
+                    className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-medium transition-colors"
+                  >
+                    Next Round
+                  </button>
+                )}
               </div>
             )
           ) : isMyTurn ? (

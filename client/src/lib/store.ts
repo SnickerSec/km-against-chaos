@@ -117,6 +117,8 @@ export interface UnoPlayerView {
   playableCardIds: string[];
   gameType: "uno";
   deckTemplate: UnoDeckTemplate;
+  winMode?: string;
+  targetPoints?: number;
 }
 
 export interface PlayerGameView {
@@ -189,6 +191,8 @@ interface GameStore {
   choosingColor: boolean;
   unoDeckTemplate: UnoDeckTemplate | null;
   unoRoundWinner: { winnerId: string; winnerName: string; roundPoints: number } | null;
+  unoWinMode: string;
+  unoTargetPoints: number;
 
   // Actions
   setPlayerName: (name: string) => void;
@@ -253,6 +257,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   choosingColor: false,
   unoDeckTemplate: null,
   unoRoundWinner: null,
+  unoWinMode: "rounds",
+  unoTargetPoints: Infinity,
 
   setPlayerName: (name) => set({ playerName: name }),
   setLobby: (lobby) => set({ lobby }),
@@ -347,6 +353,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       playableCardIds: view.playableCardIds,
       gameType: "uno",
       unoDeckTemplate: view.deckTemplate,
+      unoWinMode: view.winMode || "rounds",
+      unoTargetPoints: view.targetPoints || Infinity,
       selectedUnoCard: null,
       choosingColor: false,
     }),
@@ -391,5 +399,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       choosingColor: false,
       unoDeckTemplate: null,
       unoRoundWinner: null,
+      unoWinMode: "rounds",
+      unoTargetPoints: Infinity,
     }),
 }));
