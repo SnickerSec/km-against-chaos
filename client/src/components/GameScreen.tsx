@@ -17,11 +17,13 @@ import VoiceChat from "./VoiceChat";
 import RoundTimer from "./RoundTimer";
 import Chat from "./Chat";
 import UnoGameScreen from "./UnoGameScreen";
+import CodenamesGameScreen from "./CodenamesGameScreen";
 
 export default function GameScreen() {
   const { round, hasSubmitted, winnerInfo, lobby, roundNumber, maxRounds, handBlurred, iconsRandomized, gameType } =
     useGameStore();
 
+  if (gameType === "codenames") return <CodenamesGameScreen />;
   if (gameType === "uno") return <UnoGameScreen />;
   const { nextRound, leaveLobby, czarSetup } = useSocket();
   const socket = getSocket();

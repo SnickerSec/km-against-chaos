@@ -71,7 +71,24 @@ export interface RoundState {
   isBonus?: boolean;
 }
 
-export type GameType = "cah" | "joking_hazard" | "apples_to_apples" | "uno";
+export type GameType = "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames";
+
+export interface CodenamesPlayerView {
+  grid: { word: string; color?: string; revealed: boolean }[];
+  currentTeam: string;
+  phase: string;
+  clue: { word: string; count: number; team: string } | null;
+  guessesRemaining: number;
+  teams: { red: { spymaster?: string; guessers: string[] }; blue: { spymaster?: string; guessers: string[] } };
+  scores: { red: number; blue: number };
+  targets: { red: number; blue: number };
+  myTeam?: string;
+  isSpymaster: boolean;
+  lastAction?: string;
+  gameOver: boolean;
+  winner?: string;
+  gameType: "codenames";
+}
 
 export type UnoColor = "red" | "blue" | "green" | "yellow";
 export type UnoCardType = "number" | "skip" | "reverse" | "draw_two" | "wild" | "wild_draw_four";
@@ -189,6 +206,9 @@ interface GameStore {
   // Lobby countdown
   countdown: number | null;
 
+  // Codenames state
+  codenamesView: CodenamesPlayerView | null;
+
   // Uno state
   unoHand: UnoCard[];
   unoTurn: UnoTurnState | null;
@@ -224,6 +244,7 @@ interface GameStore {
   setHandBlurred: (v: boolean) => void;
   setIconsRandomized: (v: boolean) => void;
   setCountdown: (v: number | null) => void;
+  setCodenamesView: (view: CodenamesPlayerView) => void;
   setUnoGameView: (view: UnoPlayerView) => void;
   setUnoTurn: (turn: UnoTurnState) => void;
   selectUnoCard: (cardId: string | null) => void;
@@ -257,6 +278,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   iconsRandomized: false,
   countdown: null,
   gameType: "cah",
+  codenamesView: null,
   unoHand: [],
   unoTurn: null,
   playableCardIds: [],
@@ -351,6 +373,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setIconsRandomized: (v) => set({ iconsRandomized: v }),
   setCountdown: (v) => set({ countdown: v }),
 
+  setCodenamesView: (view) => set({ codenamesView: view, gameType: "codenames" }),
+
   setUnoGameView: (view) =>
     set({
       unoHand: view.hand,
@@ -401,6 +425,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       iconsRandomized: false,
       countdown: null,
       gameType: "cah",
+      codenamesView: null,
       unoHand: [],
       unoTurn: null,
       playableCardIds: [],

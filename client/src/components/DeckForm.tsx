@@ -124,6 +124,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
     initial?.gameType === "joking_hazard" ? "joking-hazard"
     : initial?.gameType === "apples_to_apples" ? "apples-to-apples"
     : initial?.gameType === "uno" ? "uno"
+    : initial?.gameType === "codenames" ? "codenames"
     : "cards-against-humanity"
   );
 
@@ -217,11 +218,16 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
     const isJH = gameType === "joking-hazard";
     const isUno = gameType === "uno";
+    const isCodenames = gameType === "codenames";
 
     let allChaos: CardInput[];
     let allKnowledge: CardInput[];
 
-    if (isUno) {
+    if (isCodenames) {
+      allChaos = [];
+      allKnowledge = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
+      if (allKnowledge.length < 25) { setError("Need at least 25 words for the word pool"); return; }
+    } else if (isUno) {
       // Uno: store template as a single chaos card
       const template = {
         colorNames: unoColorNames,
@@ -278,7 +284,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         flavorThemes,
         chaosLevel,
         wildcard: wildcard.trim(),
-        gameType: isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : "cah",
+        gameType: isCodenames ? "codenames" : isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : "cah",
       });
     } catch (e: any) {
       setError(e.message);
@@ -303,10 +309,11 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const handleGenerateDeck = async (theme: string) => {
     const isJH = gameType === "joking-hazard";
     const isUno = gameType === "uno";
+    const isCodenames = gameType === "codenames";
     const deck = await generateDeckAI({
       theme, gameType,
-      chaosCount: isJH ? Math.round(knowledgeCount * 0.18) : isUno ? 0 : chaosCount,
-      knowledgeCount: isJH ? knowledgeCount : isUno ? 0 : knowledgeCount,
+      chaosCount: isJH ? Math.round(knowledgeCount * 0.18) : (isUno || isCodenames) ? 0 : chaosCount,
+      knowledgeCount: isJH ? knowledgeCount : isUno ? 0 : isCodenames ? 50 : knowledgeCount,
       maturity, flavorThemes, chaosLevel,
       wildcard: wildcard.trim() || undefined,
     });
@@ -365,13 +372,16 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           onChange={(e) => {
             const gt = e.target.value;
             setGameType(gt);
-            if ((gt === "apples-to-apples" || gt === "uno") && (maturity === "adult" || maturity === "raunchy")) {
+            if ((gt === "apples-to-apples" || gt === "uno" || gt === "codenames") && (maturity === "adult" || maturity === "raunchy")) {
               setMaturity("kid-friendly");
             }
             if (gt === "uno") {
               setWinMode("single_round");
               setWinValue(500);
-            } else if (gameType === "uno") {
+            } else if (gt === "codenames") {
+              setWinMode("single_round");
+              setWinValue(1);
+            } else if (gameType === "uno" || gameType === "codenames") {
               setWinMode("rounds");
               setWinValue(10);
             }
@@ -381,6 +391,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           <option value="joking-hazard">Joking Hazard (Comic Strip)</option>
           <option value="apples-to-apples">Apples to Apples</option>
           <option value="uno">Uno (Custom Theme)</option>
+          <option value="codenames">Codenames (Word Grid)</option>
         </select>
         <p className="text-gray-500 text-xs mt-1">
           {gameType === "joking-hazard"
@@ -389,11 +400,13 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
             ? "Family-friendly party game — a Judge plays a Green card, players submit Red cards to match"
             : gameType === "uno"
             ? "Turn-based card matching game — custom-themed colors and action cards with standard Uno rules"
+            : gameType === "codenames"
+            ? "Team word-guessing game — Spymasters give clues to help their team find words on a 5x5 grid"
             : "Fill-in-the-blank party game — a Czar reads a prompt, players submit answers"}
         </p>
 
         {/* Card counts — only on create */}
-        {!initial && gameType !== "uno" && (
+        {!initial && gameType !== "uno" && gameType !== "codenames" && (
           gameType === "joking-hazard" ? (
             <div className="mt-3">
               <label className="block text-xs text-gray-400 mb-1">Panel cards to generate</label>
@@ -520,7 +533,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
               </label>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {MATURITY_LEVELS.filter((level) =>
-                  (gameType === "apples-to-apples" || gameType === "uno") ? level.id === "kid-friendly" || level.id === "moderate" : true
+                  (gameType === "apples-to-apples" || gameType === "uno" || gameType === "codenames") ? level.id === "kid-friendly" || level.id === "moderate" : true
                 ).map((level) => (
                   <button
                     key={level.id}
@@ -676,7 +689,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       {/* Win Condition */}
       <div className="bg-gray-900 rounded-xl p-4">
         <h2 className="text-sm font-semibold text-gray-300 mb-3">Win Condition</h2>
-        {gameType === "uno" ? (
+        {gameType === "codenames" ? (
+          <p className="text-gray-400 text-sm">First team to find all their words wins. Single round game.</p>
+        ) : gameType === "uno" ? (
           <>
             <div className="flex gap-2 mb-3 flex-wrap">
               <button
@@ -786,7 +801,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       </div>
 
       {/* Card totals (not for Uno) */}
-      {gameType !== "uno" && (
+      {gameType !== "uno" && gameType !== "codenames" && (
         <div className="flex gap-4 text-sm">
           <span className="text-gray-400">
             Total: <span className="text-red-400 font-semibold">{totalChaos}</span> prompts,{" "}
@@ -795,8 +810,57 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         </div>
       )}
 
-      {/* Card Packs (not for Uno — Uno uses template editor above) */}
-      {gameType !== "uno" && packs.map((pack) => (
+      {/* Codenames word pool editor */}
+      {gameType === "codenames" && (
+        <div className="bg-gray-900 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-cyan-400 uppercase tracking-wide">Word Pool</h2>
+            <span className="text-xs text-gray-500">{packs[0]?.knowledgeCards.filter(c => c.text.trim()).length || 0} words (min 25)</span>
+          </div>
+          <p className="text-gray-500 text-xs">Add words or short phrases for the 5x5 grid. The game picks 25 randomly each round. More words = more variety.</p>
+          <div className="space-y-1.5">
+            {(packs[0]?.knowledgeCards || []).map((card, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={card.text}
+                  onChange={(e) => {
+                    const updated = [...(packs[0]?.knowledgeCards || [])];
+                    updated[i] = { ...updated[i], text: e.target.value };
+                    updatePack(packs[0].id, (p) => ({ ...p, knowledgeCards: updated }));
+                  }}
+                  placeholder={`Word ${i + 1}, e.g. "Dragon", "Night Sky"`}
+                  className="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-500 placeholder-gray-600"
+                />
+                {(packs[0]?.knowledgeCards.length || 0) > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = (packs[0]?.knowledgeCards || []).filter((_, idx) => idx !== i);
+                      updatePack(packs[0].id, (p) => ({ ...p, knowledgeCards: updated }));
+                    }}
+                    className="text-gray-600 hover:text-red-400 text-xs"
+                  >
+                    x
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              updatePack(packs[0].id, (p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, { text: "" }] }));
+            }}
+            className="w-full py-2 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-600/50 rounded-lg text-cyan-400 text-sm font-medium transition-colors"
+          >
+            + Add Word
+          </button>
+        </div>
+      )}
+
+      {/* Card Packs (not for Uno or Codenames) */}
+      {gameType !== "uno" && gameType !== "codenames" && packs.map((pack) => (
         <div
           key={pack.id}
           ref={(el) => {
@@ -820,7 +884,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       ))}
 
       {/* Add expansion / themed pack buttons (create mode only, after base has cards, not for Uno) */}
-      {!initial && baseHasCards && gameType !== "uno" && (
+      {!initial && baseHasCards && gameType !== "uno" && gameType !== "codenames" && (
         <div className="flex gap-3">
           <button
             type="button"
@@ -1309,6 +1373,8 @@ function DeckAIGenerate({
       <p className="text-gray-300 text-sm mb-4">
         {isJH
           ? "Describe a theme and AI will generate scene cards and panel cards for a comic strip game"
+          : gameType === "codenames"
+          ? "Describe a theme and AI will generate a word pool for the Codenames grid"
           : "Describe a theme and AI will generate a deck name, description, and all the cards for you"}
       </p>
       <div className="flex gap-2">

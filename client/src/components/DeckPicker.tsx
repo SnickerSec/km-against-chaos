@@ -10,6 +10,7 @@ const GAME_TYPE_FILTERS = [
   ["joking_hazard", "Joking Hazard"],
   ["apples_to_apples", "Apples to Apples"],
   ["uno", "Uno"],
+  ["codenames", "Codenames"],
 ] as const;
 
 type GameTypeFilter = typeof GAME_TYPE_FILTERS[number][0];
@@ -28,9 +29,11 @@ function DeckCard({ deck, onSelect, buttonLabel }: { deck: DeckSummary; onSelect
                 ? "bg-green-600/30 text-green-300"
                 : deck.gameType === "uno"
                 ? "bg-blue-600/30 text-blue-300"
+                : deck.gameType === "codenames"
+                ? "bg-cyan-600/30 text-cyan-300"
                 : "bg-red-600/30 text-red-300"
             }`}>
-              {deck.gameType === "joking_hazard" ? "Joking Hazard" : deck.gameType === "apples_to_apples" ? "Apples to Apples" : deck.gameType === "uno" ? "Uno" : "CAH"}
+              {deck.gameType === "joking_hazard" ? "Joking Hazard" : deck.gameType === "apples_to_apples" ? "Apples to Apples" : deck.gameType === "uno" ? "Uno" : deck.gameType === "codenames" ? "Codenames" : "CAH"}
             </span>
           </div>
           {deck.description && (
@@ -40,9 +43,13 @@ function DeckCard({ deck, onSelect, buttonLabel }: { deck: DeckSummary; onSelect
             {deck.ownerName && <span>by {deck.ownerName} · </span>}
             {deck.gameType === "uno"
               ? "108 cards"
+              : deck.gameType === "codenames"
+              ? `${deck.knowledgeCount} words`
               : `${deck.chaosCount} prompts · ${deck.knowledgeCount} answers`}
             {" · "}
-            {deck.winCondition?.mode === "points"
+            {deck.gameType === "codenames"
+              ? "Team word-guessing"
+              : deck.winCondition?.mode === "points"
               ? `First to ${deck.winCondition.value} pts`
               : deck.winCondition?.mode === "single_round"
               ? "Single round"

@@ -69,6 +69,7 @@ import {
   getUnoPhase,
 } from "./unoGame.js";
 import type { UnoDeckTemplate, UnoColor } from "./types.js";
+import { createCodenamesGame, isCodenamesGame, getCodenamesPlayerView, joinTeam, startCodenamesRound, giveClue, guessWord, passTurn, cleanupCodenamesGame, getCodenamesScores } from "./codenamesGame.js";
 import {
   registerSession,
   getSessionId,
@@ -465,6 +466,20 @@ function sendUnoTurnToPlayers(code: string) {
   }
 }
 
+function sendCodenamesUpdate(code: string) {
+  const players = getLobbyPlayers(code);
+  if (!players) return;
+  for (const pid of players) {
+    const view = getCodenamesPlayerView(code, pid);
+    if (view) {
+      const playerSocket = io.sockets.sockets.get(pid);
+      if (playerSocket) {
+        playerSocket.emit("codenames:update" as any, view);
+      }
+    }
+  }
+}
+
 const unoTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function scheduleUnoTurnTimer(code: string) {
@@ -560,6 +575,12 @@ io.on("connection", (socket) => {
       if (isUnoGame(code) && lobby.status === "playing") {
         const unoView = getUnoPlayerView(code, socket.id);
         if (unoView) socket.emit("uno:turn-update", unoView);
+      }
+
+      // For Codenames, send the Codenames-specific view
+      if (isCodenamesGame(code) && lobby.status === "playing") {
+        const cnView = getCodenamesPlayerView(code, socket.id);
+        if (cnView) socket.emit("codenames:update" as any, cnView);
       }
 
       // Notify others the player is back
@@ -704,7 +725,7 @@ io.on("connection", (socket) => {
       let customChaos = undefined;
       let customKnowledge = undefined;
       let winCondition = undefined;
-      let gameType: "cah" | "joking_hazard" | "apples_to_apples" | "uno" | undefined = undefined;
+      let gameType: "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames" | undefined = undefined;
       let unoTemplate: UnoDeckTemplate | undefined = undefined;
       if (deckId) {
         const deck = await getDeck(deckId);
@@ -746,7 +767,26 @@ io.on("connection", (socket) => {
         io.to(code).emit("lobby:countdown" as any, 0);
         io.to(code).emit("lobby:started");
 
-        if (gameType === "uno") {
+        if (gameType === "codenames") {
+          // Extract word pool from knowledge cards
+          const wordPool = (customKnowledge || []).map(c => c.text).filter(t => t.trim());
+          if (wordPool.length < 25) {
+            // Fallback: use a default word list
+            const defaults = ["Apple","Bank","Bark","Bear","Berlin","Board","Bond","Boot","Bowl","Bug","Canada","Card","Castle","Cat","Cell","Chair","Change","Chest","China","Clip","Cloud","Club","Code","Cold","Comet","Compound","Copper","Crane","Crash","Cricket","Cross","Crown","Cycle","Day","Death","Diamond","Dice","Doctor","Dog","Draft","Dragon","Dress","Drill","Drop","Duck","Dwarf","Eagle","Egypt","Engine","Eye","Fair","Fan","Field","File","Film","Fire","Fish","Fly","Force","Forest","Fork","France","Game","Gas","Ghost","Giant","Glass","Glove","Gold","Grass","Green","Ham","Hand","Hawk","Head","Heart","Himalayas","Hit","Hole","Hook","Horn","Horse","Hospital","Hotel","Ice","Iron","Ivory","Jack","Jam","Jet","Jupiter","Kangaroo","Ketchup","Key","Kid","King","Kite","Knight","Lab","Lap","Laser","Lead","Lemon","Life","Light","Limousine","Line","Link","Lion","Lock","Log","London","Luck","Mail","Mammoth","Maple","March","Mass","Match","Mercury","Mexico","Microscope","Milk","Mine","Model","Mole","Moon","Moscow","Mount","Mouse","Mud","Mug","Nail","Net","Night","Ninja","Note","Novel","Nurse","Nut","Octopus","Oil","Olive","Olympus","Opera","Orange","Organ","Palm","Pan","Pants","Paper","Park","Pass","Paste","Penguin","Phoenix","Piano","Pie","Pilot","Pin","Pipe","Pirate","Pistol","Pit","Plate","Play","Plot","Point","Poison","Pole","Pool","Port","Post","Press","Princess","Pumpkin","Pupil","Queen","Rabbit","Race","Radio","Rain","Ranch","Ray","Revolution","Ring","Robin","Robot","Rock","Rome","Root","Rose","Round","Row","Ruler","Russia","Sail","Sand","Saturn","Scale","School","Scientist","Screen","Seal","Server","Shadow","Shakespeare","Shark","Ship","Shoe","Shop","Shot","Silk","Singer","Sink","Slip","Slug","Smuggler","Snow","Soldier","Soul","Space","Spell","Spider","Spike","Spot","Spring","Spy","Square","Staff","Star","State","Steam","Steel","Stick","Stock","Storm","Stream","Strike","String","Sub","Sugar","Suit","Super","Swan","Switch","Table","Tail","Tap","Teacher","Temple","Texas","Theater","Thief","Thumb","Tick","Tie","Tiger","Time","Tokyo","Tooth","Tower","Track","Train","Triangle","Trip","Trunk","Tube","Turkey","Undertaker","Unicorn","Vacuum","Van","Vet","Violet","Virus","Wall","War","Wash","Washington","Watch","Water","Wave","Web","Well","Whale","Whip","Wind","Witch","Worm","Yard"];
+            wordPool.push(...defaults);
+          }
+          createCodenamesGame(code, playerIds, wordPool);
+          // Send initial view to all players (team pick phase)
+          for (const pid of playerIds) {
+            const view = getCodenamesPlayerView(code, pid);
+            if (view) {
+              const playerSocket = io.sockets.sockets.get(pid);
+              if (playerSocket) {
+                playerSocket.emit("codenames:update" as any, view);
+              }
+            }
+          }
+        } else if (gameType === "uno") {
           const template = unoTemplate || { colorNames: { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" } };
           const houseRules = getLobbyHouseRules(code);
           createUnoGame(code, playerIds, template, winCondition, houseRules);
@@ -989,6 +1029,7 @@ io.on("connection", (socket) => {
     clearUnoTurnTimer(code);
     cleanupGame(code);
     cleanupUnoGame(code);
+    cleanupCodenamesGame(code);
 
     const result = resetLobbyForRematch(socket.id);
     if ("error" in result) {
@@ -1091,6 +1132,70 @@ io.on("connection", (socket) => {
       triggerUnoBotTurn(code);
       scheduleUnoTurnTimer(code);
     }
+  });
+
+  // ── Codenames Events ──
+
+  socket.on("codenames:join-team" as any, (team: string, asSpymaster: boolean, callback: (res: any) => void) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code || !isCodenamesGame(code)) { callback({ success: false, error: "Not in a Codenames game" }); return; }
+
+    const result = joinTeam(code, socket.id, team as any, asSpymaster);
+    if (!result.success) { callback({ success: false, error: result.error }); return; }
+
+    callback({ success: true });
+    sendCodenamesUpdate(code);
+  });
+
+  socket.on("codenames:start-round" as any, (callback: (res: any) => void) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code || !isCodenamesGame(code)) { callback({ success: false, error: "Not in a Codenames game" }); return; }
+
+    const result = startCodenamesRound(code);
+    if (!result.success) { callback({ success: false, error: result.error }); return; }
+
+    callback({ success: true });
+    sendCodenamesUpdate(code);
+  });
+
+  socket.on("codenames:give-clue" as any, (word: string, count: number, callback: (res: any) => void) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code || !isCodenamesGame(code)) { callback({ success: false, error: "Not in a Codenames game" }); return; }
+
+    const result = giveClue(code, socket.id, word, count);
+    if (!result.success) { callback({ success: false, error: result.error }); return; }
+
+    callback({ success: true });
+    sendCodenamesUpdate(code);
+  });
+
+  socket.on("codenames:guess" as any, (wordIndex: number, callback: (res: any) => void) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code || !isCodenamesGame(code)) { callback({ success: false, error: "Not in a Codenames game" }); return; }
+
+    const result = guessWord(code, socket.id, wordIndex);
+    if (!result.success) { callback({ success: false, error: result.error }); return; }
+
+    callback({ success: true, color: result.color, gameOver: result.gameOver, turnOver: result.turnOver });
+    sendCodenamesUpdate(code);
+
+    if (result.gameOver) {
+      const scores = getCodenamesScores(code);
+      if (scores) {
+        io.to(code).emit("game:over", scores);
+      }
+    }
+  });
+
+  socket.on("codenames:pass" as any, (callback: (res: any) => void) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code || !isCodenamesGame(code)) { callback({ success: false, error: "Not in a Codenames game" }); return; }
+
+    const result = passTurn(code, socket.id);
+    if (!result.success) { callback({ success: false, error: result.error }); return; }
+
+    callback({ success: true });
+    sendCodenamesUpdate(code);
   });
 
   // ── Voice Chat Signaling ──
@@ -1262,6 +1367,7 @@ function handleLeave(socketId: string) {
   } else {
     // Lobby was deleted (last player left) — clean up game and chat
     cleanupGame(result.code);
+    cleanupCodenamesGame(result.code);
     clearChatHistory(result.code);
   }
 }

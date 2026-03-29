@@ -140,6 +140,16 @@ OUTPUT FORMAT:
 - chaosCards = red-bordered bonus cards: {"text": "...", "pick": 1, "bonus": true}
 - knowledgeCards = black-bordered regular cards: {"text": "..."}`;
   }
+  if (gameType === "codenames") {
+    return `=== GAME ENGINE RULES ===
+This is a Codenames-style word guessing game.
+- You are generating a WORD POOL for a 5x5 grid game.
+- Knowledge cards are single WORDS or short 2-word phrases (e.g., "Apple", "Night Sky", "Dragon").
+- Words should be diverse, concrete nouns preferred, with some verbs and adjectives mixed in.
+- All words should be related to the theme but distinct enough to create interesting clue connections.
+- Generate at least 50 words for variety (the game picks 25 randomly each round).
+- No chaos/prompt cards needed — only knowledge (word pool) cards.`;
+  }
   return "Generate prompt cards and answer cards appropriate for the game type.";
 }
 

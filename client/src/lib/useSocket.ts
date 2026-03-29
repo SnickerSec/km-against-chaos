@@ -171,6 +171,15 @@ export function useSocket() {
 
     // ── Uno Events ──
 
+    // ── Codenames Events ──
+
+    socket.on("codenames:update" as any, (view: any) => {
+      useGameStore.getState().setCodenamesView(view);
+      if (useGameStore.getState().screen !== "game") {
+        setScreen("game");
+      }
+    });
+
     socket.on("uno:turn-update" as any, (view: UnoPlayerView) => {
       useGameStore.getState().setUnoGameView(view);
       if (useGameStore.getState().screen !== "game") {
@@ -476,6 +485,46 @@ export function useSocket() {
     socket.emit("uno:next-round" as any);
   };
 
+  const codenamesJoinTeam = (team: string, asSpymaster: boolean) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("codenames:join-team" as any, team, asSpymaster, (res: any) => {
+      if (!res.success) setError(res.error);
+    });
+  };
+
+  const codenamesStartRound = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("codenames:start-round" as any, (res: any) => {
+      if (!res.success) setError(res.error);
+    });
+  };
+
+  const codenamesGiveClue = (word: string, count: number) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("codenames:give-clue" as any, word, count, (res: any) => {
+      if (!res.success) setError(res.error);
+    });
+  };
+
+  const codenamesGuess = (wordIndex: number) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("codenames:guess" as any, wordIndex, (res: any) => {
+      if (!res.success) setError(res.error);
+    });
+  };
+
+  const codenamesPass = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("codenames:pass" as any, (res: any) => {
+      if (!res.success) setError(res.error);
+    });
+  };
+
   const setHouseRules = (houseRules: { unoStacking?: boolean }) => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -512,5 +561,10 @@ export function useSocket() {
     challengeUno,
     unoNextRound,
     setHouseRules,
+    codenamesJoinTeam,
+    codenamesStartRound,
+    codenamesGiveClue,
+    codenamesGuess,
+    codenamesPass,
   };
 }
