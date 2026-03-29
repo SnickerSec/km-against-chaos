@@ -14,9 +14,12 @@ export interface Lobby {
   hostId: string;
   deckId: string;
   deckName: string;
+  gameType: GameType;
+  winCondition: { mode: string; value: number };
   status: "waiting" | "playing" | "finished";
   maxPlayers: number;
   createdAt: Date;
+  rematchVotes: Set<string>;
 }
 
 export interface LobbyResponse {
@@ -31,7 +34,11 @@ export interface LobbyState {
   hostId: string;
   deckId: string;
   deckName: string;
+  gameType: GameType;
+  winCondition: { mode: string; value: number };
   status: "waiting" | "playing" | "finished";
+  rematchVotes: number;
+  rematchVoters: string[];
 }
 
 export interface PlayerInfo {

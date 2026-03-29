@@ -263,6 +263,16 @@ export function useSocket() {
     setScreen("home");
   };
 
+  const changeDeck = (deckId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("lobby:change-deck" as any, deckId, (response: any) => {
+      if (!response.success) {
+        setError(response.error || "Failed to change deck");
+      }
+    });
+  };
+
   const startGame = () => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -370,6 +380,16 @@ export function useSocket() {
     });
   };
 
+  const voteRematch = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("lobby:vote-rematch" as any, (response: any) => {
+      if (!response.success) {
+        setError(response.error || "Failed to vote");
+      }
+    });
+  };
+
   const spectateGame = (code: string, playerName: string) => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -461,6 +481,7 @@ export function useSocket() {
     createLobby,
     joinLobby,
     leaveLobby,
+    changeDeck,
     startGame,
     czarSetup,
     submitCards,
@@ -474,6 +495,7 @@ export function useSocket() {
     kickPlayer,
     spectateGame,
     rematch,
+    voteRematch,
     playUnoCard,
     drawUnoCard,
     callUno,

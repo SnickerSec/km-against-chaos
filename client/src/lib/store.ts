@@ -18,7 +18,11 @@ export interface LobbyState {
   hostId: string;
   deckId: string;
   deckName: string;
+  gameType: string;
+  winCondition: { mode: string; value: number };
   status: "waiting" | "playing" | "finished";
+  rematchVotes?: number;
+  rematchVoters?: string[];
 }
 
 export interface KnowledgeCard {

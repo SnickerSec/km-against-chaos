@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { Icon } from "@iconify/react";
+import DeckPicker from "./DeckPicker";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
@@ -8,9 +11,27 @@ import Chat from "./Chat";
 import VoiceChat from "./VoiceChat";
 import PlayerAvatar from "./PlayerAvatar";
 
+const GAME_TYPE_DISPLAY: Record<string, { label: string; icon: string; color: string }> = {
+  cah:              { label: "Cards Against Humanity", icon: "mdi:cards",              color: "text-red-400" },
+  joking_hazard:    { label: "Joking Hazard",         icon: "mdi:comment-text",        color: "text-orange-400" },
+  apples_to_apples: { label: "Apples to Apples",      icon: "mdi:fruit-cherries",      color: "text-green-400" },
+  uno:              { label: "Uno",                    icon: "mdi:cards-playing-outline",color: "text-yellow-400" },
+};
+
+function formatWinCondition(mode: string, value: number, gameType: string): string {
+  if (gameType === "uno") {
+    if (mode === "single_round") return "Single round — first to empty hand wins";
+    if (mode === "lowest_score") return `Lowest score wins (game ends at ${value} pts)`;
+    return `First to ${value} points`;
+  }
+  if (mode === "points") return `First to ${value} point${value !== 1 ? "s" : ""}`;
+  return `${value} round${value !== 1 ? "s" : ""}`;
+}
+
 export default function LobbyScreen() {
   const { lobby, error, countdown } = useGameStore();
-  const { leaveLobby, startGame, addBot, removeBot, kickPlayer } = useSocket();
+  const { leaveLobby, startGame, addBot, removeBot, kickPlayer, changeDeck } = useSocket();
+  const [showDeckPicker, setShowDeckPicker] = useState(false);
 
   if (!lobby) return null;
 
@@ -21,10 +42,30 @@ export default function LobbyScreen() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4">
-      {/* Game title */}
+      {/* Game title + settings */}
       <p className="text-purple-400 font-semibold text-sm mb-1 uppercase tracking-wider">
         {lobby.deckName}
       </p>
+      {lobby.gameType && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className={`inline-flex items-center gap-1 text-xs font-medium ${GAME_TYPE_DISPLAY[lobby.gameType]?.color || "text-gray-400"}`}>
+            <Icon icon={GAME_TYPE_DISPLAY[lobby.gameType]?.icon || "mdi:cards"} width={14} />
+            {GAME_TYPE_DISPLAY[lobby.gameType]?.label || lobby.gameType}
+          </span>
+          <span className="text-gray-600">·</span>
+          <span className="text-xs text-gray-400">
+            {formatWinCondition(lobby.winCondition?.mode, lobby.winCondition?.value, lobby.gameType)}
+          </span>
+        {isHost && (
+            <button
+              onClick={() => setShowDeckPicker(true)}
+              className="text-xs text-purple-400 hover:text-purple-300 transition-colors ml-1"
+            >
+              Change
+            </button>
+          )}
+        </div>
+      )}
       <h2 className="text-2xl font-bold mb-4">Lobby</h2>
 
       <div className="bg-gray-800 px-6 py-4 rounded-lg mb-6 flex flex-col items-center">
@@ -149,6 +190,31 @@ export default function LobbyScreen() {
       </div>
 
       <Chat />
+
+      {/* Deck picker modal */}
+      {showDeckPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-gray-950 rounded-2xl border border-gray-700 w-full max-w-lg max-h-[80vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Change Deck</h3>
+              <button
+                onClick={() => setShowDeckPicker(false)}
+                className="text-gray-400 hover:text-white text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+            <DeckPicker
+              buttonLabel="Select"
+              showCreateLink={false}
+              onSelect={(deckId) => {
+                changeDeck(deckId);
+                setShowDeckPicker(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Countdown overlay */}
       {countdown !== null && (

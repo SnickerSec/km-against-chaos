@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import { join, resolve, normalize } from "path";
 import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
-import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby, kickPlayer, joinAsSpectator, getActivePlayers, resetLobbyForRematch } from "./lobby.js";
+import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby, kickPlayer, joinAsSpectator, getActivePlayers, resetLobbyForRematch, changeLobbyDeck, voteRematch } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from "./adminRoutes.js";
@@ -578,7 +578,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const result = createLobby(socket.id, playerName, deckId, deck.name);
+      const result = createLobby(socket.id, playerName, deckId, deck.name, deck.gameType, deck.winCondition);
 
       if ("error" in result) {
         callback({ success: false, error: result.error });
@@ -653,6 +653,22 @@ io.on("connection", (socket) => {
 
   socket.on("lobby:leave", () => {
     handleLeave(socket.id);
+  });
+
+  socket.on("lobby:change-deck" as any, async (deckId: string, callback: (res: any) => void) => {
+    try {
+      const deck = await getDeck(deckId);
+      if (!deck) { callback({ success: false, error: "Deck not found" }); return; }
+
+      const result = changeLobbyDeck(socket.id, deckId, deck.name, deck.gameType || "cah", deck.winCondition);
+      if ("error" in result) { callback({ success: false, error: result.error }); return; }
+
+      callback({ success: true, lobby: result.lobby });
+      io.to(result.code).emit("lobby:updated", result.lobby);
+      console.log(`Deck changed to "${deck.name}" in lobby ${result.code}`);
+    } catch (e: any) {
+      callback({ success: false, error: e.message });
+    }
   });
 
   socket.on("lobby:start", async (callback) => {
@@ -926,6 +942,19 @@ io.on("connection", (socket) => {
       endGame(code);
       io.to(code).emit("game:over", scores || {});
     }
+  });
+
+  socket.on("lobby:vote-rematch" as any, (callback: (response: any) => void) => {
+    const result = voteRematch(socket.id);
+    if ("error" in result) { callback({ success: false, error: result.error }); return; }
+    callback({ success: true, voteCount: result.voteCount, totalPlayers: result.totalPlayers });
+    io.to(result.code).emit("lobby:updated", result.lobby);
+    io.to(result.code).emit("lobby:rematch-vote" as any, {
+      voterId: socket.id,
+      voterName: getPlayerNameInLobby(result.code, socket.id),
+      voteCount: result.voteCount,
+      totalPlayers: result.totalPlayers,
+    });
   });
 
   socket.on("game:rematch" as any, (callback: (response: { success: boolean; error?: string }) => void) => {

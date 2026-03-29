@@ -22,7 +22,11 @@ function lobbyToState(lobby: Lobby): LobbyState {
     hostId: lobby.hostId,
     deckId: lobby.deckId,
     deckName: lobby.deckName,
+    gameType: lobby.gameType,
+    winCondition: lobby.winCondition,
     status: lobby.status,
+    rematchVotes: lobby.rematchVotes.size,
+    rematchVoters: [...lobby.rematchVotes],
   };
 }
 
@@ -38,7 +42,7 @@ function playerToInfo(player: Player): PlayerInfo {
   };
 }
 
-export function createLobby(socketId: string, playerName: string, deckId: string, deckName: string): { lobby: LobbyState } | { error: string } {
+export function createLobby(socketId: string, playerName: string, deckId: string, deckName: string, gameType?: string, winCondition?: { mode: string; value: number }): { lobby: LobbyState } | { error: string } {
   if (playerLobby.has(socketId)) {
     return { error: "You are already in a lobby" };
   }
@@ -58,9 +62,12 @@ export function createLobby(socketId: string, playerName: string, deckId: string
     hostId: socketId,
     deckId,
     deckName,
+    gameType: (gameType as any) || "cah",
+    winCondition: winCondition || { mode: "rounds", value: 10 },
     status: "waiting",
     maxPlayers: 10,
     createdAt: new Date(),
+    rematchVotes: new Set(),
   };
 
   lobbies.set(code, lobby);
@@ -322,6 +329,36 @@ export function startGame(socketId: string): { code: string } | { error: string 
   return { code };
 }
 
+export function changeLobbyDeck(socketId: string, deckId: string, deckName: string, gameType: string, winCondition: { mode: string; value: number }): { code: string; lobby: LobbyState } | { error: string } {
+  const code = playerLobby.get(socketId);
+  if (!code) return { error: "You are not in a lobby" };
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return { error: "Lobby not found" };
+
+  if (lobby.hostId !== socketId) return { error: "Only the host can change the deck" };
+  if (lobby.status !== "waiting") return { error: "Cannot change deck while playing" };
+
+  lobby.deckId = deckId;
+  lobby.deckName = deckName;
+  lobby.gameType = (gameType as any) || "cah";
+  lobby.winCondition = winCondition || { mode: "rounds", value: 10 };
+
+  return { code, lobby: lobbyToState(lobby) };
+}
+
+export function voteRematch(socketId: string): { code: string; lobby: LobbyState; voteCount: number; totalPlayers: number } | { error: string } {
+  const code = playerLobby.get(socketId);
+  if (!code) return { error: "You are not in a lobby" };
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return { error: "Lobby not found" };
+
+  lobby.rematchVotes.add(socketId);
+  const activePlayers = Array.from(lobby.players.values()).filter(p => !p.isSpectator && !p.isBot);
+  return { code, lobby: lobbyToState(lobby), voteCount: lobby.rematchVotes.size, totalPlayers: activePlayers.length };
+}
+
 export function resetLobbyForRematch(socketId: string): { code: string; lobby: LobbyState } | { error: string } {
   const code = playerLobby.get(socketId);
   if (!code) return { error: "You are not in a lobby" };
@@ -334,6 +371,7 @@ export function resetLobbyForRematch(socketId: string): { code: string; lobby: L
   }
 
   lobby.status = "waiting";
+  lobby.rematchVotes.clear();
 
   // Reset all player scores
   for (const player of lobby.players.values()) {

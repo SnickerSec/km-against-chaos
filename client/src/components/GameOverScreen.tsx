@@ -1,13 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
 import PlayerAvatar from "./PlayerAvatar";
+import DeckPicker from "./DeckPicker";
 
 export default function GameOverScreen() {
   const { scores, lobby, reset } = useGameStore();
-  const { leaveLobby, rematch } = useSocket();
+  const { leaveLobby, rematch, voteRematch, changeDeck } = useSocket();
+  const [hasVoted, setHasVoted] = useState(false);
+  const [showDeckPicker, setShowDeckPicker] = useState(false);
   const socket = getSocket();
   const isHost = lobby?.hostId === socket.id;
 
@@ -77,14 +81,39 @@ export default function GameOverScreen() {
 
       <div className="flex flex-col items-center gap-3">
         {isHost ? (
-          <button
-            onClick={rematch}
-            className="py-3 px-8 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-lg transition-colors"
-          >
-            Rematch
-          </button>
+          <>
+            <button
+              onClick={rematch}
+              className="py-3 px-8 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-lg transition-colors"
+            >
+              Rematch
+            </button>
+            <button
+              onClick={() => setShowDeckPicker(true)}
+              className="py-2 px-6 text-purple-400 hover:text-purple-300 text-sm transition-colors"
+            >
+              Play Different Deck
+            </button>
+          </>
         ) : (
-          <p className="text-gray-400 text-sm">Waiting for host to start rematch...</p>
+          <div className="flex flex-col items-center gap-2">
+            {!hasVoted ? (
+              <button
+                onClick={() => { voteRematch(); setHasVoted(true); }}
+                className="py-3 px-8 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-lg transition-colors"
+              >
+                Vote Rematch
+              </button>
+            ) : (
+              <p className="text-purple-400 text-sm font-medium">Voted for rematch!</p>
+            )}
+            {lobby?.rematchVotes !== undefined && lobby.rematchVotes > 0 && (
+              <p className="text-gray-500 text-xs">
+                {lobby.rematchVotes} player{lobby.rematchVotes !== 1 ? "s" : ""} want{lobby.rematchVotes === 1 ? "s" : ""} a rematch
+              </p>
+            )}
+            <p className="text-gray-500 text-xs">Waiting for host to start rematch...</p>
+          </div>
         )}
         <button
           onClick={handlePlayAgain}
@@ -93,6 +122,32 @@ export default function GameOverScreen() {
           Leave
         </button>
       </div>
+
+      {/* Change deck modal */}
+      {showDeckPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-gray-950 rounded-2xl border border-gray-700 w-full max-w-lg max-h-[80vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Pick a New Deck</h3>
+              <button
+                onClick={() => setShowDeckPicker(false)}
+                className="text-gray-400 hover:text-white text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+            <DeckPicker
+              buttonLabel="Select & Rematch"
+              showCreateLink={false}
+              onSelect={(deckId) => {
+                changeDeck(deckId);
+                setShowDeckPicker(false);
+                rematch();
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
