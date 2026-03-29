@@ -104,6 +104,7 @@ export default function HomeScreen() {
           <p className="text-gray-400">
             Create and play custom card games
           </p>
+          <Link href="/decks/browse" className="text-gray-400 hover:text-white text-sm transition-colors">Browse Decks</Link>
           <Link href="/friends" className="text-gray-400 hover:text-white text-sm transition-colors">Friends</Link>
           <Link href="/stats" className="text-gray-400 hover:text-white text-sm transition-colors">Stats</Link>
         </div>
