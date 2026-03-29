@@ -1235,6 +1235,7 @@ function AIGenerationPanel({
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [themeSearch, setThemeSearch] = useState("");
+  const [open, setOpen] = useState(!isCreate ? true : false);
 
   const handleGenerate = async () => {
     if (!theme.trim()) return;
@@ -1252,14 +1253,36 @@ function AIGenerationPanel({
 
   return (
     <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-xl border border-purple-500/30 overflow-hidden">
-      <div className="p-5 space-y-5">
-        {/* Header + Theme input (create mode) */}
+      {/* Collapsible header */}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center justify-between w-full p-5 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <Icon icon={isCreate ? "mdi:creation" : "mdi:tune-variant"} className="text-purple-400" width={20} />
+          <span className="font-bold text-lg text-purple-100">
+            {isCreate ? "AI Deck Generator" : "Generation Settings"}
+          </span>
+          {!open && (
+            <span className="text-xs text-gray-500 ml-1">
+              {[
+                MATURITY_LEVELS.find((m) => m.id === maturity)?.label,
+                flavorThemes.length > 0 ? `${flavorThemes.length} theme${flavorThemes.length !== 1 ? "s" : ""}` : null,
+                chaosLevel > 0 ? `${chaosLevel}% chaos` : null,
+                wildcard.trim() ? "wildcard" : null,
+              ].filter(Boolean).join(" · ")}
+            </span>
+          )}
+        </div>
+        <Icon icon={open ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-500" width={18} />
+      </button>
+
+      {open && (
+      <div className="px-5 pb-5 space-y-5">
+        {/* Theme input (create mode) */}
         {isCreate && (
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Icon icon="mdi:creation" className="text-purple-400" width={20} />
-              <span className="font-bold text-lg text-purple-100">AI Deck Generator</span>
-            </div>
             <p className="text-gray-400 text-xs mb-3">
               {gameType === "joking-hazard"
                 ? "Describe a theme — AI generates scene & panel cards"
@@ -1277,13 +1300,6 @@ function AIGenerationPanel({
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
               onKeyDown={(e) => e.key === "Enter" && !generating && handleGenerate()}
             />
-          </div>
-        )}
-
-        {!isCreate && (
-          <div className="flex items-center gap-2">
-            <Icon icon="mdi:tune-variant" className="text-purple-400" width={18} />
-            <span className="font-semibold text-sm text-gray-200">Generation Settings</span>
           </div>
         )}
 
@@ -1402,6 +1418,7 @@ function AIGenerationPanel({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
