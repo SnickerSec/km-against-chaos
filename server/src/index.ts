@@ -7,13 +7,15 @@ import rateLimit from "express-rate-limit";
 import { join, resolve, normalize } from "path";
 import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
-import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby, kickPlayer, joinAsSpectator, getActivePlayers, resetLobbyForRematch, changeLobbyDeck, voteRematch, setLobbyHouseRules, getLobbyHouseRules } from "./lobby.js";
+import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, getLobbyDeckName, getLobbyGameType, isPlayerBot, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby, kickPlayer, joinAsSpectator, getActivePlayers, resetLobbyForRematch, changeLobbyDeck, voteRematch, setLobbyHouseRules, getLobbyHouseRules } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from "./adminRoutes.js";
 import packRoutes from "./packRoutes.js";
 import mediaRoutes from "./mediaRoutes.js";
 import tgcRoutes from "./tgcRoutes.js";
+import statsRoutes from "./statsRoutes.js";
+import { recordGameResult } from "./statsStore.js";
 import { getDeck, seedBuiltInDecks } from "./deckStore.js";
 import { initDb } from "./db.js";
 import {
@@ -146,6 +148,7 @@ app.use("/api/decks", apiLimiter, deckRoutes);
 app.use("/api/packs", apiLimiter, packRoutes);
 app.use("/api/gifs", staticLimiter, mediaRoutes);
 app.use("/api/print/tgc", apiLimiter, tgcRoutes);
+app.use(apiLimiter, statsRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [
@@ -502,6 +505,7 @@ function triggerUnoBotTurn(code: string) {
       clearUnoTurnTimer(code);
       if (result.gameOver) {
         io.to(code).emit("uno:game-over", scores);
+        recordUnoGameResult(code, scores);
       }
     }
 
@@ -936,6 +940,7 @@ io.on("connection", (socket) => {
       const scores = getScores(code);
       endGame(code);
       io.to(code).emit("game:over", scores || {});
+      recordCahGameResult(code, scores || {});
       return;
     }
 
@@ -949,6 +954,7 @@ io.on("connection", (socket) => {
       const scores = getScores(code);
       endGame(code);
       io.to(code).emit("game:over", scores || {});
+      recordCahGameResult(code, scores || {});
     }
   });
 
@@ -1008,6 +1014,7 @@ io.on("connection", (socket) => {
       clearUnoTurnTimer(code);
       if (result.gameOver) {
         io.to(code).emit("uno:game-over", scores);
+        recordUnoGameResult(code, scores);
       }
     } else {
       clearUnoTurnTimer(code);
@@ -1069,6 +1076,7 @@ io.on("connection", (socket) => {
     if (result.gameOver) {
       const scores = getUnoScores(code);
       io.to(code).emit("uno:game-over", scores);
+      recordUnoGameResult(code, scores);
       return;
     }
     if (result.started) {
@@ -1259,6 +1267,54 @@ function findPlayerLobby(socketId: string): string | undefined {
 // Helper: get a player's display name from lobby
 function getPlayerName(code: string, playerId: string): string | undefined {
   return getPlayerNameInLobby(code, playerId);
+}
+
+// Helper: record CAH/JH/A2A game result
+function recordCahGameResult(code: string, scores: Record<string, number>) {
+  try {
+    const playerIds = getActivePlayers(code) || [];
+    const topEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+    const winnerId = topEntry?.[0];
+    const players = playerIds.map(pid => ({
+      name: getPlayerNameInLobby(code, pid) || pid,
+      score: scores[pid] || 0,
+      isWinner: pid === winnerId,
+      isBot: isPlayerBot(code, pid),
+    }));
+    recordGameResult({
+      lobbyCode: code,
+      deckId: getLobbyDeckId(code) || null,
+      deckName: getLobbyDeckName(code) || "Unknown",
+      gameType: getLobbyGameType(code) || "cah",
+      playerCount: players.filter(p => !p.isBot).length,
+      roundsPlayed: 0,
+      players,
+    }).catch(e => console.error("Failed to record game:", e));
+  } catch {}
+}
+
+// Helper: record Uno game result
+function recordUnoGameResult(code: string, scores: Record<string, number>) {
+  try {
+    const playerIds = getActivePlayers(code) || [];
+    const topEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+    const winnerId = topEntry?.[0];
+    const players = playerIds.map(pid => ({
+      name: getPlayerNameInLobby(code, pid) || pid,
+      score: scores[pid] || 0,
+      isWinner: pid === winnerId,
+      isBot: isPlayerBot(code, pid),
+    }));
+    recordGameResult({
+      lobbyCode: code,
+      deckId: getLobbyDeckId(code) || null,
+      deckName: getLobbyDeckName(code) || "Unknown",
+      gameType: getLobbyGameType(code) || "uno",
+      playerCount: players.filter(p => !p.isBot).length,
+      roundsPlayed: 0,
+      players,
+    }).catch(e => console.error("Failed to record Uno game:", e));
+  } catch {}
 }
 
 const PORT = process.env.PORT || 3001;

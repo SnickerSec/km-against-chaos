@@ -100,9 +100,12 @@ export default function HomeScreen() {
           </h1>
           <GoogleSignIn />
         </div>
-        <p className="text-gray-400">
-          Create and play custom card games
-        </p>
+        <div className="flex items-center gap-4">
+          <p className="text-gray-400">
+            Create and play custom card games
+          </p>
+          <Link href="/stats" className="text-gray-400 hover:text-white text-sm transition-colors">Stats</Link>
+        </div>
       </div>
 
       {/* Name input — always visible */}

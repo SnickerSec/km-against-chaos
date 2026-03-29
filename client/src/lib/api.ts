@@ -221,6 +221,21 @@ export async function importDeck(data: DeckExport): Promise<CustomDeck> {
   return res.json();
 }
 
+// Stats API
+
+export async function fetchMyStats() {
+  const res = await fetch(`${API_URL}/api/stats/me`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch stats");
+  return res.json();
+}
+
+export async function fetchLeaderboard(gameType?: string) {
+  const params = gameType ? `?gameType=${gameType}` : '';
+  const res = await fetch(`${API_URL}/api/stats/leaderboard${params}`);
+  if (!res.ok) throw new Error("Failed to fetch leaderboard");
+  return res.json();
+}
+
 // Admin API
 
 export interface ModelInfo {
