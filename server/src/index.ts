@@ -17,6 +17,8 @@ import tgcRoutes from "./tgcRoutes.js";
 import statsRoutes from "./statsRoutes.js";
 import friendRoutes from "./friendRoutes.js";
 import { recordGameResult } from "./statsStore.js";
+import { verifyJwt } from "./auth.js";
+import { setOnline, setOffline, setInGame, setNotInGame, getUserIdForSocket, getSocketIdsForUser, isOnline, getPresence, remapSocket as remapPresenceSocket } from "./presence.js";
 import { getDeck, seedBuiltInDecks } from "./deckStore.js";
 import pool, { initDb } from "./db.js";
 import {
@@ -544,6 +546,9 @@ io.on("connection", (socket) => {
     // Cancel any legacy disconnect timer
     cancelDisconnectTimer(sessionId);
 
+    // Remap presence mapping
+    remapPresenceSocket(oldSocketId, socket.id);
+
     // Remap player in lobby and game state
     const lobbyResult = remapPlayer(oldSocketId, socket.id);
 
@@ -595,6 +600,32 @@ io.on("connection", (socket) => {
     console.log(`Player connected: ${socket.id}`);
   }
 
+  // ── Auth-Socket Bridge ──
+
+  socket.on("auth:identify" as any, async (token: string, callback?: (res: any) => void) => {
+    try {
+      const user = verifyJwt(token);
+      setOnline(user.id, socket.id);
+
+      // Notify online friends that this user came online
+      const friends = await pool.query(
+        `SELECT CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END as friend_id
+         FROM friendships f WHERE (f.user_id = $1 OR f.friend_id = $1) AND f.status = 'accepted'`,
+        [user.id]
+      );
+      for (const row of friends.rows) {
+        const friendSockets = getSocketIdsForUser(row.friend_id);
+        for (const sid of friendSockets) {
+          io.to(sid).emit("friend:online" as any, { userId: user.id, name: user.name });
+        }
+      }
+
+      callback?.({ success: true });
+    } catch {
+      callback?.({ success: false, error: "Invalid token" });
+    }
+  });
+
   // ── Lobby Events ──
 
   socket.on("lobby:create", async (playerName, deckId, callback) => {
@@ -614,6 +645,11 @@ io.on("connection", (socket) => {
 
       socket.join(result.lobby.code);
       callback({ success: true, lobby: result.lobby });
+
+      // Track in-game presence
+      const creatorUserId = getUserIdForSocket(socket.id);
+      if (creatorUserId) setInGame(creatorUserId, result.lobby.code, deck.name);
+
       console.log(`Lobby ${result.lobby.code} created by ${playerName} with deck "${deck.name}"`);
     } catch (e: any) {
       callback({ success: false, error: "Server error" });
@@ -649,6 +685,10 @@ io.on("connection", (socket) => {
       socket.to(result.lobby.code).emit("lobby:player-joined", result.player);
       socket.to(result.lobby.code).emit("lobby:updated", result.lobby);
     }
+
+    // Track in-game presence
+    const joinerUserId = getUserIdForSocket(socket.id);
+    if (joinerUserId) setInGame(joinerUserId, result.lobby.code, result.lobby.deckName);
 
     console.log(`${playerName} joined lobby ${code}`);
   });
@@ -1335,8 +1375,30 @@ io.on("connection", (socket) => {
     io.to(code).emit("media:sticker", url, playerName);
   });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     removeFromVoice(socket.id);
+
+    // Handle presence: notify friends if user went fully offline
+    const userId = getUserIdForSocket(socket.id);
+    if (userId) {
+      const fullyOffline = setOffline(userId, socket.id);
+      if (fullyOffline) {
+        try {
+          const friends = await pool.query(
+            `SELECT CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END as friend_id
+             FROM friendships f WHERE (f.user_id = $1 OR f.friend_id = $1) AND f.status = 'accepted'`,
+            [userId]
+          );
+          for (const row of friends.rows) {
+            const friendSockets = getSocketIdsForUser(row.friend_id);
+            for (const sid of friendSockets) {
+              io.to(sid).emit("friend:offline" as any, { userId });
+            }
+          }
+        } catch {}
+      }
+    }
+
     // Mark player as disconnected but keep them in the lobby.
     // The lobby persists until players explicitly leave.
     const result = disconnectPlayer(socket.id);
@@ -1352,6 +1414,11 @@ io.on("connection", (socket) => {
 
 function handleLeave(socketId: string) {
   removeFromVoice(socketId);
+
+  // Clear in-game presence
+  const leaverUserId = getUserIdForSocket(socketId);
+  if (leaverUserId) setNotInGame(leaverUserId);
+
   const code = getLobbyForSocket(socketId);
 
   const result = leaveLobby(socketId);
@@ -1396,6 +1463,7 @@ function recordCahGameResult(code: string, scores: Record<string, number>) {
     const topEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
     const winnerId = topEntry?.[0];
     const players = playerIds.map(pid => ({
+      userId: getUserIdForSocket(pid) || null,
       name: getPlayerNameInLobby(code, pid) || pid,
       score: scores[pid] || 0,
       isWinner: pid === winnerId,
@@ -1420,6 +1488,7 @@ function recordUnoGameResult(code: string, scores: Record<string, number>) {
     const topEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
     const winnerId = topEntry?.[0];
     const players = playerIds.map(pid => ({
+      userId: getUserIdForSocket(pid) || null,
       name: getPlayerNameInLobby(code, pid) || pid,
       score: scores[pid] || 0,
       isWinner: pid === winnerId,

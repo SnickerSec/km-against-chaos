@@ -22,6 +22,18 @@ export function getSocket(): Socket {
       autoConnect: true,
       auth: { sessionId: getSessionId() },
     });
+
+    // Identify authenticated user on connect/reconnect
+    socket.on("connect", () => {
+      identifySocket(socket!);
+    });
   }
   return socket;
+}
+
+export function identifySocket(s: Socket): void {
+  const token = typeof window !== "undefined" ? localStorage.getItem("km-auth-token") : null;
+  if (token && s.connected) {
+    s.emit("auth:identify", token);
+  }
 }

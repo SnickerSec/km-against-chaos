@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { getSocket, identifySocket } from "./socket";
 
 const API_URL =
   process.env.NEXT_PUBLIC_SERVER_URL ||
@@ -45,6 +46,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem("km-auth-token", token);
     const userWithRole = { ...user, role: role ?? null };
     set({ token, user: userWithRole, isAdmin: !!isAdmin, isModerator: role === "moderator", loading: false });
+    // Identify socket with new auth
+    identifySocket(getSocket());
   },
 
   logout: () => {
