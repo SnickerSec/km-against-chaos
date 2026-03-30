@@ -1,4 +1,4 @@
-const CACHE_NAME = "decked-v1";
+const CACHE_NAME = "decked-v2";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -19,6 +19,9 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(event.request.url);
 
+  // Only handle same-origin requests — let third-party requests pass through
+  if (url.origin !== self.location.origin) return;
+
   // Don't cache API calls or socket connections
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/socket.io/")) return;
 
@@ -32,6 +35,6 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => caches.match(event.request).then((r) => r || new Response("Offline", { status: 503 })))
   );
 });
