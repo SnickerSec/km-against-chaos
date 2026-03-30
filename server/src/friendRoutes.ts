@@ -37,6 +37,17 @@ router.use((req, res, next) => {
 
 function genId() { return randomBytes(8).toString("hex"); }
 
+const DM_MAX_LENGTH = 2000;
+const NICKNAME_MAX_LENGTH = 50;
+
+async function areFriends(userId: string, friendId: string): Promise<boolean> {
+  const result = await pool.query(
+    "SELECT 1 FROM friendships WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)) AND status = 'accepted' LIMIT 1",
+    [userId, friendId]
+  );
+  return result.rows.length > 0;
+}
+
 // List friends (accepted) and pending requests
 router.get("/api/friends", requireAuth, async (req: any, res) => {
   try {
@@ -73,7 +84,7 @@ router.get("/api/users/search", requireAuth, async (req: any, res) => {
     if (q.length < 2) return res.json([]);
 
     const results = await pool.query(`
-      SELECT u.id, u.name, u.picture, u.email
+      SELECT u.id, u.name, u.picture
       FROM users u
       WHERE u.id != $1
         AND (u.name ILIKE $2 OR u.email ILIKE $2)
@@ -96,15 +107,22 @@ router.get("/api/users/search", requireAuth, async (req: any, res) => {
 router.post("/api/friends/request", requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.id;
-    const { email } = req.body;
+    const { email, userId: targetUserId } = req.body;
 
-    if (!email) return res.status(400).json({ error: "Email required" });
-
-    // Find user by email
-    const target = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
-    if (target.rows.length === 0) return res.status(404).json({ error: "User not found" });
-
-    const friendId = target.rows[0].id;
+    let friendId: string;
+    if (targetUserId) {
+      // Direct user ID (from search results)
+      const target = await pool.query("SELECT id FROM users WHERE id = $1", [targetUserId]);
+      if (target.rows.length === 0) return res.status(404).json({ error: "User not found" });
+      friendId = target.rows[0].id;
+    } else if (email) {
+      // Legacy email lookup
+      const target = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+      if (target.rows.length === 0) return res.status(404).json({ error: "User not found" });
+      friendId = target.rows[0].id;
+    } else {
+      return res.status(400).json({ error: "User ID or email required" });
+    }
     if (friendId === userId) return res.status(400).json({ error: "Cannot add yourself" });
 
     // Check if friendship already exists (either direction)
@@ -175,7 +193,7 @@ router.put("/api/friends/:id/nickname", requireAuth, async (req: any, res) => {
 
     const result = await pool.query(
       "UPDATE friendships SET nickname = $1 WHERE id = $2 AND (user_id = $3 OR friend_id = $3) RETURNING *",
-      [nickname || null, friendshipId, userId]
+      [nickname ? nickname.slice(0, NICKNAME_MAX_LENGTH) : null, friendshipId, userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Friendship not found" });
     res.json({ success: true });
@@ -334,6 +352,9 @@ router.get("/api/friends/:friendId/messages", requireAuth, async (req: any, res)
   try {
     const userId = req.user.id;
     const friendId = req.params.friendId;
+
+    if (!await areFriends(userId, friendId)) return res.status(403).json({ error: "Not friends" });
+
     const before = req.query.before || new Date().toISOString();
     const limit = Math.min(parseInt(req.query.limit) || 50, 100);
 
@@ -358,14 +379,16 @@ router.post("/api/friends/:friendId/messages", requireAuth, async (req: any, res
     const { content } = req.body;
 
     if (!content?.trim()) return res.status(400).json({ error: "Message content required" });
+    if (!await areFriends(userId, friendId)) return res.status(403).json({ error: "Not friends" });
 
+    const trimmed = content.trim().slice(0, DM_MAX_LENGTH);
     const id = genId();
     await pool.query(
       "INSERT INTO direct_messages (id, sender_id, receiver_id, content) VALUES ($1, $2, $3, $4)",
-      [id, userId, friendId, content.trim()]
+      [id, userId, friendId, trimmed]
     );
 
-    const msg = { id, sender_id: userId, receiver_id: friendId, content: content.trim(), created_at: new Date().toISOString(), read_at: null };
+    const msg = { id, sender_id: userId, receiver_id: friendId, content: trimmed, created_at: new Date().toISOString(), read_at: null };
     res.json(msg);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -376,6 +399,8 @@ router.post("/api/friends/:friendId/messages/read", requireAuth, async (req: any
   try {
     const userId = req.user.id;
     const friendId = req.params.friendId;
+
+    if (!await areFriends(userId, friendId)) return res.status(403).json({ error: "Not friends" });
 
     await pool.query(
       "UPDATE direct_messages SET read_at = NOW() WHERE receiver_id = $1 AND sender_id = $2 AND read_at IS NULL",

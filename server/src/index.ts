@@ -635,6 +635,13 @@ io.on("connection", (socket) => {
     const userId = getUserIdForSocket(socket.id);
     if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
 
+    // Verify friendship
+    const friendship = await pool.query(
+      "SELECT 1 FROM friendships WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)) AND status = 'accepted' LIMIT 1",
+      [userId, targetUserId]
+    );
+    if (friendship.rows.length === 0) { callback?.({ success: false, error: "Not friends" }); return; }
+
     const code = getLobbyForSocket(socket.id);
     if (!code) { callback?.({ success: false, error: "Not in a lobby" }); return; }
 
@@ -661,18 +668,26 @@ io.on("connection", (socket) => {
     if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
     if (!content?.trim()) { callback?.({ success: false, error: "Empty message" }); return; }
 
+    // Verify friendship
+    const friendship = await pool.query(
+      "SELECT 1 FROM friendships WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)) AND status = 'accepted' LIMIT 1",
+      [userId, targetUserId]
+    );
+    if (friendship.rows.length === 0) { callback?.({ success: false, error: "Not friends" }); return; }
+
     try {
+      const trimmed = content.trim().slice(0, 2000);
       const id = randomBytes(8).toString("hex");
       await pool.query(
         "INSERT INTO direct_messages (id, sender_id, receiver_id, content) VALUES ($1, $2, $3, $4)",
-        [id, userId, targetUserId, content.trim()]
+        [id, userId, targetUserId, trimmed]
       );
 
       // Look up sender name
       const senderRow = await pool.query("SELECT name FROM users WHERE id = $1", [userId]);
       const senderName = senderRow.rows[0]?.name || "Someone";
 
-      const msg = { id, sender_id: userId, senderName, receiver_id: targetUserId, content: content.trim(), created_at: new Date().toISOString(), read_at: null };
+      const msg = { id, sender_id: userId, senderName, receiver_id: targetUserId, content: trimmed, created_at: new Date().toISOString(), read_at: null };
       const targetSockets = getSocketIdsForUser(targetUserId);
       for (const sid of targetSockets) {
         io.to(sid).emit("dm:received" as any, msg);
@@ -789,6 +804,8 @@ io.on("connection", (socket) => {
 
   socket.on("lobby:create", async (playerName, deckId, callback) => {
     try {
+      const safeName = (typeof playerName === "string" ? playerName : "Player").trim().slice(0, 30) || "Player";
+      playerName = safeName;
       const deck = await getDeck(deckId);
       if (!deck) {
         callback({ success: false, error: "Deck not found" });
@@ -816,6 +833,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("lobby:join", (code, playerName, callback) => {
+    playerName = (typeof playerName === "string" ? playerName : "Player").trim().slice(0, 30) || "Player";
     const result = joinLobby(socket.id, code, playerName);
 
     if ("error" in result) {

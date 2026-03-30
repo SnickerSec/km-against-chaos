@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomBytes } from "crypto";
 import sharp from "sharp";
 import { getDeck } from "./deckStore.js";
 import { requireAuth } from "./auth.js";
@@ -227,7 +228,7 @@ router.get("/callback", async (req, res) => {
     });
 
     // Generate a token to identify this order
-    const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const token = randomBytes(16).toString("hex");
     tgcSessions.set(token, {
       sessionId: session.id,
       userId: session.user_id,

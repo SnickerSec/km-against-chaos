@@ -267,11 +267,11 @@ export async function searchUsers(query: string) {
   return res.json();
 }
 
-export async function sendFriendRequest(email: string) {
+export async function sendFriendRequest(emailOrUserId: string, isUserId = false) {
   const res = await fetch(`${API_URL}/api/friends/request`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify(isUserId ? { userId: emailOrUserId } : { email: emailOrUserId }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to send request");

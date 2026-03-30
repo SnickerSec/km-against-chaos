@@ -26,7 +26,6 @@ interface SearchResult {
   id: string;
   name: string;
   picture: string;
-  email: string;
 }
 
 interface FeedEntry {
@@ -171,12 +170,12 @@ export default function FriendsPage() {
     }, 300);
   };
 
-  const handleSendToUser = async (email: string) => {
+  const handleSendToUser = async (userId: string) => {
     setLoading(true);
     setError(null);
     setSuccess(null);
     try {
-      await sendFriendRequest(email);
+      await sendFriendRequest(userId, true);
       setSuccess("Friend request sent!");
       setQuery("");
       setResults([]);
@@ -323,14 +322,13 @@ export default function FriendsPage() {
                       {results.map((r) => (
                         <button
                           key={r.id}
-                          onClick={() => handleSendToUser(r.email)}
+                          onClick={() => handleSendToUser(r.id)}
                           disabled={loading}
                           className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-700 transition-colors text-left"
                         >
                           <Avatar name={r.name} picture={r.picture} />
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-white truncate">{r.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{r.email}</p>
                           </div>
                         </button>
                       ))}
@@ -527,14 +525,9 @@ export default function FriendsPage() {
                         <button
                           onClick={async () => {
                             try {
-                              // Look up email for this user — use search
-                              const users = await searchUsers(s.name);
-                              const match = users.find((u: any) => u.id === s.id);
-                              if (match) {
-                                await sendFriendRequest(match.email);
-                                setSuggestions((prev) => prev.filter((p) => p.id !== s.id));
-                                setSuccess("Friend request sent!");
-                              }
+                              await sendFriendRequest(s.id, true);
+                              setSuggestions((prev) => prev.filter((p) => p.id !== s.id));
+                              setSuccess("Friend request sent!");
                             } catch (e: any) {
                               setError(e.message);
                             }
