@@ -296,6 +296,96 @@ export async function removeFriend(friendshipId: string) {
   return res.json();
 }
 
+// Friend Nicknames
+export async function setFriendNickname(friendshipId: string, nickname: string) {
+  const res = await fetch(`${API_URL}/api/friends/${friendshipId}/nickname`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ nickname }),
+  });
+  if (!res.ok) throw new Error("Failed to set nickname");
+  return res.json();
+}
+
+// Game History Between Friends
+export async function fetchFriendHistory(friendId: string) {
+  const res = await fetch(`${API_URL}/api/friends/${friendId}/history`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch history");
+  return res.json();
+}
+
+// Friends Activity Feed
+export async function fetchFriendsFeed() {
+  const res = await fetch(`${API_URL}/api/friends/feed`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch feed");
+  return res.json();
+}
+
+// Friends Leaderboard
+export async function fetchFriendsLeaderboard() {
+  const res = await fetch(`${API_URL}/api/friends/leaderboard`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch leaderboard");
+  return res.json();
+}
+
+// Mutual Friends
+export async function fetchMutualFriends(userId: string) {
+  const res = await fetch(`${API_URL}/api/users/${userId}/mutual-friends`, { headers: getAuthHeaders() });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+// Friend Suggestions
+export async function fetchFriendSuggestions() {
+  const res = await fetch(`${API_URL}/api/friends/suggestions`, { headers: getAuthHeaders() });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+// Direct Messages
+export async function fetchMessages(friendId: string, before?: string) {
+  const params = before ? `?before=${encodeURIComponent(before)}` : "";
+  const res = await fetch(`${API_URL}/api/friends/${friendId}/messages${params}`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch messages");
+  return res.json();
+}
+
+export async function sendMessage(friendId: string, content: string) {
+  const res = await fetch(`${API_URL}/api/friends/${friendId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error("Failed to send message");
+  return res.json();
+}
+
+export async function markMessagesRead(friendId: string) {
+  await fetch(`${API_URL}/api/friends/${friendId}/messages/read`, { method: "POST", headers: getAuthHeaders() });
+}
+
+// Notifications
+export async function fetchNotifications(unreadOnly = false) {
+  const res = await fetch(`${API_URL}/api/notifications${unreadOnly ? "?unread=true" : ""}`, { headers: getAuthHeaders() });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function markNotificationRead(id: string) {
+  await fetch(`${API_URL}/api/notifications/${id}/read`, { method: "POST", headers: getAuthHeaders() });
+}
+
+export async function markAllNotificationsRead() {
+  await fetch(`${API_URL}/api/notifications/read-all`, { method: "POST", headers: getAuthHeaders() });
+}
+
+// Unread DM counts
+export async function fetchUnreadCounts() {
+  const res = await fetch(`${API_URL}/api/friends/unread-counts`, { headers: getAuthHeaders() });
+  if (!res.ok) return {};
+  return res.json();
+}
+
 // Admin API
 
 export interface ModelInfo {

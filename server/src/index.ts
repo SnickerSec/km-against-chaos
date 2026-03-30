@@ -1,4 +1,5 @@
 import express from "express";
+import { randomBytes } from "crypto";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
@@ -623,6 +624,71 @@ io.on("connection", (socket) => {
       callback?.({ success: true });
     } catch {
       callback?.({ success: false, error: "Invalid token" });
+    }
+  });
+
+  // ── Friends Real-time Events ──
+
+  // Game invite
+  socket.on("invite:send" as any, async (targetUserId: string, callback?: (res: any) => void) => {
+    const userId = getUserIdForSocket(socket.id);
+    if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
+
+    const code = getLobbyForSocket(socket.id);
+    if (!code) { callback?.({ success: false, error: "Not in a lobby" }); return; }
+
+    const deckName = getLobbyDeckName(code) || "Unknown";
+    const gameType = getLobbyGameType(code) || "cah";
+    const senderName = getPlayerNameInLobby(code, socket.id) || "Someone";
+
+    const targetSockets = getSocketIdsForUser(targetUserId);
+    for (const sid of targetSockets) {
+      io.to(sid).emit("invite:received" as any, {
+        fromUserId: userId,
+        fromName: senderName,
+        lobbyCode: code,
+        deckName,
+        gameType,
+      });
+    }
+    callback?.({ success: true });
+  });
+
+  // Direct message (real-time delivery)
+  socket.on("dm:send" as any, async (targetUserId: string, content: string, callback?: (res: any) => void) => {
+    const userId = getUserIdForSocket(socket.id);
+    if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
+    if (!content?.trim()) { callback?.({ success: false, error: "Empty message" }); return; }
+
+    try {
+      const id = randomBytes(8).toString("hex");
+      await pool.query(
+        "INSERT INTO direct_messages (id, sender_id, receiver_id, content) VALUES ($1, $2, $3, $4)",
+        [id, userId, targetUserId, content.trim()]
+      );
+
+      // Look up sender name
+      const senderRow = await pool.query("SELECT name FROM users WHERE id = $1", [userId]);
+      const senderName = senderRow.rows[0]?.name || "Someone";
+
+      const msg = { id, sender_id: userId, senderName, receiver_id: targetUserId, content: content.trim(), created_at: new Date().toISOString(), read_at: null };
+      const targetSockets = getSocketIdsForUser(targetUserId);
+      for (const sid of targetSockets) {
+        io.to(sid).emit("dm:received" as any, msg);
+      }
+      callback?.({ success: true, message: msg });
+    } catch (e: any) {
+      callback?.({ success: false, error: e.message });
+    }
+  });
+
+  // Typing indicator
+  socket.on("dm:typing" as any, (targetUserId: string) => {
+    const userId = getUserIdForSocket(socket.id);
+    if (!userId) return;
+    const targetSockets = getSocketIdsForUser(targetUserId);
+    for (const sid of targetSockets) {
+      io.to(sid).emit("dm:typing" as any, { userId });
     }
   });
 

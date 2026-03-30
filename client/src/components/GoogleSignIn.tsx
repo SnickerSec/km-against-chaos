@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuthStore, getGoogleClientId } from "@/lib/auth";
+import NotificationBell from "./NotificationBell";
 
 declare global {
   interface Window {
@@ -158,7 +159,10 @@ export default function GoogleSignIn() {
 
   if (user) {
     return (
-      <ProfileDropdown user={user} onLogout={logout} />
+      <div className="flex items-center gap-2">
+        <NotificationBell />
+        <ProfileDropdown user={user} onLogout={logout} />
+      </div>
     );
   }
 

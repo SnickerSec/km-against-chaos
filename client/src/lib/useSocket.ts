@@ -16,6 +16,7 @@ import {
   UnoCard,
   UnoColor,
 } from "./store";
+import { useFriendsStore } from "./friendsStore";
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
@@ -203,6 +204,30 @@ export function useSocket() {
 
     socket.on("uno:uno-penalty" as any, (_playerId: string, _playerName: string) => {
       // Could add a toast/animation here
+    });
+
+    // ── Friends events ──
+    socket.on("friend:online" as any, ({ userId }: { userId: string }) => {
+      useFriendsStore.getState().setUserOnline(userId);
+    });
+    socket.on("friend:offline" as any, ({ userId }: { userId: string }) => {
+      useFriendsStore.getState().setUserOffline(userId);
+    });
+    socket.on("invite:received" as any, (invite: any) => {
+      useFriendsStore.getState().addInvite({
+        id: `${invite.lobbyCode}-${Date.now()}`,
+        ...invite,
+        timestamp: Date.now(),
+      });
+    });
+    socket.on("dm:received" as any, (msg: any) => {
+      const { dmOpen } = useFriendsStore.getState();
+      if (dmOpen !== msg.sender_id) {
+        useFriendsStore.getState().incrementUnread(msg.sender_id);
+      }
+    });
+    socket.on("notification:new" as any, (notification: any) => {
+      useFriendsStore.getState().addNotification(notification);
     });
 
     return () => {
@@ -545,6 +570,24 @@ export function useSocket() {
     });
   };
 
+  const sendInvite = (targetUserId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("invite:send" as any, targetUserId);
+  };
+
+  const sendDm = (targetUserId: string, content: string, callback?: (res: any) => void) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("dm:send" as any, targetUserId, content, callback);
+  };
+
+  const sendDmTyping = (targetUserId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("dm:typing" as any, targetUserId);
+  };
+
   return {
     socket: socketRef.current,
     createLobby,
@@ -572,6 +615,9 @@ export function useSocket() {
     unoNextRound,
     setHouseRules,
     setMaxPlayers,
+    sendInvite,
+    sendDm,
+    sendDmTyping,
     codenamesJoinTeam,
     codenamesStartRound,
     codenamesGiveClue,

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import InviteToast from "@/components/InviteToast";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -41,6 +42,7 @@ export default function RootLayout({
             navigator.serviceWorker.register('/sw.js').catch(() => {});
           }
         `}</Script>
+        <InviteToast />
         {children}
       </body>
     </html>
