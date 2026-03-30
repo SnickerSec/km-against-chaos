@@ -280,38 +280,52 @@ export function useSocket() {
     const socket = socketRef.current;
     if (!socket) return;
 
-    socket.emit(
-      "lobby:create",
-      playerName,
-      deckId || "km-against-chaos",
-      (response: { success: boolean; lobby?: LobbyState; error?: string }) => {
-        if (response.success && response.lobby) {
-          setLobby(response.lobby);
-          setScreen("lobby");
-        } else {
-          setError(response.error || "Failed to create lobby");
+    const doCreate = () => {
+      socket.emit(
+        "lobby:create",
+        playerName,
+        deckId || "km-against-chaos",
+        (response: { success: boolean; lobby?: LobbyState; error?: string }) => {
+          if (response.success && response.lobby) {
+            setLobby(response.lobby);
+            setScreen("lobby");
+          } else if (response.error === "You are already in a lobby") {
+            // Auto-leave stale lobby and retry
+            socket.emit("lobby:leave");
+            setTimeout(doCreate, 100);
+          } else {
+            setError(response.error || "Failed to create lobby");
+          }
         }
-      }
-    );
+      );
+    };
+    doCreate();
   };
 
   const joinLobby = (code: string, playerName: string) => {
     const socket = socketRef.current;
     if (!socket) return;
 
-    socket.emit(
-      "lobby:join",
-      code,
-      playerName,
-      (response: { success: boolean; lobby?: LobbyState; error?: string }) => {
-        if (response.success && response.lobby) {
-          setLobby(response.lobby);
-          setScreen("lobby");
-        } else {
-          setError(response.error || "Failed to join lobby");
+    const doJoin = () => {
+      socket.emit(
+        "lobby:join",
+        code,
+        playerName,
+        (response: { success: boolean; lobby?: LobbyState; error?: string }) => {
+          if (response.success && response.lobby) {
+            setLobby(response.lobby);
+            setScreen("lobby");
+          } else if (response.error === "You are already in a lobby") {
+            // Auto-leave stale lobby and retry
+            socket.emit("lobby:leave");
+            setTimeout(doJoin, 100);
+          } else {
+            setError(response.error || "Failed to join lobby");
+          }
         }
-      }
-    );
+      );
+    };
+    doJoin();
   };
 
   const leaveLobby = () => {
