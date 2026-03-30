@@ -437,12 +437,23 @@ async function callProvider(settings: AiSettings, prompt: string): Promise<strin
 
 function extractJson<T>(text: string, validate: (obj: any) => boolean): T {
   let jsonStr = text.trim();
+
+  // Strip markdown code fences
   const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) {
     jsonStr = jsonMatch[1].trim();
   }
+
+  // Strip leading/trailing non-JSON text (find first { and last })
+  const firstBrace = jsonStr.indexOf("{");
+  const lastBrace = jsonStr.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
+  }
+
   const parsed = JSON.parse(jsonStr) as T;
   if (!validate(parsed)) {
+    console.error("AI response failed validation:", JSON.stringify(parsed).slice(0, 500));
     throw new Error("Invalid response structure");
   }
   return parsed;
@@ -450,6 +461,10 @@ function extractJson<T>(text: string, validate: (obj: any) => boolean): T {
 
 function isValidCards(obj: any): boolean {
   return Array.isArray(obj.chaosCards) && Array.isArray(obj.knowledgeCards);
+}
+
+function isValidUnoDeck(obj: any): boolean {
+  return typeof obj.name === "string" && typeof obj.description === "string" && obj.template && typeof obj.template.colorNames === "object";
 }
 
 function isValidDeck(obj: any): boolean {
@@ -473,5 +488,6 @@ export async function generateDeck(ctx: GenerateContext): Promise<GeneratedDeck>
   const kc = ctx.knowledgeCount || 25;
   const prompt = buildDeckPrompt(ctx, cc, kc);
   const responseText = await callProvider(settings, prompt);
-  return extractJson<GeneratedDeck>(responseText, isValidDeck);
+  const validator = ctx.gameType === "uno" ? isValidUnoDeck : isValidDeck;
+  return extractJson<GeneratedDeck>(responseText, validator);
 }
