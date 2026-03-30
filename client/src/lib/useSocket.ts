@@ -74,16 +74,8 @@ export function useSocket() {
       setScreen("game");
     });
 
-    socket.on("session:reconnected" as any, (data: { lobby: LobbyState; gameView: PlayerGameView | null; chatHistory: ChatMessage[]; screen: "lobby" | "game" }) => {
-      setLobby(data.lobby);
-      if (data.gameView) {
-        setGameView(data.gameView);
-      }
-      if (data.chatHistory?.length) {
-        useGameStore.setState({ chatMessages: data.chatHistory });
-      }
-      setScreen(data.screen);
-    });
+    // session:reconnected is handled in socket.ts (registered at creation time
+    // to avoid missing the event on page refresh before useEffect runs)
 
     socket.on("error", (message: string) => setError(message));
 
