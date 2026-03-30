@@ -1035,25 +1035,25 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("lobby:add-bot" as any, (callback: (response: { success: boolean; error?: string }) => void) => {
+  socket.on("lobby:add-bot" as any, (callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
     const result = addBot(socket.id);
     if ("error" in result) {
       callback({ success: false, error: result.error });
       return;
     }
-    callback({ success: true });
+    callback({ success: true, lobby: result.lobby });
     io.to(result.lobby.code).emit("lobby:updated", result.lobby);
     console.log(`Bot added to lobby ${result.lobby.code}`);
   });
 
-  socket.on("lobby:remove-bot" as any, (botId: string, callback: (response: { success: boolean; error?: string }) => void) => {
+  socket.on("lobby:remove-bot" as any, (botId: string, callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
     const result = removeBot(socket.id, botId);
     if ("error" in result) {
       callback({ success: false, error: result.error });
       return;
     }
     io.to(result.lobby.code).emit("lobby:updated", result.lobby);
-    callback({ success: true });
+    callback({ success: true, lobby: result.lobby });
     console.log(`Bot ${botId} removed from lobby`);
   });
 

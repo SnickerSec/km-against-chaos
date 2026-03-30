@@ -436,9 +436,11 @@ export function useSocket() {
   const addBot = () => {
     const socket = socketRef.current;
     if (!socket) return;
-    socket.emit("lobby:add-bot" as any, (response: { success: boolean; error?: string }) => {
+    socket.emit("lobby:add-bot" as any, (response: { success: boolean; lobby?: LobbyState; error?: string }) => {
       if (!response.success) {
         setError(response.error || "Failed to add bot");
+      } else if (response.lobby) {
+        setLobby(response.lobby);
       }
     });
   };
