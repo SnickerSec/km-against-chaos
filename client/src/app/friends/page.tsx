@@ -38,6 +38,7 @@ export default function FriendsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -95,6 +96,21 @@ export default function FriendsPage() {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: "Decked",
+      text: "Join me on Decked — create and play custom card games!",
+      url: "https://www.decked.gg",
+    };
+    if (navigator.share) {
+      try { await navigator.share(shareData); } catch { /* user cancelled */ }
+    } else {
+      await navigator.clipboard.writeText(shareData.url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -187,7 +203,17 @@ export default function FriendsPage() {
               )}
               {showResults && query.trim().length >= 2 && results.length === 0 && (
                 <div className="absolute left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 px-4 py-3">
-                  <p className="text-sm text-gray-500">No users found</p>
+                  <p className="text-sm text-gray-500 mb-2">No users found</p>
+                  <button
+                    onClick={handleShare}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" />
+                    </svg>
+                    Invite to Decked
+                  </button>
+                  {copied && <p className="text-green-400 text-xs mt-1.5 text-center">Link copied!</p>}
                 </div>
               )}
             </div>
