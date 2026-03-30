@@ -20,6 +20,7 @@ import friendRoutes from "./friendRoutes.js";
 import { recordGameResult } from "./statsStore.js";
 import { verifyJwt } from "./auth.js";
 import { setOnline, setOffline, setInGame, setNotInGame, getUserIdForSocket, getSocketIdsForUser, isOnline, getPresence, remapSocket as remapPresenceSocket } from "./presence.js";
+import { createParty, joinParty, leaveParty, getPartyForUser, getPartyMembers, getPartySocketRoom, remapPartySocket } from "./party.js";
 import { getDeck, seedBuiltInDecks } from "./deckStore.js";
 import pool, { initDb } from "./db.js";
 import {
@@ -690,6 +691,98 @@ io.on("connection", (socket) => {
     for (const sid of targetSockets) {
       io.to(sid).emit("dm:typing" as any, { userId });
     }
+  });
+
+  // ── Party Events ──
+
+  socket.on("party:create" as any, async (callback: (res: any) => void) => {
+    const userId = getUserIdForSocket(socket.id);
+    if (!userId) { callback({ success: false, error: "Not authenticated" }); return; }
+
+    const userRow = await pool.query("SELECT name, picture FROM users WHERE id = $1", [userId]);
+    const { name, picture } = userRow.rows[0] || { name: "Player", picture: "" };
+
+    const result = createParty(userId, socket.id, name, picture);
+    if ("error" in result) { callback({ success: false, error: result.error }); return; }
+
+    socket.join(getPartySocketRoom(result.id));
+    callback({ success: true, party: result });
+  });
+
+  socket.on("party:invite" as any, (targetUserId: string, callback?: (res: any) => void) => {
+    const userId = getUserIdForSocket(socket.id);
+    if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
+
+    const party = getPartyForUser(userId);
+    if (!party) { callback?.({ success: false, error: "Not in a party" }); return; }
+    if (party.leaderId !== userId) { callback?.({ success: false, error: "Only the leader can invite" }); return; }
+
+    const leaderName = party.members.find(m => m.userId === userId)?.name || "Someone";
+    const targetSockets = getSocketIdsForUser(targetUserId);
+    for (const sid of targetSockets) {
+      io.to(sid).emit("party:invite" as any, { partyId: party.id, fromName: leaderName, fromUserId: userId });
+    }
+    callback?.({ success: true });
+  });
+
+  socket.on("party:join" as any, async (partyId: string, callback: (res: any) => void) => {
+    const userId = getUserIdForSocket(socket.id);
+    if (!userId) { callback({ success: false, error: "Not authenticated" }); return; }
+
+    const userRow = await pool.query("SELECT name, picture FROM users WHERE id = $1", [userId]);
+    const { name, picture } = userRow.rows[0] || { name: "Player", picture: "" };
+
+    const result = joinParty(partyId, userId, socket.id, name, picture);
+    if ("error" in result) { callback({ success: false, error: result.error }); return; }
+
+    const room = getPartySocketRoom(partyId);
+    socket.join(room);
+    io.to(room).emit("party:updated" as any, result);
+    callback({ success: true, party: result });
+  });
+
+  socket.on("party:leave" as any, (callback?: (res: any) => void) => {
+    const userId = getUserIdForSocket(socket.id);
+    if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
+
+    const result = leaveParty(userId);
+    if ("error" in result) { callback?.({ success: false, error: result.error }); return; }
+
+    const room = getPartySocketRoom(result.partyId);
+    socket.leave(room);
+    if (result.disbanded) {
+      io.to(room).emit("party:disbanded" as any);
+    } else if (result.party) {
+      io.to(room).emit("party:updated" as any, result.party);
+    }
+    callback?.({ success: true });
+  });
+
+  socket.on("party:start-game" as any, async (deckId: string, callback: (res: any) => void) => {
+    const userId = getUserIdForSocket(socket.id);
+    if (!userId) { callback({ success: false, error: "Not authenticated" }); return; }
+
+    const party = getPartyForUser(userId);
+    if (!party) { callback({ success: false, error: "Not in a party" }); return; }
+    if (party.leaderId !== userId) { callback({ success: false, error: "Only the leader can start" }); return; }
+
+    const deck = await getDeck(deckId);
+    if (!deck) { callback({ success: false, error: "Deck not found" }); return; }
+
+    // Leader creates the lobby
+    const leaderName = party.members.find(m => m.userId === userId)?.name || "Player";
+    const lobbyResult = createLobby(socket.id, leaderName, deckId, deck.name, deck.gameType, deck.winCondition);
+    if ("error" in lobbyResult) { callback({ success: false, error: lobbyResult.error }); return; }
+
+    const lobbyCode = lobbyResult.lobby.code;
+    socket.join(lobbyCode);
+    if (userId) setInGame(userId, lobbyCode, deck.name);
+
+    // Notify party members to join
+    const room = getPartySocketRoom(party.id);
+    io.to(room).emit("party:game-starting" as any, { lobbyCode, deckName: deck.name });
+
+    callback({ success: true, lobby: lobbyResult.lobby });
   });
 
   // ── Lobby Events ──

@@ -19,6 +19,7 @@ import {
 } from "@/lib/api";
 import { useSocket } from "@/lib/useSocket";
 import { useGameStore } from "@/lib/store";
+import { usePartyStore } from "@/lib/partyStore";
 
 interface SearchResult {
   id: string;
@@ -90,8 +91,9 @@ function Avatar({ name, picture, size = "md" }: { name: string; picture?: string
 export default function FriendsPage() {
   const user = useAuthStore((s) => s.user);
   const { friends, setFriends, unreadCounts, setUnreadCounts } = useFriendsStore();
-  const { sendInvite } = useSocket();
+  const { sendInvite, createParty, inviteToParty } = useSocket();
   const lobby = useGameStore((s) => s.lobby);
+  const party = usePartyStore((s) => s.party);
 
   const [tab, setTab] = useState<"friends" | "activity" | "leaderboard">("friends");
   const [query, setQuery] = useState("");
@@ -275,6 +277,34 @@ export default function FriendsPage() {
 
           {tab === "friends" && (
             <>
+              {/* Party */}
+              {!party && (
+                <button
+                  onClick={() => createParty()}
+                  className="w-full mb-4 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-sm font-medium text-purple-400 transition-colors"
+                >
+                  Create Party
+                </button>
+              )}
+              {party && (
+                <div className="mb-4 bg-gray-800 border border-purple-700/50 rounded-lg px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-purple-400 font-semibold uppercase">Your Party ({party.members.length})</span>
+                  </div>
+                  <div className="flex -space-x-1 mb-1">
+                    {party.members.map((m) => (
+                      <div key={m.userId} title={m.name}>
+                        {m.picture ? (
+                          <img src={m.picture} alt="" className="w-6 h-6 rounded-full border border-gray-900" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full border border-gray-900 bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-400">{m.name[0]}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Add Friend */}
               <div className="mb-6" ref={searchRef}>
                 <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Add Friend</h2>
@@ -430,6 +460,14 @@ export default function FriendsPage() {
                                 className="px-2 py-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded text-xs font-medium transition-colors"
                               >
                                 {invitedUsers.has(f.id) ? "Sent" : "Invite"}
+                              </button>
+                            )}
+                            {party && f.presence?.status === "online" && !party.members.some(m => m.userId === f.id) && (
+                              <button
+                                onClick={() => inviteToParty(f.id)}
+                                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-purple-400 rounded text-xs font-medium transition-colors"
+                              >
+                                Party
                               </button>
                             )}
                             <Link

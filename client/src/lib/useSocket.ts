@@ -17,6 +17,7 @@ import {
   UnoColor,
 } from "./store";
 import { useFriendsStore } from "./friendsStore";
+import { usePartyStore } from "./partyStore";
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
@@ -228,6 +229,30 @@ export function useSocket() {
     });
     socket.on("notification:new" as any, (notification: any) => {
       useFriendsStore.getState().addNotification(notification);
+    });
+
+    // ── Party events ──
+    socket.on("party:updated" as any, (party: any) => {
+      usePartyStore.getState().setParty(party);
+    });
+    socket.on("party:disbanded" as any, () => {
+      usePartyStore.getState().setParty(null);
+    });
+    socket.on("party:invite" as any, (invite: any) => {
+      usePartyStore.getState().addInvite({ ...invite, timestamp: Date.now() });
+    });
+    socket.on("party:game-starting" as any, ({ lobbyCode }: { lobbyCode: string }) => {
+      // Auto-join the lobby when party leader starts a game
+      const partyState = usePartyStore.getState().party;
+      if (partyState) {
+        const myName = partyState.members.find(m => m.userId !== partyState.leaderId)?.name || "Player";
+        socket.emit("lobby:join", lobbyCode, myName, (response: any) => {
+          if (response.success && response.lobby) {
+            useGameStore.getState().setLobby(response.lobby);
+            useGameStore.getState().setScreen("lobby");
+          }
+        });
+      }
     });
 
     return () => {
@@ -582,6 +607,37 @@ export function useSocket() {
     socket.emit("dm:send" as any, targetUserId, content, callback);
   };
 
+  const createParty = (callback?: (res: any) => void) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("party:create" as any, (res: any) => {
+      if (res.success) {
+        usePartyStore.getState().setParty(res.party);
+      }
+      callback?.(res);
+    });
+  };
+
+  const inviteToParty = (targetUserId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("party:invite" as any, targetUserId);
+  };
+
+  const leaveParty = () => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("party:leave" as any, () => {
+      usePartyStore.getState().setParty(null);
+    });
+  };
+
+  const startPartyGame = (deckId: string, callback?: (res: any) => void) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("party:start-game" as any, deckId, callback);
+  };
+
   const sendDmTyping = (targetUserId: string) => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -618,6 +674,10 @@ export function useSocket() {
     sendInvite,
     sendDm,
     sendDmTyping,
+    createParty,
+    inviteToParty,
+    leaveParty: leaveParty as any,
+    startPartyGame,
     codenamesJoinTeam,
     codenamesStartRound,
     codenamesGiveClue,
