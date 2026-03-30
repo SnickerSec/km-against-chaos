@@ -5,6 +5,35 @@ import { randomBytes } from "crypto";
 
 const router = Router();
 
+const BODY_SIZE_LIMIT = 100 * 1024;
+
+router.use((req, res, next) => {
+  if (req.headers["content-type"]?.includes("application/json")) {
+    let body = "";
+    let size = 0;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > BODY_SIZE_LIMIT) {
+        res.status(413).json({ error: "Request body too large" });
+        req.destroy();
+        return;
+      }
+      body += chunk;
+    });
+    req.on("end", () => {
+      try {
+        (req as any).body = JSON.parse(body);
+      } catch {
+        (req as any).body = {};
+      }
+      next();
+    });
+  } else {
+    (req as any).body = {};
+    next();
+  }
+});
+
 function genId() { return randomBytes(8).toString("hex"); }
 
 // List friends (accepted) and pending requests
@@ -58,9 +87,7 @@ router.get("/api/users/search", requireAuth, async (req: any, res) => {
 router.post("/api/friends/request", requireAuth, async (req: any, res) => {
   try {
     const userId = req.user.id;
-    let body = req.body;
-    if (typeof body === "string") body = JSON.parse(body);
-    const { email } = body;
+    const { email } = req.body;
 
     if (!email) return res.status(400).json({ error: "Email required" });
 
