@@ -43,8 +43,8 @@ export function useSocket() {
     const socket = getSocket();
     socketRef.current = socket;
 
-    // Don't re-register if listeners are already attached
-    if (socket.listeners("connect").length > 0) return;
+    // Don't re-register if game listeners are already attached
+    if (socket.listeners("lobby:updated").length > 0) return;
 
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
