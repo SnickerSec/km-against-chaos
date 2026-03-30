@@ -28,6 +28,8 @@ export interface CustomDeck {
   wildcard?: string;
   remixedFrom?: string | null;
   gameType?: GameType;
+  artTier?: string;
+  artGenerationStatus?: string | null;
 }
 
 export interface DeckSummary {
@@ -48,6 +50,8 @@ export interface DeckSummary {
   gameType?: GameType;
   playCount?: number;
   avgRating?: number;
+  artTier?: string;
+  artGenerationStatus?: string | null;
 }
 
 const DEFAULT_WIN_CONDITION: WinCondition = { mode: "rounds", value: 10 };
@@ -77,6 +81,8 @@ function rowToDeck(row: any): CustomDeck {
     wildcard: row.wildcard || "",
     remixedFrom: row.remixed_from || null,
     gameType: (row.game_type as GameType) || "cah",
+    artTier: row.art_tier || "free",
+    artGenerationStatus: row.art_generation_status || null,
   };
 }
 

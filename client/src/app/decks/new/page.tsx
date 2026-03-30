@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import DeckForm from "@/components/DeckForm";
-import { createDeck, fetchDeck } from "@/lib/api";
+import { createDeck, createCheckoutSession, fetchDeck } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 
 function NewDeckContent() {
@@ -70,7 +70,18 @@ function NewDeckContent() {
         initial={initialData ?? undefined}
         submitLabel={remixOf ? "Save Remix" : "Create Deck"}
         onSubmit={async (data) => {
-          await createDeck({ ...data, remixedFrom: remixOf || undefined });
+          const deck = await createDeck({ ...data, remixedFrom: remixOf || undefined });
+          if (data.premiumArt && deck.id) {
+            try {
+              const { sessionUrl } = await createCheckoutSession(deck.id);
+              if (sessionUrl) {
+                window.location.href = sessionUrl;
+                return;
+              }
+            } catch (err) {
+              console.error("Failed to create checkout:", err);
+            }
+          }
           router.push("/decks");
         }}
       />

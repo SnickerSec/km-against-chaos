@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Icon } from "@iconify/react";
 import DeckForm from "@/components/DeckForm";
-import { fetchDeck, updateDeck, CustomDeck, API_URL } from "@/lib/api";
+import { fetchDeck, updateDeck, checkArtStatus, CustomDeck, API_URL } from "@/lib/api";
 import { generateDeckPdf } from "@/lib/printDeck";
 import { useAuthStore, getAuthHeaders } from "@/lib/auth";
 
@@ -15,9 +15,11 @@ function EditDeckContent() {
   const id = searchParams.get("id");
   const router = useRouter();
   const { user, loading: authLoading, restore, isAdmin, isModerator } = useAuthStore();
+  const artParam = searchParams.get("art");
   const [deck, setDeck] = useState<CustomDeck | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [artStatus, setArtStatus] = useState<string | null>(artParam === "generating" ? "pending" : null);
 
   useEffect(() => {
     restore();
@@ -45,6 +47,21 @@ function EditDeckContent() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id, user]);
+
+  // Poll art generation status after Stripe redirect
+  useEffect(() => {
+    if (!id || !artStatus || artStatus === "complete" || artStatus === "failed") return;
+    const interval = setInterval(async () => {
+      try {
+        const { artGenerationStatus } = await checkArtStatus(id);
+        setArtStatus(artGenerationStatus);
+        if (artGenerationStatus === "complete" || artGenerationStatus === "failed") {
+          clearInterval(interval);
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [id, artStatus]);
 
   if (authLoading || loading) {
     return (
@@ -76,6 +93,28 @@ function EditDeckContent() {
           </Link>
         </div>
       </div>
+
+      {artStatus && artStatus !== "complete" && artStatus !== "failed" && (
+        <div className="mb-6 bg-purple-900/30 border border-purple-600 rounded-xl p-4 flex items-center gap-3">
+          <Icon icon="mdi:loading" className="text-xl text-purple-400 animate-spin" />
+          <div>
+            <p className="text-sm font-medium text-white">Generating AI art for your cards...</p>
+            <p className="text-xs text-gray-400">This takes 1-3 minutes. You can leave and come back.</p>
+          </div>
+        </div>
+      )}
+      {artStatus === "complete" && (
+        <div className="mb-6 bg-green-900/30 border border-green-600 rounded-xl p-4 flex items-center gap-3">
+          <Icon icon="mdi:check-circle" className="text-xl text-green-400" />
+          <p className="text-sm font-medium text-white">AI art generation complete!</p>
+        </div>
+      )}
+      {artStatus === "failed" && (
+        <div className="mb-6 bg-red-900/30 border border-red-600 rounded-xl p-4 flex items-center gap-3">
+          <Icon icon="mdi:alert-circle" className="text-xl text-red-400" />
+          <p className="text-sm font-medium text-white">Art generation failed. Contact support for a refund.</p>
+        </div>
+      )}
 
       <DeckForm
         initial={{

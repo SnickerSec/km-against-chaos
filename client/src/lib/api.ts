@@ -25,14 +25,16 @@ export interface DeckSummary {
   gameType?: string;
   playCount?: number;
   avgRating?: number;
+  artTier?: string;
+  artGenerationStatus?: string | null;
 }
 
 export interface CustomDeck {
   id: string;
   name: string;
   description: string;
-  chaosCards: { id: string; text: string; pick: number; metaType?: string; metaEffect?: any }[];
-  knowledgeCards: { id: string; text: string; bonus?: boolean }[];
+  chaosCards: { id: string; text: string; pick: number; metaType?: string; metaEffect?: any; imageUrl?: string }[];
+  knowledgeCards: { id: string; text: string; bonus?: boolean; imageUrl?: string }[];
   winCondition: WinCondition;
   createdAt: string;
   updatedAt: string;
@@ -43,6 +45,8 @@ export interface CustomDeck {
   wildcard?: string;
   remixedFrom?: string | null;
   gameType?: string;
+  artTier?: string;
+  artGenerationStatus?: string | null;
   packs?: { type: string; name: string; description: string; chaosCards: { text: string; pick?: number }[]; knowledgeCards: { text: string; bonus?: boolean }[] }[];
 }
 
@@ -435,4 +439,25 @@ export async function updateAdminSetting(key: string, value: any): Promise<void>
     body: JSON.stringify({ value }),
   });
   if (!res.ok) throw new Error("Failed to update setting");
+}
+
+export async function createCheckoutSession(deckId: string): Promise<{ sessionUrl: string }> {
+  const res = await fetch(`${API_URL}/api/stripe/create-checkout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ deckId }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to create checkout session");
+  }
+  return res.json();
+}
+
+export async function checkArtStatus(deckId: string): Promise<{ artTier: string; artGenerationStatus: string | null }> {
+  const res = await fetch(`${API_URL}/api/stripe/art-status/${deckId}`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to check art status");
+  return res.json();
 }

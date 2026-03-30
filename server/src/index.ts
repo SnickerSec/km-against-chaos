@@ -17,6 +17,7 @@ import mediaRoutes from "./mediaRoutes.js";
 import tgcRoutes from "./tgcRoutes.js";
 import statsRoutes from "./statsRoutes.js";
 import friendRoutes from "./friendRoutes.js";
+import stripeRoutes from "./stripeRoutes.js";
 import { recordGameResult } from "./statsStore.js";
 import { verifyJwt } from "./auth.js";
 import { setOnline, setOffline, setInGame, setNotInGame, getUserIdForSocket, getSocketIdsForUser, isOnline, getPresence, remapSocket as remapPresenceSocket } from "./presence.js";
@@ -148,6 +149,16 @@ const staticLimiter = rateLimit({
   message: { error: "Too many requests, please try again later" },
 });
 
+// Raw body capture for Stripe webhooks
+app.use("/api/stripe/webhook", (req: any, _res, next) => {
+  let chunks: Buffer[] = [];
+  req.on("data", (chunk: Buffer) => chunks.push(chunk));
+  req.on("end", () => {
+    req.rawBody = Buffer.concat(chunks);
+    next();
+  });
+});
+
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin", apiLimiter, adminRoutes);
 app.use("/api/decks", apiLimiter, deckRoutes);
@@ -156,6 +167,7 @@ app.use("/api/gifs", staticLimiter, mediaRoutes);
 app.use("/api/print/tgc", apiLimiter, tgcRoutes);
 app.use(apiLimiter, statsRoutes);
 app.use(apiLimiter, friendRoutes);
+app.use(apiLimiter, stripeRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [

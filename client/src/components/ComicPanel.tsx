@@ -605,6 +605,7 @@ interface ComicPanelProps {
   empty?: boolean;
   emptyText?: string;
   className?: string;
+  imageUrl?: string;
 }
 
 export default function ComicPanel({
@@ -616,6 +617,7 @@ export default function ComicPanel({
   empty = false,
   emptyText = "...",
   className = "",
+  imageUrl,
 }: ComicPanelProps) {
   const seed = hashSeed(cardId || text || "empty");
   const cues = analyzeText(text || "");
@@ -672,6 +674,9 @@ export default function ComicPanel({
         <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${labelColor}`}>{label}</p>
       )}
       <div className="aspect-[4/3] bg-white rounded-lg overflow-hidden">
+        {imageUrl ? (
+          <img src={imageUrl} alt={displayText} className="w-full h-full object-cover" loading="lazy" />
+        ) : (
         <svg viewBox="0 0 200 150" className="w-full h-full">
           <rect width="200" height="150" fill="white" />
 
@@ -762,6 +767,7 @@ export default function ComicPanel({
           {/* Panel border */}
           <rect width="200" height="150" fill="none" stroke="black" strokeWidth="3" />
         </svg>
+        )}
       </div>
     </div>
   );

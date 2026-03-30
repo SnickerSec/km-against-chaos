@@ -83,15 +83,15 @@ export default function GameScreen() {
               <div className="flex gap-2 sm:gap-3 max-w-2xl mx-auto">
                 <ComicPanel empty borderColor="gray" label="Panel 1" labelColor="text-blue-400" emptyText="Your setup" />
                 <ComicPanel empty borderColor="gray" label="Panel 2" labelColor="text-blue-400" emptyText="Your setup" />
-                <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} borderColor="red" label="Panel 3" labelColor="text-red-400" />
+                <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} imageUrl={round.chaosCard.imageUrl} borderColor="red" label="Panel 3" labelColor="text-red-400" />
               </div>
             </div>
           ) : (
             /* REGULAR ROUND — drawn card is Panel 1, judge plays Panel 2, players submit Panel 3 */
             <div className="flex gap-2 sm:gap-3 max-w-2xl mx-auto">
-              <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} borderColor="black" label="Panel 1" labelColor="text-gray-400" />
+              <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} imageUrl={round.chaosCard.imageUrl} borderColor="black" label="Panel 1" labelColor="text-gray-400" />
               {round.czarSetupCard ? (
-                <ComicPanel text={round.czarSetupCard.text} cardId={round.czarSetupCard.id} borderColor="purple" label="Panel 2" labelColor="text-purple-400" />
+                <ComicPanel text={round.czarSetupCard.text} cardId={round.czarSetupCard.id} imageUrl={round.czarSetupCard.imageUrl} borderColor="purple" label="Panel 2" labelColor="text-purple-400" />
               ) : (
                 <ComicPanel empty borderColor="gray" label="Panel 2" labelColor="text-purple-400" emptyText="Waiting for Judge..." />
               )}

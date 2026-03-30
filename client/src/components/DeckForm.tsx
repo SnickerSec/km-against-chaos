@@ -85,6 +85,7 @@ interface DeckFormData {
   chaosLevel?: number;
   wildcard?: string;
   gameType?: string;
+  premiumArt?: boolean;
 }
 
 type PackType = "base" | "expansion" | "themed";
@@ -149,6 +150,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [flavorThemes, setFlavorThemes] = useState<string[]>(initial?.flavorThemes || []);
   const [chaosLevel, setChaosLevel] = useState(initial?.chaosLevel ?? 0);
   const [wildcard, setWildcard] = useState(initial?.wildcard || "");
+  const [premiumArt, setPremiumArt] = useState(false);
 
   const [packs, setPacks] = useState<CardPack[]>(() => {
     if (initial?.packs && initial.packs.length > 0) {
@@ -283,6 +285,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         chaosLevel,
         wildcard: wildcard.trim(),
         gameType: isCodenames ? "codenames" : isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : "cah",
+        premiumArt,
       });
     } catch (e: any) {
       setError(e.message);
@@ -732,6 +735,33 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       )}
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
+
+      {/* Premium Art */}
+      {gameType !== "uno" && gameType !== "codenames" && (
+        <div className="mb-6 bg-gray-800/50 border border-gray-700 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Icon icon="mdi:palette" className="text-2xl text-purple-400" />
+              <div>
+                <h3 className="font-semibold text-white">AI-Generated Art</h3>
+                <p className="text-xs text-gray-400">Premium card art powered by AI — $1.50</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPremiumArt(!premiumArt)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${premiumArt ? "bg-purple-600" : "bg-gray-600"}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${premiumArt ? "translate-x-6" : ""}`} />
+            </button>
+          </div>
+          {premiumArt && (
+            <p className="text-xs text-purple-300 mt-2">
+              After saving, you&apos;ll be redirected to checkout. Art generates in 1-3 minutes.
+            </p>
+          )}
+        </div>
+      )}
 
       <button
         onClick={handleSubmit}

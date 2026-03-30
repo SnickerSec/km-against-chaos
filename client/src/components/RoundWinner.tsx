@@ -33,17 +33,17 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
               </span>
             </div>
             <div className="flex gap-2 sm:gap-3 mb-6">
-              <ComicPanel text={winnerInfo.cards[0]?.text || ""} cardId={winnerInfo.cards[0]?.id} borderColor="green" label="Panel 1" labelColor="text-green-400" />
-              <ComicPanel text={winnerInfo.cards[1]?.text || ""} cardId={winnerInfo.cards[1]?.id} borderColor="green" label="Panel 2" labelColor="text-green-400" />
-              <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} borderColor="red" label="Panel 3" labelColor="text-red-400" />
+              <ComicPanel text={winnerInfo.cards[0]?.text || ""} cardId={winnerInfo.cards[0]?.id} imageUrl={winnerInfo.cards[0]?.imageUrl} borderColor="green" label="Panel 1" labelColor="text-green-400" />
+              <ComicPanel text={winnerInfo.cards[1]?.text || ""} cardId={winnerInfo.cards[1]?.id} imageUrl={winnerInfo.cards[1]?.imageUrl} borderColor="green" label="Panel 2" labelColor="text-green-400" />
+              <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} imageUrl={round.chaosCard.imageUrl} borderColor="red" label="Panel 3" labelColor="text-red-400" />
             </div>
           </div>
         ) : (
           /* Regular round reveal: drawn card = Panel 1, judge = Panel 2, winner = Panel 3 */
           <div className="flex gap-2 sm:gap-3 mb-6">
-            <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} borderColor="black" label="Panel 1" labelColor="text-gray-400" />
-            <ComicPanel text={round.czarSetupCard?.text || ""} cardId={round.czarSetupCard?.id} borderColor="purple" label="Panel 2" labelColor="text-purple-400" />
-            <ComicPanel text={winnerInfo.cards[0]?.text || ""} cardId={winnerInfo.cards[0]?.id} borderColor="green" label="Panel 3" labelColor="text-green-400" />
+            <ComicPanel text={round.chaosCard.text} cardId={round.chaosCard.id} imageUrl={round.chaosCard.imageUrl} borderColor="black" label="Panel 1" labelColor="text-gray-400" />
+            <ComicPanel text={round.czarSetupCard?.text || ""} cardId={round.czarSetupCard?.id} imageUrl={round.czarSetupCard?.imageUrl} borderColor="purple" label="Panel 2" labelColor="text-purple-400" />
+            <ComicPanel text={winnerInfo.cards[0]?.text || ""} cardId={winnerInfo.cards[0]?.id} imageUrl={winnerInfo.cards[0]?.imageUrl} borderColor="green" label="Panel 3" labelColor="text-green-400" />
           </div>
         )
       ) : (

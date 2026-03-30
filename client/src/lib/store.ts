@@ -30,6 +30,7 @@ export interface LobbyState {
 export interface KnowledgeCard {
   id: string;
   text: string;
+  imageUrl?: string;
 }
 
 export interface MetaEffect {
@@ -46,6 +47,7 @@ export interface ChaosCard {
   metaType?: string;
   metaEffect?: MetaEffect;
   bonus?: boolean;
+  imageUrl?: string;
 }
 
 export interface MetaEffectNotification {

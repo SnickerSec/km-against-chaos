@@ -75,6 +75,7 @@ export interface ChaosCard {
   metaType?: "score_manipulation" | "ui_interference" | "hand_reset";
   metaEffect?: MetaEffect;
   bonus?: boolean; // Joking Hazard: red-bordered card — becomes Panel 3, players submit 2 cards, 2 points
+  imageUrl?: string;
 }
 
 export interface MetaEffectPayload {
@@ -87,6 +88,7 @@ export interface MetaEffectPayload {
 export interface KnowledgeCard {
   id: string;
   text: string;
+  imageUrl?: string;
 }
 
 export interface Submission {
