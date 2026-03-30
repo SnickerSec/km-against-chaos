@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { useAuthStore } from "@/lib/auth";
@@ -100,12 +100,9 @@ export default function HomeScreen() {
           </h1>
           <GoogleSignIn />
         </div>
-        <div className="flex items-center gap-4">
-          <p className="text-gray-400">
-            Create and play custom card games
-          </p>
-          <Link href="/decks/browse" className="text-gray-400 hover:text-white text-sm transition-colors">Browse Decks</Link>
-        </div>
+        <p className="text-gray-400">
+          Create and play custom card games
+        </p>
       </div>
 
       {/* Name input — always visible */}
