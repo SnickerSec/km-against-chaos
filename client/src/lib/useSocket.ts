@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Socket } from "socket.io-client";
-import { getSocket } from "./socket";
+import { getSocket, waitForAuth } from "./socket";
 import {
   useGameStore,
   LobbyState,
@@ -615,9 +615,10 @@ export function useSocket() {
     socket.emit("dm:send" as any, targetUserId, content, callback);
   };
 
-  const createParty = (callback?: (res: any) => void) => {
+  const createParty = async (callback?: (res: any) => void) => {
     const socket = socketRef.current;
     if (!socket) return;
+    await waitForAuth();
     socket.emit("party:create" as any, (res: any) => {
       if (res.success) {
         usePartyStore.getState().setParty(res.party);

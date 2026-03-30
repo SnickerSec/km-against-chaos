@@ -454,12 +454,13 @@ export default function FriendsPage() {
                                 {invitedUsers.has(f.id) ? "Sent" : "Invite"}
                               </button>
                             )}
-                            {party && f.presence?.status === "online" && !party.members.some(m => m.userId === f.id) && (
+                            {party && !party.members.some(m => m.userId === f.id) && (
                               <button
                                 onClick={() => inviteToParty(f.id)}
-                                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 text-purple-400 rounded text-xs font-medium transition-colors"
+                                disabled={f.presence?.status === "offline"}
+                                className="px-2 py-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded text-xs font-medium transition-colors"
                               >
-                                Party
+                                + Party
                               </button>
                             )}
                             <Link

@@ -16,6 +16,8 @@ function getSessionId(): string {
 }
 
 let socket: Socket | null = null;
+let authReady: Promise<void> | null = null;
+let resolveAuth: (() => void) | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
@@ -49,6 +51,17 @@ export function getSocket(): Socket {
 export function identifySocket(s: Socket): void {
   const token = typeof window !== "undefined" ? localStorage.getItem("km-auth-token") : null;
   if (token && s.connected) {
-    s.emit("auth:identify", token);
+    authReady = new Promise<void>((resolve) => { resolveAuth = resolve; });
+    s.emit("auth:identify" as any, token, () => {
+      resolveAuth?.();
+    });
+  } else {
+    // No token — resolve immediately so callers don't hang
+    authReady = Promise.resolve();
   }
+}
+
+/** Wait until the socket has been identified with the server (or resolve immediately if no auth). */
+export function waitForAuth(): Promise<void> {
+  return authReady || Promise.resolve();
 }
