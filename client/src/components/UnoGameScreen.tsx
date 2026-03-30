@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@iconify/react";
 import { useGameStore, UnoColor } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
@@ -23,8 +24,8 @@ const ACTIVE_COLOR_STYLE: Record<string, string> = {
 };
 
 const DIRECTION_ICON: Record<number, string> = {
-  1: "\u27F3",   // clockwise
-  [-1]: "\u27F2", // counterclockwise
+  1: "mdi:rotate-right",
+  [-1]: "mdi:rotate-left",
 };
 
 export default function UnoGameScreen() {
@@ -118,8 +119,8 @@ export default function UnoGameScreen() {
 
         {/* Direction + Active Color */}
         <div className="flex items-center gap-4">
-          <span className="text-2xl" title={unoTurn.direction === 1 ? "Clockwise" : "Counter-clockwise"}>
-            {DIRECTION_ICON[unoTurn.direction] || "\u27F3"}
+          <span title={unoTurn.direction === 1 ? "Clockwise" : "Counter-clockwise"}>
+            <Icon icon={DIRECTION_ICON[unoTurn.direction] || "mdi:rotate-right"} className="text-2xl text-gray-300" />
           </span>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500">Active:</span>
@@ -142,7 +143,7 @@ export default function UnoGameScreen() {
               transition-all
             `}
           >
-            <span className="text-2xl">🂠</span>
+            <Icon icon="mdi:cards" className="text-2xl text-gray-300" />
             <span className="text-xs text-gray-400 mt-1">{unoTurn.drawPileCount}</span>
             {isMyTurn && !isRoundOver && (
               <span className="text-[10px] text-purple-400 mt-0.5">Draw</span>

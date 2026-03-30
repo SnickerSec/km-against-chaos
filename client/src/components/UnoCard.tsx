@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@iconify/react";
 import { UnoCard as UnoCardType } from "@/lib/store";
 
 const COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
@@ -10,12 +11,10 @@ const COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = 
   wild:   { bg: "bg-gray-800",   border: "border-purple-500", text: "text-white" },
 };
 
-const TYPE_SYMBOLS: Record<string, string> = {
-  skip: "\u{1F6AB}",
-  reverse: "\u{1F500}",
-  draw_two: "+2",
-  wild: "\u{1F308}",
-  wild_draw_four: "+4",
+const TYPE_ICONS: Record<string, string> = {
+  skip: "mdi:block-helper",
+  reverse: "mdi:swap-horizontal",
+  wild: "mdi:palette",
 };
 
 export default function UnoCard({
@@ -33,7 +32,11 @@ export default function UnoCard({
 }) {
   const colorKey = card.color || "wild";
   const colors = COLOR_MAP[colorKey] || COLOR_MAP.wild;
-  const symbol = card.type === "number" ? String(card.value) : TYPE_SYMBOLS[card.type] || card.type;
+  const icon = TYPE_ICONS[card.type];
+  const symbol = card.type === "number" ? String(card.value)
+    : card.type === "draw_two" ? "+2"
+    : card.type === "wild_draw_four" ? "+4"
+    : null;
 
   return (
     <button
@@ -48,7 +51,11 @@ export default function UnoCard({
         ${selected ? "ring-2 ring-white ring-offset-2 ring-offset-gray-900 -translate-y-2 scale-105" : ""}
       `}
     >
-      <span className={`font-bold ${small ? "text-lg" : "text-2xl"} leading-none`}>{symbol}</span>
+      {icon ? (
+        <Icon icon={icon} className={small ? "text-xl" : "text-3xl"} />
+      ) : (
+        <span className={`font-bold ${small ? "text-lg" : "text-2xl"} leading-none`}>{symbol}</span>
+      )}
       {card.colorLabel && (
         <span className={`${small ? "text-[9px]" : "text-[10px]"} opacity-80 mt-1 truncate max-w-full px-1`}>
           {card.colorLabel}
