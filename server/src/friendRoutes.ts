@@ -27,6 +27,33 @@ router.get("/api/friends", requireAuth, async (req: any, res) => {
   }
 });
 
+// Search users by name or email
+router.get("/api/users/search", requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.id;
+    const q = (req.query.q as string || "").trim();
+    if (q.length < 2) return res.json([]);
+
+    const results = await pool.query(`
+      SELECT u.id, u.name, u.picture, u.email
+      FROM users u
+      WHERE u.id != $1
+        AND (u.name ILIKE $2 OR u.email ILIKE $2)
+        AND u.id NOT IN (
+          SELECT CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END
+          FROM friendships f
+          WHERE f.user_id = $1 OR f.friend_id = $1
+        )
+      ORDER BY u.name
+      LIMIT 10
+    `, [userId, `%${q}%`]);
+
+    res.json(results.rows);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Send friend request (by email)
 router.post("/api/friends/request", requireAuth, async (req: any, res) => {
   try {

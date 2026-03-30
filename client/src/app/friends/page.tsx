@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/auth";
 import GoogleSignIn from "@/components/GoogleSignIn";
 import {
   fetchFriends,
+  searchUsers,
   sendFriendRequest,
   acceptFriendRequest,
   removeFriend,
@@ -21,13 +22,24 @@ interface Friend {
   created_at: string;
 }
 
+interface SearchResult {
+  id: string;
+  name: string;
+  picture: string;
+  email: string;
+}
+
 export default function FriendsPage() {
   const user = useAuthStore((s) => s.user);
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [email, setEmail] = useState("");
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const loadFriends = useCallback(async () => {
     if (!user) return;
@@ -43,15 +55,41 @@ export default function FriendsPage() {
     loadFriends();
   }, [loadFriends]);
 
-  const handleSendRequest = async () => {
-    if (!email.trim()) return;
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowResults(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const handleSearch = (value: string) => {
+    setQuery(value);
+    setError(null);
+    setSuccess(null);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (value.trim().length < 2) {
+      setResults([]);
+      setShowResults(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      const data = await searchUsers(value.trim());
+      setResults(data);
+      setShowResults(true);
+    }, 300);
+  };
+
+  const handleSendToUser = async (email: string) => {
     setLoading(true);
     setError(null);
     setSuccess(null);
     try {
-      await sendFriendRequest(email.trim());
+      await sendFriendRequest(email);
       setSuccess("Friend request sent!");
-      setEmail("");
+      setQuery("");
+      setResults([]);
+      setShowResults(false);
       loadFriends();
     } catch (e: any) {
       setError(e.message);
@@ -110,32 +148,48 @@ export default function FriendsPage() {
       ) : (
         <>
           {/* Add Friend */}
-          <div className="mb-8">
+          <div className="mb-8" ref={searchRef}>
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
               Add Friend
             </h2>
-            <div className="flex gap-2">
+            <div className="relative">
               <input
-                type="email"
-                placeholder="Friend's email address"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setError(null);
-                  setSuccess(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSendRequest();
-                }}
-                className="flex-1 px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+                type="text"
+                placeholder="Search by name or email"
+                value={query}
+                onChange={(e) => handleSearch(e.target.value)}
+                onFocus={() => { if (results.length > 0) setShowResults(true); }}
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
               />
-              <button
-                onClick={handleSendRequest}
-                disabled={loading || !email.trim()}
-                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg font-medium text-sm transition-colors"
-              >
-                {loading ? "Sending..." : "Send"}
-              </button>
+              {showResults && results.length > 0 && (
+                <div className="absolute left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden">
+                  {results.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => handleSendToUser(r.email)}
+                      disabled={loading}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-700 transition-colors text-left"
+                    >
+                      {r.picture ? (
+                        <img src={r.picture} alt="" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm font-bold text-gray-400">
+                          {r.name[0]}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{r.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{r.email}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showResults && query.trim().length >= 2 && results.length === 0 && (
+                <div className="absolute left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 px-4 py-3">
+                  <p className="text-sm text-gray-500">No users found</p>
+                </div>
+              )}
             </div>
             {error && (
               <p className="text-red-400 text-sm mt-2">{error}</p>

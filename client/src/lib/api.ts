@@ -261,6 +261,12 @@ export async function fetchFriends() {
   return res.json();
 }
 
+export async function searchUsers(query: string) {
+  const res = await fetch(`${API_URL}/api/users/search?q=${encodeURIComponent(query)}`, { headers: getAuthHeaders() });
+  if (!res.ok) return [];
+  return res.json();
+}
+
 export async function sendFriendRequest(email: string) {
   const res = await fetch(`${API_URL}/api/friends/request`, {
     method: "POST",
