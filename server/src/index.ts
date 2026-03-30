@@ -178,15 +178,17 @@ if (clientDir) {
       return next();
     }
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    // Strip trailing slash for file lookup (e.g. /decks/ -> /decks)
+    const cleanPath = req.path.length > 1 && req.path.endsWith("/") ? req.path.slice(0, -1) : req.path;
     // Sanitize path to prevent directory traversal
-    const safePath = normalize(req.path).replace(/^(\.\.[\/\\])+/, "");
+    const safePath = normalize(cleanPath).replace(/^(\.\.[\/\\])+/, "");
     const resolvedBase = resolve(clientDir);
-    // Try exact path as .html (e.g. /decks/edit -> /decks/edit.html)
+    // Try exact path as .html (e.g. /decks -> /decks.html, /decks/edit -> /decks/edit.html)
     const htmlFile = resolve(clientDir, "." + safePath + ".html");
     if (htmlFile.startsWith(resolvedBase) && existsSync(htmlFile)) {
       return res.sendFile(htmlFile);
     }
-    // Try as directory index (e.g. /decks -> /decks.html or /decks/index.html)
+    // Try as directory index (e.g. /decks/ -> /decks/index.html)
     const indexFile = resolve(clientDir, "." + safePath, "index.html");
     if (indexFile.startsWith(resolvedBase) && existsSync(indexFile)) {
       return res.sendFile(indexFile);
