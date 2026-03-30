@@ -991,7 +991,6 @@ io.on("connection", (socket) => {
       setTimeout(() => io.to(code).emit("lobby:countdown" as any, 1), 2000);
       setTimeout(() => {
         io.to(code).emit("lobby:countdown" as any, 0);
-        io.to(code).emit("lobby:started");
 
         if (gameType === "codenames") {
           // Extract word pool from knowledge cards
@@ -1002,6 +1001,7 @@ io.on("connection", (socket) => {
             wordPool.push(...defaults);
           }
           createCodenamesGame(code, playerIds, wordPool);
+          io.to(code).emit("lobby:started");
           // Send initial view to all players (team pick phase)
           for (const pid of playerIds) {
             const view = getCodenamesPlayerView(code, pid);
@@ -1016,6 +1016,7 @@ io.on("connection", (socket) => {
           const template = unoTemplate || { colorNames: { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" } };
           const houseRules = getLobbyHouseRules(code);
           createUnoGame(code, playerIds, template, winCondition, houseRules);
+          io.to(code).emit("lobby:started");
           sendUnoTurnToPlayers(code);
           triggerUnoBotTurn(code);
           scheduleUnoTurnTimer(code);
@@ -1024,9 +1025,15 @@ io.on("connection", (socket) => {
           const round = startRound(code);
 
           if (round) {
+            io.to(code).emit("lobby:started");
             sendRoundToPlayers(code);
             triggerBotActions(code);
             scheduleRoundTimer(code);
+          } else {
+            // Failed to start round (e.g. not enough cards) — end the game
+            const scores = getScores(code) || {};
+            endGame(code);
+            io.to(code).emit("game:over", scores);
           }
         }
 
