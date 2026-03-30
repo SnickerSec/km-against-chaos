@@ -349,7 +349,6 @@ export default function DecksPage() {
                     className="flex items-center justify-between bg-gray-900 rounded-xl p-4"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
                         {(isOwner(deck) || isAdmin || isModerator) ? (
                           <Link
                             href={`/decks/edit?id=${deck.id}`}
@@ -360,17 +359,18 @@ export default function DecksPage() {
                         ) : (
                           <span className="font-semibold text-lg">{deck.name}</span>
                         )}
-                        <GameTypeBadge gameType={deck.gameType} />
-                      </div>
                       {deck.description && (
                         <p className="text-gray-400 text-sm truncate">{deck.description}</p>
                       )}
-                      <p className="text-gray-500 text-xs mt-1">
-                        {deck.gameType === "uno"
-                          ? "108 cards · Custom themed Uno"
-                          : `${deck.chaosCount} prompts · ${deck.knowledgeCount} answers`}
-                        {deck.builtIn && " · Built-in"}
-                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <GameTypeBadge gameType={deck.gameType} />
+                        <span className="text-gray-500 text-xs">
+                          {deck.gameType === "uno"
+                            ? "108 cards · Custom themed Uno"
+                            : `${deck.chaosCount} prompts · ${deck.knowledgeCount} answers`}
+                          {deck.builtIn && " · Built-in"}
+                        </span>
+                      </div>
                     </div>
                   <div className="flex gap-2 ml-4">
                     <PrintDropdown
