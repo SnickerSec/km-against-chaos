@@ -39,6 +39,7 @@ export interface LobbyState {
   winCondition: { mode: string; value: number };
   houseRules?: { unoStacking?: boolean };
   status: "waiting" | "playing" | "finished";
+  maxPlayers: number;
   rematchVotes: number;
   rematchVoters: string[];
 }

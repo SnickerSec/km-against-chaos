@@ -30,7 +30,7 @@ function formatWinCondition(mode: string, value: number, gameType: string): stri
 
 export default function LobbyScreen() {
   const { lobby, error, countdown } = useGameStore();
-  const { leaveLobby, startGame, addBot, removeBot, kickPlayer, changeDeck, setHouseRules } = useSocket();
+  const { leaveLobby, startGame, addBot, removeBot, kickPlayer, changeDeck, setHouseRules, setMaxPlayers } = useSocket();
   const [showDeckPicker, setShowDeckPicker] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -139,9 +139,25 @@ export default function LobbyScreen() {
       </div>
 
       <div className="w-full max-w-sm mb-6">
-        <p className="text-gray-400 text-sm mb-2">
-          Players ({lobby.players.length}/10)
-        </p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-gray-400 text-sm">
+            Players ({lobby.players.length}/{lobby.maxPlayers})
+          </p>
+          {isHost && (
+            <label className="flex items-center gap-1.5 text-xs text-gray-400">
+              Max
+              <select
+                value={lobby.maxPlayers}
+                onChange={(e) => setMaxPlayers(Number(e.target.value))}
+                className="bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 text-white text-xs focus:outline-none focus:border-purple-500"
+              >
+                {[2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50].map((n) => (
+                  <option key={n} value={n} disabled={n < lobby.players.length}>{n}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
         <div className="space-y-2">
           {lobby.players.map((player) => (
             <div
@@ -194,7 +210,7 @@ export default function LobbyScreen() {
         </div>
       </div>
 
-      {isHost && lobby.players.length < 10 && (
+      {isHost && lobby.players.length < lobby.maxPlayers && (
         <button
           onClick={addBot}
           className="w-full max-w-sm mb-4 py-2 bg-gray-700 hover:bg-gray-600 text-blue-400 rounded-lg text-sm font-medium transition-colors"

@@ -26,6 +26,7 @@ function lobbyToState(lobby: Lobby): LobbyState {
     winCondition: lobby.winCondition,
     houseRules: lobby.houseRules,
     status: lobby.status,
+    maxPlayers: lobby.maxPlayers,
     rematchVotes: lobby.rematchVotes.size,
     rematchVoters: [...lobby.rematchVotes],
   };
@@ -428,6 +429,23 @@ export function setLobbyHouseRules(socketId: string, houseRules: { unoStacking?:
   if (lobby.status !== "waiting") return { error: "Cannot change rules while playing" };
 
   lobby.houseRules = houseRules;
+
+  return { code, lobby: lobbyToState(lobby) };
+}
+
+export function setMaxPlayers(socketId: string, maxPlayers: number): { code: string; lobby: LobbyState } | { error: string } {
+  const code = playerLobby.get(socketId);
+  if (!code) return { error: "You are not in a lobby" };
+
+  const lobby = lobbies.get(code);
+  if (!lobby) return { error: "Lobby not found" };
+
+  if (lobby.hostId !== socketId) return { error: "Only the host can change player limit" };
+  if (lobby.status !== "waiting") return { error: "Cannot change player limit while playing" };
+  if (maxPlayers < 2 || maxPlayers > 50) return { error: "Player limit must be between 2 and 50" };
+  if (lobby.players.size > maxPlayers) return { error: "Cannot set limit below current player count" };
+
+  lobby.maxPlayers = maxPlayers;
 
   return { code, lobby: lobbyToState(lobby) };
 }

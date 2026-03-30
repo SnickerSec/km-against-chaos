@@ -535,6 +535,16 @@ export function useSocket() {
     });
   };
 
+  const setMaxPlayers = (maxPlayers: number) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("lobby:set-max-players" as any, maxPlayers, (response: { success: boolean; error?: string }) => {
+      if (!response.success) {
+        setError(response.error || "Failed to set player limit");
+      }
+    });
+  };
+
   return {
     socket: socketRef.current,
     createLobby,
@@ -561,6 +571,7 @@ export function useSocket() {
     challengeUno,
     unoNextRound,
     setHouseRules,
+    setMaxPlayers,
     codenamesJoinTeam,
     codenamesStartRound,
     codenamesGiveClue,

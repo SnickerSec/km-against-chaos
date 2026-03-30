@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import { join, resolve, normalize } from "path";
 import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
-import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, getLobbyDeckName, getLobbyGameType, isPlayerBot, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby, kickPlayer, joinAsSpectator, getActivePlayers, resetLobbyForRematch, changeLobbyDeck, voteRematch, setLobbyHouseRules, getLobbyHouseRules } from "./lobby.js";
+import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, getLobbyDeckName, getLobbyGameType, isPlayerBot, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby, kickPlayer, joinAsSpectator, getActivePlayers, resetLobbyForRematch, changeLobbyDeck, voteRematch, setLobbyHouseRules, getLobbyHouseRules, setMaxPlayers } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from "./adminRoutes.js";
@@ -700,6 +700,13 @@ io.on("connection", (socket) => {
 
   socket.on("lobby:set-house-rules" as any, (houseRules: { unoStacking?: boolean }, callback: (res: any) => void) => {
     const result = setLobbyHouseRules(socket.id, houseRules);
+    if ("error" in result) { callback({ success: false, error: result.error }); return; }
+    callback({ success: true });
+    io.to(result.code).emit("lobby:updated", result.lobby);
+  });
+
+  socket.on("lobby:set-max-players" as any, (maxPlayers: number, callback: (res: any) => void) => {
+    const result = setMaxPlayers(socket.id, maxPlayers);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     callback({ success: true });
     io.to(result.code).emit("lobby:updated", result.lobby);
