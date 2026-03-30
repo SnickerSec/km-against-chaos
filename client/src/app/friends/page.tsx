@@ -121,28 +121,21 @@ export default function FriendsPage() {
     } catch {}
   }, [user, setFriends]);
 
+  // Load friends + unread counts once on mount
+  const initialLoadDone = useRef(false);
   useEffect(() => {
+    if (!user || initialLoadDone.current) return;
+    initialLoadDone.current = true;
     loadFriends();
-  }, [loadFriends]);
+    fetchUnreadCounts().then(setUnreadCounts).catch(() => {});
+    fetchFriendSuggestions().then(setSuggestions).catch(() => {});
+  }, [user, loadFriends, setUnreadCounts]);
 
+  // Load tab-specific data only when switching tabs
   useEffect(() => {
     if (!user) return;
-    fetchUnreadCounts().then(setUnreadCounts).catch(() => {});
-  }, [user, setUnreadCounts]);
-
-  useEffect(() => {
-    if (!user || tab !== "activity") return;
-    fetchFriendsFeed().then(setFeed).catch(() => {});
-  }, [user, tab]);
-
-  useEffect(() => {
-    if (!user || tab !== "leaderboard") return;
-    fetchFriendsLeaderboard().then(setLeaderboard).catch(() => {});
-  }, [user, tab]);
-
-  useEffect(() => {
-    if (!user || tab !== "friends") return;
-    fetchFriendSuggestions().then(setSuggestions).catch(() => {});
+    if (tab === "activity") fetchFriendsFeed().then(setFeed).catch(() => {});
+    if (tab === "leaderboard") fetchFriendsLeaderboard().then(setLeaderboard).catch(() => {});
   }, [user, tab]);
 
   useEffect(() => {

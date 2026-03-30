@@ -128,7 +128,7 @@ app.get("/health", (_req, res) => {
 // Rate limiting for API routes
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 60,
+  max: 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later" },
