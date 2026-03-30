@@ -8,6 +8,7 @@ import { useFriendsStore } from "@/lib/friendsStore";
 import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
 import GoogleSignIn from "@/components/GoogleSignIn";
+import GameTypeBadge from "@/components/GameTypeBadge";
 import {
   fetchFriendHistory,
   fetchMutualFriends,
@@ -271,7 +272,10 @@ function FriendProfilePage() {
                     <div key={g.id} className="flex items-center justify-between bg-gray-800 px-4 py-3 rounded-lg">
                       <div>
                         <p className="text-sm font-medium">{g.deck_name}</p>
-                        <p className="text-xs text-gray-500">{g.game_type.toUpperCase()} · {timeAgo(g.ended_at)}</p>
+                        <div className="flex items-center gap-1.5">
+                          <GameTypeBadge gameType={g.game_type} />
+                          <span className="text-xs text-gray-500">{timeAgo(g.ended_at)}</span>
+                        </div>
                       </div>
                       <div className="text-right text-sm">
                         <p className={g.my_win ? "text-green-400 font-medium" : "text-gray-400"}>You: {g.my_score}</p>

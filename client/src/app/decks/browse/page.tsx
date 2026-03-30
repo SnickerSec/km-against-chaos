@@ -5,6 +5,7 @@ import Link from "next/link";
 import { fetchDecks, rateDeck, DeckSummary } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import GoogleSignIn from "@/components/GoogleSignIn";
+import GameTypeBadge from "@/components/GameTypeBadge";
 
 const GAME_TYPE_FILTERS = [
   ["all", "All"],
@@ -62,19 +63,6 @@ function StarRating({
   );
 }
 
-function gameTypeBadge(gameType?: string) {
-  switch (gameType) {
-    case "joking_hazard":
-      return { label: "Joking Hazard", classes: "bg-orange-600/30 text-orange-300" };
-    case "apples_to_apples":
-      return { label: "Apples to Apples", classes: "bg-green-600/30 text-green-300" };
-    case "uno":
-      return { label: "Uno", classes: "bg-blue-600/30 text-blue-300" };
-    default:
-      return { label: "CAH", classes: "bg-red-600/30 text-red-300" };
-  }
-}
-
 function BrowseDeckCard({
   deck,
   isLoggedIn,
@@ -84,25 +72,21 @@ function BrowseDeckCard({
   isLoggedIn: boolean;
   onRate: (deckId: string, rating: number) => void;
 }) {
-  const badge = gameTypeBadge(deck.gameType);
-
   return (
     <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <div className="flex items-center gap-2 mb-1">
             <h3 className="font-bold text-lg text-white">{deck.name}</h3>
-            <span className={`text-xs px-2 py-0.5 rounded-full ${badge.classes}`}>
-              {badge.label}
-            </span>
             {deck.builtIn && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-purple-600/30 text-purple-300">Featured</span>
             )}
           </div>
           {deck.description && (
-            <p className="text-gray-400 text-sm mb-2 line-clamp-2">{deck.description}</p>
+            <p className="text-gray-400 text-sm mb-1 line-clamp-2">{deck.description}</p>
           )}
-          <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap mt-1">
+            <GameTypeBadge gameType={deck.gameType} />
             {deck.ownerName && <span>by {deck.ownerName}</span>}
             <span>
               {deck.gameType === "uno"

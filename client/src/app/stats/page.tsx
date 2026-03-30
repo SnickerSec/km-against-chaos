@@ -4,17 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/auth";
 import { fetchMyStats, fetchLeaderboard } from "@/lib/api";
-
-const GAME_TYPE_LABELS: Record<string, string> = {
-  cah: "Cards Against Humanity",
-  joking_hazard: "Joking Hazard",
-  apples_to_apples: "Apples to Apples",
-  uno: "Uno",
-};
-
-function gameTypeLabel(gt: string): string {
-  return GAME_TYPE_LABELS[gt] || gt;
-}
+import GameTypeBadge from "@/components/GameTypeBadge";
 
 interface PlayerStats {
   totalGames: number;
@@ -105,9 +95,7 @@ export default function StatsPage() {
           {myStats.favoriteGameType && (
             <p className="text-gray-400 text-sm mb-4">
               Favorite game type:{" "}
-              <span className="text-purple-400">
-                {gameTypeLabel(myStats.favoriteGameType)}
-              </span>
+              <GameTypeBadge gameType={myStats.favoriteGameType} />
             </p>
           )}
 
@@ -123,9 +111,7 @@ export default function StatsPage() {
                     key={b.gameType}
                     className="flex items-center justify-between px-4 py-3"
                   >
-                    <span className="text-gray-300">
-                      {gameTypeLabel(b.gameType)}
-                    </span>
+                    <GameTypeBadge gameType={b.gameType} />
                     <span className="text-gray-500 text-sm">
                       {b.wins}W / {b.games}G
                     </span>
@@ -149,9 +135,7 @@ export default function StatsPage() {
                   >
                     <div>
                       <span className="text-gray-200">{g.deckName}</span>
-                      <span className="text-gray-600 text-xs ml-2">
-                        {gameTypeLabel(g.gameType)}
-                      </span>
+                      <GameTypeBadge gameType={g.gameType} />
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-gray-500 text-sm">

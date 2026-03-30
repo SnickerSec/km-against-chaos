@@ -20,6 +20,7 @@ import {
 import { useSocket } from "@/lib/useSocket";
 import { useGameStore } from "@/lib/store";
 import { usePartyStore } from "@/lib/partyStore";
+import GameTypeBadge from "@/components/GameTypeBadge";
 
 interface SearchResult {
   id: string;
@@ -570,9 +571,10 @@ export default function FriendsPage() {
                           )}
                           <span className="text-gray-400"> {entry.deck_name}</span>
                         </p>
-                        <p className="text-xs text-gray-500">
-                          {entry.game_type.toUpperCase()} · Score: {entry.final_score} · {timeAgo(entry.ended_at)}
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <GameTypeBadge gameType={entry.game_type} />
+                          <span className="text-xs text-gray-500">Score: {entry.final_score} · {timeAgo(entry.ended_at)}</span>
+                        </div>
                       </div>
                     </div>
                   ))}

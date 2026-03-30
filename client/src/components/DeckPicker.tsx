@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { fetchDecks, DeckSummary } from "@/lib/api";
+import GameTypeBadge from "./GameTypeBadge";
 
 const GAME_TYPE_FILTERS = [
   ["all", "All"],
@@ -20,43 +21,31 @@ function DeckCard({ deck, onSelect, buttonLabel }: { deck: DeckSummary; onSelect
     <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h3 className="font-bold text-lg">{deck.name}</h3>
-            <span className={`text-xs px-2 py-0.5 rounded-full ${
-              deck.gameType === "joking_hazard"
-                ? "bg-orange-600/30 text-orange-300"
-                : deck.gameType === "apples_to_apples"
-                ? "bg-green-600/30 text-green-300"
-                : deck.gameType === "uno"
-                ? "bg-blue-600/30 text-blue-300"
+          <h3 className="font-bold text-lg">{deck.name}</h3>
+          {deck.description && (
+            <p className="text-gray-400 text-sm mb-1">{deck.description}</p>
+          )}
+          <div className="flex items-center gap-2 mt-1">
+            <GameTypeBadge gameType={deck.gameType} />
+            <span className="text-gray-600 text-xs">
+              {deck.ownerName && <span>by {deck.ownerName} · </span>}
+              {deck.gameType === "uno"
+                ? "108 cards"
                 : deck.gameType === "codenames"
-                ? "bg-cyan-600/30 text-cyan-300"
-                : "bg-red-600/30 text-red-300"
-            }`}>
-              {deck.gameType === "joking_hazard" ? "Joking Hazard" : deck.gameType === "apples_to_apples" ? "Apples to Apples" : deck.gameType === "uno" ? "Uno" : deck.gameType === "codenames" ? "Codenames" : "CAH"}
+                ? `${deck.knowledgeCount} words`
+                : `${deck.chaosCount} prompts · ${deck.knowledgeCount} answers`}
+              {" · "}
+              {deck.gameType === "codenames"
+                ? "Team word-guessing"
+                : deck.winCondition?.mode === "points"
+                ? `First to ${deck.winCondition.value} pts`
+                : deck.winCondition?.mode === "single_round"
+                ? "Single round"
+                : deck.winCondition?.mode === "lowest_score"
+                ? `Lowest score (${deck.winCondition.value} limit)`
+                : `${deck.winCondition?.value || 10} rounds`}
             </span>
           </div>
-          {deck.description && (
-            <p className="text-gray-400 text-sm mb-2">{deck.description}</p>
-          )}
-          <p className="text-gray-600 text-xs">
-            {deck.ownerName && <span>by {deck.ownerName} · </span>}
-            {deck.gameType === "uno"
-              ? "108 cards"
-              : deck.gameType === "codenames"
-              ? `${deck.knowledgeCount} words`
-              : `${deck.chaosCount} prompts · ${deck.knowledgeCount} answers`}
-            {" · "}
-            {deck.gameType === "codenames"
-              ? "Team word-guessing"
-              : deck.winCondition?.mode === "points"
-              ? `First to ${deck.winCondition.value} pts`
-              : deck.winCondition?.mode === "single_round"
-              ? "Single round"
-              : deck.winCondition?.mode === "lowest_score"
-              ? `Lowest score (${deck.winCondition.value} limit)`
-              : `${deck.winCondition?.value || 10} rounds`}
-          </p>
         </div>
         <button
           onClick={() => onSelect(deck.id)}
