@@ -163,6 +163,16 @@ export default function HomeScreen() {
       )}
 
       {/* Host a Game */}
+      <div className="flex items-center justify-between mb-2">
+        <span />
+        <button
+          onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "/" }))}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800/50 hover:bg-gray-800 border border-gray-700 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          <span>Search decks</span>
+          <kbd className="px-1.5 py-0.5 bg-gray-800 border border-gray-700 rounded text-[10px] font-mono">/</kbd>
+        </button>
+      </div>
       <DeckPicker title="Host a Game" onSelect={handleCreate} />
 
       {/* Legal footer */}

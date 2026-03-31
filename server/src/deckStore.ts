@@ -137,7 +137,7 @@ export async function listDecks(options?: { search?: string; gameType?: string; 
     let paramIdx = 1;
 
     if (options?.search) {
-      conditions.push(`(d.name ILIKE $${paramIdx} OR d.description ILIKE $${paramIdx})`);
+      conditions.push(`(d.name ILIKE $${paramIdx} OR d.description ILIKE $${paramIdx} OR u.name ILIKE $${paramIdx})`);
       params.push(`%${options.search}%`);
       paramIdx++;
     }

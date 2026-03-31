@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Icon } from "@iconify/react";
-import { fetchDecks, rateDeck, DeckSummary } from "@/lib/api";
+import { fetchDecks, rateDeck, toggleFavorite, getFavorites, DeckSummary } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import GoogleSignIn from "@/components/GoogleSignIn";
 import GameTypeBadge from "@/components/GameTypeBadge";
@@ -28,6 +28,7 @@ const SORT_OPTIONS = [
   ["popular", "Most Played", "mdi:fire"],
   ["rating", "Top Rated", "mdi:star"],
   ["newest", "Newest", "mdi:clock-outline"],
+  ["favorites", "Favorites", "mdi:heart"],
 ] as const;
 
 type GameTypeFilter = typeof GAME_TYPE_FILTERS[number][0];
@@ -114,11 +115,15 @@ function TrendingCard({
 function BrowseDeckCard({
   deck,
   isLoggedIn,
+  isFavorited,
   onRate,
+  onToggleFavorite,
 }: {
   deck: DeckSummary;
   isLoggedIn: boolean;
+  isFavorited: boolean;
   onRate: (deckId: string, rating: number) => void;
+  onToggleFavorite: (deckId: string) => void;
 }) {
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-all overflow-hidden">
@@ -184,6 +189,19 @@ function BrowseDeckCard({
             )}
           </div>
           <div className="flex items-center gap-2">
+            {isLoggedIn && (
+              <button
+                onClick={() => onToggleFavorite(deck.id)}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  isFavorited
+                    ? "text-red-400 hover:text-red-300"
+                    : "text-gray-600 hover:text-gray-400"
+                }`}
+                title={isFavorited ? "Remove from favorites" : "Add to favorites"}
+              >
+                <Icon icon={isFavorited ? "mdi:heart" : "mdi:heart-outline"} width={16} />
+              </button>
+            )}
             <Link
               href={`/decks/new?remixOf=${deck.id}`}
               className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
@@ -212,11 +230,21 @@ export default function BrowseDecksPage() {
   const [filter, setFilter] = useState<GameTypeFilter>("all");
   const [maturity, setMaturity] = useState<MaturityFilter>("all");
   const [sort, setSort] = useState<SortOption>("popular");
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const authUser = useAuthStore((s) => s.user);
   const restore = useAuthStore((s) => s.restore);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { restore(); }, [restore]);
+
+  // Load favorites when logged in
+  useEffect(() => {
+    if (authUser) {
+      getFavorites()
+        .then((ids) => setFavoriteIds(new Set(ids)))
+        .catch(() => {});
+    }
+  }, [authUser]);
 
   // Load trending on mount
   useEffect(() => {
@@ -267,7 +295,21 @@ export default function BrowseDecksPage() {
     } catch {}
   };
 
+  const handleToggleFavorite = async (deckId: string) => {
+    try {
+      const { favorited } = await toggleFavorite(deckId);
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        if (favorited) next.add(deckId);
+        else next.delete(deckId);
+        return next;
+      });
+    } catch {}
+  };
+
   const hasActiveFilters = search || filter !== "all" || maturity !== "all";
+  const showFavorites = sort === "favorites";
+  const displayDecks = showFavorites ? decks.filter(d => favoriteIds.has(d.id)) : decks;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 min-h-screen">
@@ -369,19 +411,23 @@ export default function BrowseDecksPage() {
         <div className="flex items-center justify-center py-12">
           <Icon icon="mdi:loading" className="text-2xl text-purple-400 animate-spin" />
         </div>
-      ) : decks.length === 0 ? (
+      ) : displayDecks.length === 0 ? (
         <div className="text-center py-12">
-          <Icon icon="mdi:cards-playing-outline" className="text-4xl text-gray-700 mx-auto mb-3" />
-          <p className="text-gray-500">No decks found. Try a different search or filter.</p>
+          <Icon icon={showFavorites ? "mdi:heart-outline" : "mdi:cards-playing-outline"} className="text-4xl text-gray-700 mx-auto mb-3" />
+          <p className="text-gray-500">
+            {showFavorites ? "No favorites yet. Heart some decks to save them here." : "No decks found. Try a different search or filter."}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {decks.map((deck) => (
+          {displayDecks.map((deck) => (
             <BrowseDeckCard
               key={deck.id}
               deck={deck}
               isLoggedIn={!!authUser}
+              isFavorited={favoriteIds.has(deck.id)}
               onRate={handleRate}
+              onToggleFavorite={handleToggleFavorite}
             />
           ))}
         </div>

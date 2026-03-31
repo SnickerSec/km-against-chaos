@@ -442,6 +442,23 @@ export async function updateAdminSetting(key: string, value: any): Promise<void>
   if (!res.ok) throw new Error("Failed to update setting");
 }
 
+export async function toggleFavorite(deckId: string): Promise<{ favorited: boolean }> {
+  const res = await fetch(`${API_URL}/api/decks/${deckId}/favorite`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to toggle favorite");
+  return res.json();
+}
+
+export async function getFavorites(): Promise<string[]> {
+  const res = await fetch(`${API_URL}/api/decks/user/favorites`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to fetch favorites");
+  return res.json();
+}
+
 export async function generateArtPreview(cardText: string, gameType: string, theme: string, maturity?: string): Promise<{ imageUrl: string; previewsRemaining?: number }> {
   const res = await fetch(`${API_URL}/api/art/preview`, {
     method: "POST",

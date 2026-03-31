@@ -161,6 +161,19 @@ export async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_deck_ratings_deck ON deck_ratings(deck_id)`);
 
+  // Deck favorites
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS deck_favorites (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      deck_id TEXT REFERENCES decks(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, deck_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_deck_favorites_user ON deck_favorites(user_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_deck_favorites_deck ON deck_favorites(deck_id)`);
+
   // Friends enrichment columns
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ DEFAULT NOW()`);
   await pool.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS nickname TEXT DEFAULT NULL`);

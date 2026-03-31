@@ -84,6 +84,19 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Get user's favorited deck IDs (must be before /:id route)
+router.get("/user/favorites", requireAuth, async (req: any, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT deck_id FROM deck_favorites WHERE user_id = $1 ORDER BY created_at DESC",
+      [req.user.id]
+    );
+    res.json(rows.map((r: any) => r.deck_id));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Get a single deck
 router.get("/:id", async (req, res) => {
   try {
@@ -161,6 +174,36 @@ router.post("/:id/rate", requireAuth, async (req: any, res) => {
     `, [deckId]);
 
     res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Toggle favorite on a deck
+router.post("/:id/favorite", requireAuth, async (req: any, res) => {
+  try {
+    const deckId = req.params.id;
+    const userId = req.user.id;
+
+    // Check if already favorited
+    const { rows } = await pool.query(
+      "SELECT id FROM deck_favorites WHERE user_id = $1 AND deck_id = $2",
+      [userId, deckId]
+    );
+
+    if (rows.length > 0) {
+      // Unfavorite
+      await pool.query("DELETE FROM deck_favorites WHERE user_id = $1 AND deck_id = $2", [userId, deckId]);
+      res.json({ favorited: false });
+    } else {
+      // Favorite
+      const id = randomBytes(8).toString("hex");
+      await pool.query(
+        "INSERT INTO deck_favorites (id, user_id, deck_id) VALUES ($1, $2, $3)",
+        [id, userId, deckId]
+      );
+      res.json({ favorited: true });
+    }
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
