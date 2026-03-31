@@ -1013,8 +1013,7 @@ io.on("connection", (socket) => {
             wordPool.push(...defaults);
           }
           createCodenamesGame(code, playerIds, wordPool);
-          io.to(code).emit("lobby:started");
-          // Send initial view to all players (team pick phase)
+          // Send initial view to all players (team pick phase) BEFORE signaling screen change
           for (const pid of playerIds) {
             const view = getCodenamesPlayerView(code, pid);
             if (view) {
@@ -1024,12 +1023,13 @@ io.on("connection", (socket) => {
               }
             }
           }
+          io.to(code).emit("lobby:started");
         } else if (gameType === "uno") {
           const template = unoTemplate || { colorNames: { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" } };
           const houseRules = getLobbyHouseRules(code);
           createUnoGame(code, playerIds, template, winCondition, houseRules);
-          io.to(code).emit("lobby:started");
           sendUnoTurnToPlayers(code);
+          io.to(code).emit("lobby:started");
           triggerUnoBotTurn(code);
           scheduleUnoTurnTimer(code);
         } else {
@@ -1037,8 +1037,8 @@ io.on("connection", (socket) => {
           const round = startRound(code);
 
           if (round) {
-            io.to(code).emit("lobby:started");
             sendRoundToPlayers(code);
+            io.to(code).emit("lobby:started");
             triggerBotActions(code);
             scheduleRoundTimer(code);
           } else {
