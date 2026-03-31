@@ -65,6 +65,7 @@ interface CardInput {
   text: string;
   pick?: number;
   bonus?: boolean;
+  imageUrl?: string;
 }
 
 interface WinCondition {
@@ -1129,6 +1130,9 @@ function CardListEditor({
           <div className="space-y-2">
             {cards.map((card, i) => (
               <div key={i} className="flex gap-2 items-center">
+                {card.imageUrl && (
+                  <img src={card.imageUrl} alt="" className="shrink-0 w-8 h-8 rounded object-cover border border-gray-600" />
+                )}
                 {packBadge && (
                   <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium leading-tight max-w-[80px] truncate ${badgeClass}`}>
                     {packBadge.name}

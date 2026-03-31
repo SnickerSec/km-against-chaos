@@ -120,8 +120,8 @@ function EditDeckContent() {
         initial={{
           name: deck.name,
           description: deck.description,
-          chaosCards: deck.chaosCards.map((c) => ({ text: c.text, pick: c.pick })),
-          knowledgeCards: deck.knowledgeCards.map((c) => ({ text: c.text, ...(c.bonus ? { bonus: true } : {}) })),
+          chaosCards: deck.chaosCards.map((c) => ({ text: c.text, pick: c.pick, ...(c.imageUrl ? { imageUrl: c.imageUrl } : {}) })),
+          knowledgeCards: deck.knowledgeCards.map((c) => ({ text: c.text, ...(c.bonus ? { bonus: true } : {}), ...(c.imageUrl ? { imageUrl: c.imageUrl } : {}) })),
           winCondition: deck.winCondition || { mode: "rounds", value: 10 },
           maturity: deck.maturity,
           flavorThemes: deck.flavorThemes,
