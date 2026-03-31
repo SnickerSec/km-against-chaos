@@ -154,6 +154,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewsRemaining, setPreviewsRemaining] = useState<number | null>(null);
 
   const [packs, setPacks] = useState<CardPack[]>(() => {
     if (initial?.packs && initial.packs.length > 0) {
@@ -767,8 +768,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
                 setPreviewLoading(true);
                 setPreviewError(null);
                 try {
-                  const { imageUrl } = await generateArtPreview(sample.text, apiGameType, name || "Custom Deck", maturity);
+                  const { imageUrl, previewsRemaining: rem } = await generateArtPreview(sample.text, apiGameType, name || "Custom Deck", maturity);
                   setPreviewUrl(imageUrl);
+                  if (rem !== undefined) setPreviewsRemaining(rem);
                 } catch (err: any) {
                   setPreviewError(err.message || "Preview failed");
                 } finally {
@@ -797,7 +799,10 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
               <div className="rounded-lg overflow-hidden border border-gray-600 mb-3">
                 <img src={previewUrl} alt="AI art preview" className="w-full" />
               </div>
-              <p className="text-xs text-gray-400 mb-3">Sample card art — every card gets unique art like this.</p>
+              <p className="text-xs text-gray-400 mb-3">
+                Sample card art — every card gets unique art like this.
+                {previewsRemaining !== null && ` (${previewsRemaining} preview${previewsRemaining === 1 ? "" : "s"} remaining today)`}
+              </p>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -806,9 +811,18 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
                 >
                   Get Premium Art — $1.50
                 </button>
+                {previewsRemaining !== 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setPreviewUrl(null); setPreviewError(null); }}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
+                  >
+                    Try another
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => { setPreviewUrl(null); setPreviewError(null); }}
+                  onClick={() => { setPreviewUrl(null); setPreviewError(null); setPreviewsRemaining(null); }}
                   className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
                 >
                   No thanks

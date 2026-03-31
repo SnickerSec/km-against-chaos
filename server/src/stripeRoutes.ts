@@ -153,10 +153,31 @@ router.post("/api/stripe/webhook", async (req: any, res) => {
   res.json({ received: true });
 });
 
+// Rate limit: 3 free previews per user per day
+const previewUsage = new Map<string, { count: number; resetAt: number }>();
+const PREVIEW_LIMIT = 3;
+
+function checkPreviewLimit(userId: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const entry = previewUsage.get(userId);
+  if (!entry || now >= entry.resetAt) {
+    previewUsage.set(userId, { count: 0, resetAt: now + 24 * 60 * 60 * 1000 });
+    return { allowed: true, remaining: PREVIEW_LIMIT };
+  }
+  return { allowed: entry.count < PREVIEW_LIMIT, remaining: PREVIEW_LIMIT - entry.count };
+}
+
 // Generate a free preview image for one card
 router.post("/api/art/preview", requireAuth, async (req: any, res) => {
   if (!process.env.FAL_KEY) {
     res.status(503).json({ error: "Art generation not configured" });
+    return;
+  }
+
+  const userId = req.user.id;
+  const { allowed, remaining } = checkPreviewLimit(userId);
+  if (!allowed) {
+    res.status(429).json({ error: "Preview limit reached (3 per day). Purchase premium art to generate for all cards." });
     return;
   }
 
@@ -177,7 +198,10 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
       res.status(500).json({ error: "Failed to generate preview" });
       return;
     }
-    res.json({ imageUrl });
+    // Count successful preview
+    const entry = previewUsage.get(userId)!;
+    entry.count++;
+    res.json({ imageUrl, previewsRemaining: PREVIEW_LIMIT - entry.count });
   } catch (err: any) {
     console.error("Preview generation failed:", err);
     res.status(500).json({ error: "Failed to generate preview" });

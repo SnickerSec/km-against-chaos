@@ -441,7 +441,7 @@ export async function updateAdminSetting(key: string, value: any): Promise<void>
   if (!res.ok) throw new Error("Failed to update setting");
 }
 
-export async function generateArtPreview(cardText: string, gameType: string, theme: string, maturity?: string): Promise<{ imageUrl: string }> {
+export async function generateArtPreview(cardText: string, gameType: string, theme: string, maturity?: string): Promise<{ imageUrl: string; previewsRemaining?: number }> {
   const res = await fetch(`${API_URL}/api/art/preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
