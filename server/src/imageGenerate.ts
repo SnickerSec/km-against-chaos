@@ -132,6 +132,27 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
   }
 }
 
+// Generate a single preview image for one card (free, no payment required)
+export async function generatePreviewImage(
+  cardText: string,
+  gameType: string,
+  theme: string,
+  maturity: string = "adult"
+): Promise<string | null> {
+  const style = getArtStyle(gameType);
+
+  // Generate image prompt via Claude
+  const prompts = await generateImagePrompts(
+    [{ id: "preview", text: cardText }],
+    { theme, gameType, maturity }
+  );
+
+  const prompt = prompts.get("preview");
+  if (!prompt) return null;
+
+  return generateCardImage(prompt, style);
+}
+
 // Main pipeline: generate art for all cards in a deck
 export async function generateDeckArt(deckId: string): Promise<void> {
   try {

@@ -441,6 +441,19 @@ export async function updateAdminSetting(key: string, value: any): Promise<void>
   if (!res.ok) throw new Error("Failed to update setting");
 }
 
+export async function generateArtPreview(cardText: string, gameType: string, theme: string, maturity?: string): Promise<{ imageUrl: string }> {
+  const res = await fetch(`${API_URL}/api/art/preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ cardText, gameType, theme, maturity }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to generate preview");
+  }
+  return res.json();
+}
+
 export async function createCheckoutSession(deckId: string): Promise<{ sessionUrl: string }> {
   const res = await fetch(`${API_URL}/api/stripe/create-checkout`, {
     method: "POST",

@@ -2,7 +2,7 @@ import { Router } from "express";
 import Stripe from "stripe";
 import { requireAuth } from "./auth.js";
 import pool from "./db.js";
-import { generateDeckArt } from "./imageGenerate.js";
+import { generateDeckArt, generatePreviewImage } from "./imageGenerate.js";
 
 const router = Router();
 
@@ -151,6 +151,37 @@ router.post("/api/stripe/webhook", async (req: any, res) => {
   }
 
   res.json({ received: true });
+});
+
+// Generate a free preview image for one card
+router.post("/api/art/preview", requireAuth, async (req: any, res) => {
+  if (!process.env.FAL_KEY) {
+    res.status(503).json({ error: "Art generation not configured" });
+    return;
+  }
+
+  const { cardText, gameType, theme, maturity } = req.body || {};
+  if (!cardText || !gameType) {
+    res.status(400).json({ error: "cardText and gameType are required" });
+    return;
+  }
+
+  try {
+    const imageUrl = await generatePreviewImage(
+      cardText,
+      gameType,
+      theme || "Custom Deck",
+      maturity || "adult"
+    );
+    if (!imageUrl) {
+      res.status(500).json({ error: "Failed to generate preview" });
+      return;
+    }
+    res.json({ imageUrl });
+  } catch (err: any) {
+    console.error("Preview generation failed:", err);
+    res.status(500).json({ error: "Failed to generate preview" });
+  }
 });
 
 // Check art generation status
