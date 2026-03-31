@@ -77,11 +77,12 @@ export interface PackSummary {
   builtIn: boolean;
 }
 
-export async function fetchDecks(options?: { search?: string; gameType?: string; sort?: string }): Promise<DeckSummary[]> {
+export async function fetchDecks(options?: { search?: string; gameType?: string; sort?: string; maturity?: string }): Promise<DeckSummary[]> {
   const params = new URLSearchParams();
   if (options?.search) params.set("search", options.search);
   if (options?.gameType) params.set("gameType", options.gameType);
   if (options?.sort) params.set("sort", options.sort);
+  if (options?.maturity) params.set("maturity", options.maturity);
   const qs = params.toString();
   const res = await fetch(`${API_URL}/api/decks${qs ? `?${qs}` : ""}`);
   if (!res.ok) throw new Error("Failed to fetch decks");

@@ -130,7 +130,7 @@ function builtInDeckSummaries(): DeckSummary[] {
   }));
 }
 
-export async function listDecks(options?: { search?: string; gameType?: string; sort?: string }): Promise<DeckSummary[]> {
+export async function listDecks(options?: { search?: string; gameType?: string; sort?: string; maturity?: string }): Promise<DeckSummary[]> {
   try {
     const conditions: string[] = [];
     const params: any[] = [];
@@ -145,6 +145,12 @@ export async function listDecks(options?: { search?: string; gameType?: string; 
     if (options?.gameType) {
       conditions.push(`d.game_type = $${paramIdx}`);
       params.push(options.gameType);
+      paramIdx++;
+    }
+
+    if (options?.maturity) {
+      conditions.push(`d.maturity = $${paramIdx}`);
+      params.push(options.maturity);
       paramIdx++;
     }
 

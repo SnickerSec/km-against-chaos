@@ -2,36 +2,48 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { Icon } from "@iconify/react";
 import { fetchDecks, rateDeck, DeckSummary } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import GoogleSignIn from "@/components/GoogleSignIn";
 import GameTypeBadge from "@/components/GameTypeBadge";
 
 const GAME_TYPE_FILTERS = [
-  ["all", "All"],
-  ["cah", "CAH"],
-  ["joking_hazard", "Joking Hazard"],
-  ["apples_to_apples", "A2A"],
-  ["uno", "Uno"],
+  ["all", "All Games", "mdi:cards-playing"],
+  ["cah", "CAH", "mdi:cards"],
+  ["joking_hazard", "Joking Hazard", "mdi:comic-bubble"],
+  ["apples_to_apples", "A2A", "mdi:fruit-cherries"],
+  ["uno", "Uno", "mdi:numeric"],
+] as const;
+
+const MATURITY_FILTERS = [
+  ["all", "All Ages"],
+  ["kid-friendly", "Kid-Friendly"],
+  ["moderate", "Moderate"],
+  ["adult", "Adult"],
+  ["raunchy", "Raunchy"],
 ] as const;
 
 const SORT_OPTIONS = [
-  ["newest", "Newest"],
-  ["popular", "Most Played"],
-  ["rating", "Top Rated"],
+  ["popular", "Most Played", "mdi:fire"],
+  ["rating", "Top Rated", "mdi:star"],
+  ["newest", "Newest", "mdi:clock-outline"],
 ] as const;
 
 type GameTypeFilter = typeof GAME_TYPE_FILTERS[number][0];
+type MaturityFilter = typeof MATURITY_FILTERS[number][0];
 type SortOption = typeof SORT_OPTIONS[number][0];
 
 function StarRating({
   value,
   onChange,
   readonly,
+  size = "text-base",
 }: {
   value: number;
   onChange?: (rating: number) => void;
   readonly?: boolean;
+  size?: string;
 }) {
   const [hover, setHover] = useState(0);
 
@@ -45,14 +57,14 @@ function StarRating({
           onClick={() => onChange?.(star)}
           onMouseEnter={() => !readonly && setHover(star)}
           onMouseLeave={() => !readonly && setHover(0)}
-          className={`text-lg ${readonly ? "cursor-default" : "cursor-pointer hover:scale-110"} transition-transform`}
+          className={`${size} ${readonly ? "cursor-default" : "cursor-pointer hover:scale-110"} transition-transform`}
           title={readonly ? `${value.toFixed(1)} stars` : `Rate ${star} star${star > 1 ? "s" : ""}`}
         >
           <span
             className={
               (hover || value) >= star
                 ? "text-yellow-400"
-                : "text-gray-600"
+                : "text-gray-700"
             }
           >
             &#9733;
@@ -60,6 +72,42 @@ function StarRating({
         </button>
       ))}
     </div>
+  );
+}
+
+function TrendingCard({
+  deck,
+  rank,
+}: {
+  deck: DeckSummary;
+  rank: number;
+}) {
+  return (
+    <Link
+      href={`/?deck=${deck.id}`}
+      className="group relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 border border-gray-700 hover:border-purple-500 transition-all hover:shadow-lg hover:shadow-purple-900/20"
+    >
+      <div className="absolute -top-2 -left-2 w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-xs font-bold shadow-lg">
+        #{rank}
+      </div>
+      <h3 className="font-bold text-white mb-1 pr-4 truncate">{deck.name}</h3>
+      <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+        <GameTypeBadge gameType={deck.gameType} />
+        {deck.ownerName && <span className="truncate">by {deck.ownerName}</span>}
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1 text-xs text-gray-500">
+          <Icon icon="mdi:play-circle" width={14} />
+          <span>{deck.playCount || 0} plays</span>
+        </div>
+        {(deck.avgRating || 0) > 0 && (
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-yellow-400">&#9733;</span>
+            <span className="text-gray-400">{(deck.avgRating || 0).toFixed(1)}</span>
+          </div>
+        )}
+      </div>
+    </Link>
   );
 }
 
@@ -73,51 +121,84 @@ function BrowseDeckCard({
   onRate: (deckId: string, rating: number) => void;
 }) {
   return (
-    <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-bold text-lg text-white">{deck.name}</h3>
-            {deck.builtIn && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-600/30 text-purple-300">Featured</span>
+    <div className="bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-all overflow-hidden">
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-bold text-white truncate">{deck.name}</h3>
+              {deck.builtIn && (
+                <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-600/30 text-purple-300 font-medium">
+                  Featured
+                </span>
+              )}
+              {deck.artTier === "premium" && (
+                <span title="Has AI art"><Icon icon="mdi:palette" className="shrink-0 text-purple-400" width={14} /></span>
+              )}
+            </div>
+            {deck.description && (
+              <p className="text-gray-400 text-xs line-clamp-2 mb-2">{deck.description}</p>
             )}
           </div>
-          {deck.description && (
-            <p className="text-gray-400 text-sm mb-1 line-clamp-2">{deck.description}</p>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap mb-3">
+          <GameTypeBadge gameType={deck.gameType} />
+          {deck.ownerName && <span>by {deck.ownerName}</span>}
+          <span className="text-gray-700">|</span>
+          <span>
+            {deck.gameType === "uno"
+              ? "108 cards"
+              : `${deck.chaosCount}P / ${deck.knowledgeCount}A`}
+          </span>
+          {deck.maturity && deck.maturity !== "adult" && (
+            <>
+              <span className="text-gray-700">|</span>
+              <span className={
+                deck.maturity === "kid-friendly" ? "text-green-400"
+                : deck.maturity === "raunchy" ? "text-red-400"
+                : "text-gray-400"
+              }>
+                {deck.maturity === "kid-friendly" ? "Kid-Friendly"
+                  : deck.maturity === "moderate" ? "Moderate"
+                  : "Raunchy"}
+              </span>
+            </>
           )}
-          <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap mt-1">
-            <GameTypeBadge gameType={deck.gameType} />
-            {deck.ownerName && <span>by {deck.ownerName}</span>}
-            <span>
-              {deck.gameType === "uno"
-                ? "108 cards"
-                : `${deck.chaosCount} prompts / ${deck.knowledgeCount} answers`}
-            </span>
-            <span className="flex items-center gap-1">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {deck.playCount || 0} plays
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mt-2">
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Icon icon="mdi:play-circle" width={14} />
+              <span>{deck.playCount || 0}</span>
+            </div>
             <StarRating
               value={deck.avgRating || 0}
               onChange={isLoggedIn ? (r) => onRate(deck.id, r) : undefined}
               readonly={!isLoggedIn}
+              size="text-sm"
             />
             {(deck.avgRating || 0) > 0 && (
               <span className="text-xs text-gray-500">{(deck.avgRating || 0).toFixed(1)}</span>
             )}
           </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/decks/new?remixOf=${deck.id}`}
+              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
+              title="Remix this deck"
+            >
+              <Icon icon="mdi:remix" width={14} />
+            </Link>
+            <Link
+              href={`/?deck=${deck.id}`}
+              className="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg font-semibold text-xs text-white transition-colors"
+            >
+              Host
+            </Link>
+          </div>
         </div>
-        <Link
-          href={`/?deck=${deck.id}`}
-          className="shrink-0 px-5 py-2.5 bg-green-600 hover:bg-green-700 rounded-lg font-semibold text-sm text-white transition-colors"
-        >
-          Host
-        </Link>
       </div>
     </div>
   );
@@ -125,20 +206,33 @@ function BrowseDeckCard({
 
 export default function BrowseDecksPage() {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
+  const [trending, setTrending] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<GameTypeFilter>("all");
-  const [sort, setSort] = useState<SortOption>("newest");
+  const [maturity, setMaturity] = useState<MaturityFilter>("all");
+  const [sort, setSort] = useState<SortOption>("popular");
   const authUser = useAuthStore((s) => s.user);
+  const restore = useAuthStore((s) => s.restore);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => { restore(); }, [restore]);
+
+  // Load trending on mount
+  useEffect(() => {
+    fetchDecks({ sort: "popular" })
+      .then((all) => setTrending(all.filter(d => (d.playCount || 0) > 0).slice(0, 3)))
+      .catch(() => {});
+  }, []);
+
   const loadDecks = useCallback(
-    (searchVal: string, gameType: GameTypeFilter, sortVal: SortOption) => {
+    (searchVal: string, gameType: GameTypeFilter, sortVal: SortOption, maturityVal: MaturityFilter) => {
       setLoading(true);
       fetchDecks({
         search: searchVal || undefined,
         gameType: gameType === "all" ? undefined : gameType,
         sort: sortVal,
+        maturity: maturityVal === "all" ? undefined : maturityVal,
       })
         .then(setDecks)
         .catch(() => setDecks([]))
@@ -147,102 +241,141 @@ export default function BrowseDecksPage() {
     []
   );
 
+  useEffect(() => {
+    loadDecks(search, filter, sort, maturity);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, sort, maturity]);
+
   // Initial load
   useEffect(() => {
-    loadDecks(search, filter, sort);
+    loadDecks("", "all", "popular", "all");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reload when filter/sort change (immediate)
-  useEffect(() => {
-    loadDecks(search, filter, sort);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, sort]);
-
-  // Debounced search
   const handleSearchChange = (val: string) => {
     setSearch(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      loadDecks(val, filter, sort);
+      loadDecks(val, filter, sort, maturity);
     }, 350);
   };
 
   const handleRate = async (deckId: string, rating: number) => {
     try {
       await rateDeck(deckId, rating);
-      // Refresh the list to get updated rating
-      loadDecks(search, filter, sort);
-    } catch {
-      // silently fail
-    }
+      loadDecks(search, filter, sort, maturity);
+    } catch {}
   };
 
+  const hasActiveFilters = search || filter !== "all" || maturity !== "all";
+
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 min-h-screen">
+    <div className="max-w-4xl mx-auto px-4 py-8 min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <Link href="/" className="text-gray-400 hover:text-white text-sm transition-colors mb-1 inline-block">
-            &larr; Back to Home
+          <Link href="/" className="text-gray-500 hover:text-white text-xs transition-colors mb-1 inline-flex items-center gap-1">
+            <Icon icon="mdi:arrow-left" width={12} />
+            Home
           </Link>
-          <h1 className="text-2xl font-bold text-white">Browse Decks</h1>
-          <p className="text-gray-400 text-sm">Discover and play community-created card games</p>
+          <h1 className="text-3xl font-bold text-white">Discover Decks</h1>
+          <p className="text-gray-500 text-sm mt-1">Find your next favorite card game</p>
         </div>
         <GoogleSignIn />
       </div>
 
-      {/* Search bar */}
-      <div className="mb-4">
+      {/* Trending section — hide when searching/filtering */}
+      {!hasActiveFilters && trending.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Icon icon="mdi:trending-up" width={16} />
+            Trending
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {trending.map((deck, i) => (
+              <TrendingCard key={deck.id} deck={deck} rank={i + 1} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
         <input
           type="text"
-          placeholder="Search decks..."
+          placeholder="Search by name or description..."
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+          className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
         />
       </div>
 
-      {/* Filters row */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        {/* Game type filter */}
-        <div className="flex gap-2 flex-wrap">
-          {GAME_TYPE_FILTERS.map(([value, label]) => (
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        {GAME_TYPE_FILTERS.map(([value, label, icon]) => (
+          <button
+            key={value}
+            onClick={() => setFilter(value)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              filter === value
+                ? "bg-purple-600 text-white"
+                : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+            }`}
+          >
+            <Icon icon={icon} width={14} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Maturity + sort row */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        {MATURITY_FILTERS.map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setMaturity(value)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              maturity === value
+                ? "bg-gray-600 text-white"
+                : "bg-gray-800/50 text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+
+        <div className="ml-auto flex items-center gap-1">
+          {SORT_OPTIONS.map(([value, label, icon]) => (
             <button
               key={value}
-              onClick={() => setFilter(value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                filter === value
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+              onClick={() => setSort(value)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                sort === value
+                  ? "bg-gray-700 text-white"
+                  : "text-gray-500 hover:text-gray-300"
               }`}
+              title={label}
             >
-              {label}
+              <Icon icon={icon} width={14} />
+              <span className="hidden sm:inline">{label}</span>
             </button>
           ))}
         </div>
-
-        {/* Sort dropdown */}
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortOption)}
-          className="ml-auto px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300 focus:outline-none focus:border-purple-500"
-        >
-          {SORT_OPTIONS.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
       </div>
 
-      {/* Deck list */}
+      {/* Deck grid */}
       {loading ? (
-        <p className="text-gray-400 text-center py-8">Loading decks...</p>
+        <div className="flex items-center justify-center py-12">
+          <Icon icon="mdi:loading" className="text-2xl text-purple-400 animate-spin" />
+        </div>
       ) : decks.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">No decks found. Try a different search or filter.</p>
+        <div className="text-center py-12">
+          <Icon icon="mdi:cards-playing-outline" className="text-4xl text-gray-700 mx-auto mb-3" />
+          <p className="text-gray-500">No decks found. Try a different search or filter.</p>
+        </div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {decks.map((deck) => (
             <BrowseDeckCard
               key={deck.id}
@@ -254,13 +387,14 @@ export default function BrowseDecksPage() {
         </div>
       )}
 
-      {/* Create your own CTA */}
+      {/* Create CTA */}
       <Link
         href="/decks/new"
-        className="block mt-6 bg-gray-900 rounded-xl p-5 border-2 border-dashed border-gray-700 hover:border-purple-500 transition-colors text-center"
+        className="block mt-8 bg-gray-900 rounded-xl p-6 border-2 border-dashed border-gray-700 hover:border-purple-500 transition-colors text-center group"
       >
-        <p className="text-purple-400 font-semibold text-lg mb-1">+ Create Your Own</p>
-        <p className="text-gray-500 text-sm">Build a custom card game with your own prompts and answers</p>
+        <Icon icon="mdi:plus-circle-outline" className="text-3xl text-purple-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+        <p className="text-purple-400 font-semibold text-lg">Create Your Own</p>
+        <p className="text-gray-500 text-sm mt-1">Build a custom card game with your own prompts and answers</p>
       </Link>
     </div>
   );

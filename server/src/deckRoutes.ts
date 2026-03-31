@@ -77,8 +77,8 @@ function requireAiRateLimit(req: any, res: any, next: any) {
 // List all decks
 router.get("/", async (req, res) => {
   try {
-    const { search, gameType, sort } = req.query as { search?: string; gameType?: string; sort?: string };
-    res.json(await listDecks({ search, gameType, sort }));
+    const { search, gameType, sort, maturity } = req.query as { search?: string; gameType?: string; sort?: string; maturity?: string };
+    res.json(await listDecks({ search, gameType, sort, maturity }));
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
