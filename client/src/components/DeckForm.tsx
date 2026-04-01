@@ -430,6 +430,18 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         knowledgeCount={knowledgeCount}
         setKnowledgeCount={handleKnowledgeCount}
         onGenerate={handleGenerateDeck}
+        premiumArt={premiumArt}
+        setPremiumArt={setPremiumArt}
+        previewUrl={previewUrl}
+        setPreviewUrl={setPreviewUrl}
+        previewLoading={previewLoading}
+        setPreviewLoading={setPreviewLoading}
+        previewError={previewError}
+        setPreviewError={setPreviewError}
+        previewsRemaining={previewsRemaining}
+        setPreviewsRemaining={setPreviewsRemaining}
+        packs={packs}
+        deckName={name}
       />
 
       {/* Add packs (edit mode only) */}
@@ -741,114 +753,6 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
 
-      {/* Premium Art */}
-      {gameType !== "uno" && gameType !== "codenames" && (
-        <div className="mb-6 bg-gray-800/50 border border-gray-700 rounded-xl p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <Icon icon="mdi:palette" className="text-2xl text-purple-400" />
-            <div>
-              <h3 className="font-semibold text-white">AI-Generated Art</h3>
-              <p className="text-xs text-gray-400">Preview a sample card before you buy — $1.50 for the full deck</p>
-            </div>
-          </div>
-
-          {!previewUrl && !previewLoading && !premiumArt && (
-            <button
-              type="button"
-              onClick={async () => {
-                // Grab a random non-empty card to preview
-                const allCards = packs.flatMap(p => [...p.knowledgeCards, ...p.chaosCards]);
-                const candidates = allCards.filter(c => c.text.trim());
-                if (candidates.length === 0) {
-                  setPreviewError("Add some cards first to preview art.");
-                  return;
-                }
-                const sample = candidates[Math.floor(Math.random() * candidates.length)];
-                const apiGameType = gameType === "joking-hazard" ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : "cah";
-
-                setPreviewLoading(true);
-                setPreviewError(null);
-                try {
-                  const { imageUrl, previewsRemaining: rem } = await generateArtPreview(sample.text, apiGameType, name || "Custom Deck", maturity);
-                  setPreviewUrl(imageUrl);
-                  if (rem !== undefined) setPreviewsRemaining(rem);
-                } catch (err: any) {
-                  setPreviewError(err.message || "Preview failed");
-                } finally {
-                  setPreviewLoading(false);
-                }
-              }}
-              className="w-full py-2.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-600 rounded-lg text-sm font-medium text-purple-300 transition-colors"
-            >
-              Preview AI Art (Free)
-            </button>
-          )}
-
-          {previewLoading && (
-            <div className="flex items-center justify-center gap-2 py-6">
-              <Icon icon="mdi:loading" className="text-xl text-purple-400 animate-spin" />
-              <span className="text-sm text-gray-400">Generating preview...</span>
-            </div>
-          )}
-
-          {previewError && (
-            <p className="text-red-400 text-xs mt-2">{previewError}</p>
-          )}
-
-          {previewUrl && !premiumArt && (
-            <div className="mt-2">
-              <div className="rounded-lg overflow-hidden border border-gray-600 mb-3">
-                <img src={previewUrl} alt="AI art preview" className="w-full" />
-              </div>
-              <p className="text-xs text-gray-400 mb-3">
-                Sample card art — every card gets unique art like this.
-                {previewsRemaining !== null && ` (${previewsRemaining} preview${previewsRemaining === 1 ? "" : "s"} remaining today)`}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPremiumArt(true)}
-                  className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-semibold text-white transition-colors"
-                >
-                  Get Premium Art — $1.50
-                </button>
-                {previewsRemaining !== 0 && (
-                  <button
-                    type="button"
-                    onClick={() => { setPreviewUrl(null); setPreviewError(null); }}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
-                  >
-                    Try another
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => { setPreviewUrl(null); setPreviewError(null); setPreviewsRemaining(null); }}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
-                >
-                  No thanks
-                </button>
-              </div>
-            </div>
-          )}
-
-          {premiumArt && (
-            <div className="flex items-center justify-between mt-1">
-              <div className="flex items-center gap-2">
-                <Icon icon="mdi:check-circle" className="text-green-400" />
-                <span className="text-sm text-green-300">Premium art selected — $1.50 at checkout</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => { setPremiumArt(false); setPreviewUrl(null); }}
-                className="text-xs text-gray-500 hover:text-gray-300"
-              >
-                Remove
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       <button
         onClick={handleSubmit}
@@ -1297,6 +1201,18 @@ function AIGenerationPanel({
   knowledgeCount,
   setKnowledgeCount,
   onGenerate,
+  premiumArt,
+  setPremiumArt,
+  previewUrl,
+  setPreviewUrl,
+  previewLoading,
+  setPreviewLoading,
+  previewError,
+  setPreviewError,
+  previewsRemaining,
+  setPreviewsRemaining,
+  packs,
+  deckName,
 }: {
   gameType: string;
   isCreate: boolean;
@@ -1313,6 +1229,18 @@ function AIGenerationPanel({
   knowledgeCount: number;
   setKnowledgeCount: (v: number) => void;
   onGenerate: (theme: string) => Promise<void>;
+  premiumArt: boolean;
+  setPremiumArt: (v: boolean) => void;
+  previewUrl: string | null;
+  setPreviewUrl: (v: string | null) => void;
+  previewLoading: boolean;
+  setPreviewLoading: (v: boolean) => void;
+  previewError: string | null;
+  setPreviewError: (v: string | null) => void;
+  previewsRemaining: number | null;
+  setPreviewsRemaining: (v: number | null) => void;
+  packs: { chaosCards: { text: string }[]; knowledgeCards: { text: string }[] }[];
+  deckName: string;
 }) {
   const [theme, setTheme] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -1550,6 +1478,114 @@ function AIGenerationPanel({
               <p className="text-purple-300 text-sm mt-2 animate-pulse">
                 AI is building your deck — this may take a moment...
               </p>
+            )}
+          </div>
+        )}
+
+        {/* AI-Generated Art */}
+        {gameType !== "uno" && gameType !== "codenames" && (
+          <div className="border-t border-gray-700/50 pt-5">
+            <div className="flex items-center gap-3 mb-3">
+              <Icon icon="mdi:palette" className="text-2xl text-purple-400" />
+              <div>
+                <h3 className="font-semibold text-white">AI-Generated Art</h3>
+                <p className="text-xs text-gray-400">Preview a sample card before you buy — $1.50 for the full deck</p>
+              </div>
+            </div>
+
+            {!previewUrl && !previewLoading && !premiumArt && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const allCards = packs.flatMap(p => [...p.knowledgeCards, ...p.chaosCards]);
+                  const candidates = allCards.filter(c => c.text.trim());
+                  if (candidates.length === 0) {
+                    setPreviewError("Add some cards first to preview art.");
+                    return;
+                  }
+                  const sample = candidates[Math.floor(Math.random() * candidates.length)];
+                  const apiGameType = gameType === "joking-hazard" ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : "cah";
+
+                  setPreviewLoading(true);
+                  setPreviewError(null);
+                  try {
+                    const { imageUrl, previewsRemaining: rem } = await generateArtPreview(sample.text, apiGameType, deckName || "Custom Deck", maturity);
+                    setPreviewUrl(imageUrl);
+                    if (rem !== undefined) setPreviewsRemaining(rem);
+                  } catch (err: any) {
+                    setPreviewError(err.message || "Preview failed");
+                  } finally {
+                    setPreviewLoading(false);
+                  }
+                }}
+                className="w-full py-2.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-600 rounded-lg text-sm font-medium text-purple-300 transition-colors"
+              >
+                Preview AI Art (Free)
+              </button>
+            )}
+
+            {previewLoading && (
+              <div className="flex items-center justify-center gap-2 py-6">
+                <Icon icon="mdi:loading" className="text-xl text-purple-400 animate-spin" />
+                <span className="text-sm text-gray-400">Generating preview...</span>
+              </div>
+            )}
+
+            {previewError && (
+              <p className="text-red-400 text-xs mt-2">{previewError}</p>
+            )}
+
+            {previewUrl && !premiumArt && (
+              <div className="mt-2">
+                <div className="rounded-lg overflow-hidden border border-gray-600 mb-3">
+                  <img src={previewUrl} alt="AI art preview" className="w-full" />
+                </div>
+                <p className="text-xs text-gray-400 mb-3">
+                  Sample card art — every card gets unique art like this.
+                  {previewsRemaining !== null && ` (${previewsRemaining} preview${previewsRemaining === 1 ? "" : "s"} remaining today)`}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPremiumArt(true)}
+                    className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-semibold text-white transition-colors"
+                  >
+                    Get Premium Art — $1.50
+                  </button>
+                  {previewsRemaining !== 0 && (
+                    <button
+                      type="button"
+                      onClick={() => { setPreviewUrl(null); setPreviewError(null); }}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
+                    >
+                      Try another
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setPreviewUrl(null); setPreviewError(null); setPreviewsRemaining(null); }}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
+                  >
+                    No thanks
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {premiumArt && (
+              <div className="flex items-center justify-between mt-1">
+                <div className="flex items-center gap-2">
+                  <Icon icon="mdi:check-circle" className="text-green-400" />
+                  <span className="text-sm text-green-300">Premium art selected — $1.50 at checkout</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setPremiumArt(false); setPreviewUrl(null); }}
+                  className="text-xs text-gray-500 hover:text-gray-300"
+                >
+                  Remove
+                </button>
+              </div>
             )}
           </div>
         )}
