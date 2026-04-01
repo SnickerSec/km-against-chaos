@@ -84,8 +84,22 @@ export function createGame(
   winCondition?: { mode: "rounds" | "points"; value: number },
   gameType?: GameType
 ): void {
-  const chaosDeck = shuffled(customChaos || CHAOS_CARDS);
-  const knowledgeDeck = shuffled(customKnowledge || KNOWLEDGE_CARDS);
+  let chaosDeck: ChaosCard[];
+  let knowledgeDeck: KnowledgeCard[];
+
+  if (gameType === "superfight") {
+    // Merge character cards (chaos) into the knowledge deck so players get a mixed hand
+    const characterCards: KnowledgeCard[] = (customChaos || CHAOS_CARDS).map((c) => ({
+      id: c.id,
+      text: c.text,
+    }));
+    knowledgeDeck = shuffled([...characterCards, ...(customKnowledge || KNOWLEDGE_CARDS)]);
+    // Superfight uses a synthetic prompt each round — no chaos deck needed
+    chaosDeck = [{ id: "sf-prompt", text: "Who would win in a fight?", pick: 2 }];
+  } else {
+    chaosDeck = shuffled(customChaos || CHAOS_CARDS);
+    knowledgeDeck = shuffled(customKnowledge || KNOWLEDGE_CARDS);
+  }
 
   const wc = winCondition || { mode: "rounds" as const, value: DEFAULT_MAX_ROUNDS };
 
@@ -131,7 +145,10 @@ export function startRound(lobbyCode: string): RoundState | null {
 
   // Discard the previous round's chaos card and submissions
   if (game.currentRound) {
-    game.chaosDiscard.push(game.currentRound.chaosCard);
+    // Superfight reuses the same synthetic prompt — don't discard it
+    if (game.gameType !== "superfight") {
+      game.chaosDiscard.push(game.currentRound.chaosCard);
+    }
     for (const cards of game.currentRound.submissions.values()) {
       game.knowledgeDiscard.push(...cards);
     }
@@ -141,10 +158,17 @@ export function startRound(lobbyCode: string): RoundState | null {
   }
 
   const czarId = game.playerIds[game.czarIndex % game.playerIds.length];
-  const chaosCard = drawChaos(game);
-  if (!chaosCard) {
-    game.gameOver = true;
-    return null;
+
+  // Superfight: reuse the synthetic prompt every round
+  let chaosCard: ChaosCard | null;
+  if (game.gameType === "superfight") {
+    chaosCard = { id: "sf-prompt", text: "Who would win in a fight?", pick: 2 };
+  } else {
+    chaosCard = drawChaos(game);
+    if (!chaosCard) {
+      game.gameOver = true;
+      return null;
+    }
   }
 
   const isJH = game.gameType === "joking_hazard";

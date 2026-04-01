@@ -14,6 +14,7 @@ const GAME_TYPE_FILTERS = [
   ["joking_hazard", "Joking Hazard", "mdi:comic-bubble"],
   ["apples_to_apples", "A2A", "mdi:fruit-cherries"],
   ["uno", "Uno", "mdi:numeric"],
+  ["superfight", "Superfight", "mdi:arm-flex"],
 ] as const;
 
 const MATURITY_FILTERS = [
@@ -117,6 +118,8 @@ function DeckCard({
           <span>
             {deck.gameType === "uno"
               ? "108 cards"
+              : deck.gameType === "superfight"
+              ? `${deck.chaosCount}C / ${deck.knowledgeCount}A`
               : `${deck.chaosCount}P / ${deck.knowledgeCount}A`}
           </span>
           {deck.maturity && deck.maturity !== "adult" && (

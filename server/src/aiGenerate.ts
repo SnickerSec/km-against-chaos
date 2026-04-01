@@ -142,6 +142,20 @@ OUTPUT FORMAT:
 - chaosCards = red-bordered bonus cards: {"text": "...", "pick": 1, "bonus": true}
 - knowledgeCards = black-bordered regular cards: {"text": "..."}`;
   }
+  if (gameType === "superfight") {
+    return `=== GAME ENGINE RULES ===
+This is a Superfight-style debate game.
+- Character cards (chaosCards) are fighters: people, animals, fictional characters, or archetypes.
+  Examples: "A T-Rex", "Abraham Lincoln", "Your Grandma", "A kindergarten teacher", "Batman".
+  Characters should be 1-5 words. Make them vivid, specific, and varied.
+  All character cards have pick:1.
+- Attribute cards (knowledgeCards) are powers, traits, or conditions.
+  Examples: "with laser eyes", "who can fly", "the size of a building", "armed with a chainsaw", "riding a shark".
+  Attributes should start with a lowercase word like "with", "who", "riding", "armed", "the size of", etc.
+  Keep them 2-8 words. Make them wild, funny, and debate-worthy.
+- Players combine 1 character + 1 attribute to build a fighter, then debate who would win.
+- Cards should create hilarious and debatable matchups in many combinations.`;
+  }
   if (gameType === "codenames") {
     return `=== GAME ENGINE RULES ===
 This is a Codenames-style word guessing game.

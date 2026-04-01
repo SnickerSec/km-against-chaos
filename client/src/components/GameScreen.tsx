@@ -31,6 +31,7 @@ export default function GameScreen() {
   const isSpectator = lobby?.players.find(p => p.id === socket.id)?.isSpectator;
   const isJH = gameType === "joking_hazard";
   const isA2A = gameType === "apples_to_apples";
+  const isSF = gameType === "superfight";
 
   if (!round) {
     return (
@@ -98,6 +99,12 @@ export default function GameScreen() {
               <ComicPanel empty borderColor="gray" label="Panel 3" labelColor="text-green-400" emptyText="Your punchline" />
             </div>
           )
+        ) : isSF ? (
+          <div className="bg-gradient-to-r from-pink-900/40 to-purple-900/40 border-2 border-pink-500 rounded-xl p-5 max-w-lg mx-auto text-center">
+            <p className="text-xs text-pink-400 font-semibold mb-2 uppercase tracking-wider">Superfight</p>
+            <p className="text-lg font-bold leading-relaxed">Pick 1 Character + 1 Attribute to build your fighter!</p>
+            <p className="text-xs text-pink-300 mt-2">Then debate who would win</p>
+          </div>
         ) : (
           <div className={`bg-gray-900 border-2 ${isA2A ? "border-green-500" : "border-red-500"} rounded-xl p-5 max-w-lg mx-auto`}>
             <p className={`text-xs ${isA2A ? "text-green-400" : "text-red-400"} font-semibold mb-2 uppercase tracking-wider`}>
@@ -119,11 +126,11 @@ export default function GameScreen() {
       <div className="text-center mb-4">
         {isCzar ? (
           <span className="inline-block bg-purple-600 text-sm px-3 py-1 rounded-full font-semibold">
-            {isJH || isA2A ? "You are the Judge" : "You are the Czar"}
+            {isJH || isA2A || isSF ? "You are the Judge" : "You are the Czar"}
           </span>
         ) : (
           <span className="text-gray-500 text-sm">
-            {isJH || isA2A ? "Judge" : "Czar"}: <strong className="text-purple-400">{czarName}</strong>
+            {isJH || isA2A || isSF ? "Judge" : "Czar"}: <strong className="text-purple-400">{czarName}</strong>
           </span>
         )}
       </div>

@@ -16,6 +16,7 @@ const GAME_TYPE_DISPLAY: Record<string, { label: string; icon: string; color: st
   joking_hazard:    { label: "Joking Hazard",         icon: "mdi:comment-text",        color: "text-orange-400" },
   apples_to_apples: { label: "Apples to Apples",      icon: "mdi:fruit-cherries",      color: "text-green-400" },
   uno:              { label: "Uno",                    icon: "mdi:cards-playing-outline",color: "text-yellow-400" },
+  superfight:       { label: "Superfight",             icon: "mdi:arm-flex",             color: "text-pink-400" },
 };
 
 function formatWinCondition(mode: string, value: number, gameType: string): string {

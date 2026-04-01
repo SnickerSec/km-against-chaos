@@ -19,6 +19,7 @@ const GAME_TYPE_FILTERS = [
   { id: "joking_hazard", label: "Joking Hazard" },
   { id: "apples_to_apples", label: "Apples to Apples" },
   { id: "uno", label: "Uno" },
+  { id: "superfight", label: "Superfight" },
 ];
 
 export default function DecksPage() {

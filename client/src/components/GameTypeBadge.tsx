@@ -6,6 +6,7 @@ const GAME_TYPE_INFO: Record<string, { label: string; color: string; bg: string 
   apples_to_apples: { label: "A2A",           color: "text-green-300",  bg: "bg-green-600/20 border-green-600/40" },
   uno:              { label: "Uno",           color: "text-yellow-300", bg: "bg-yellow-600/20 border-yellow-600/40" },
   codenames:        { label: "Codenames",     color: "text-cyan-300",   bg: "bg-cyan-600/20 border-cyan-600/40" },
+  superfight:       { label: "Superfight",   color: "text-pink-300",   bg: "bg-pink-600/20 border-pink-600/40" },
 };
 
 export default function GameTypeBadge({ gameType }: { gameType?: string }) {

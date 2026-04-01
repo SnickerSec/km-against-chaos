@@ -186,6 +186,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
     : initial?.gameType === "apples_to_apples" ? "apples-to-apples"
     : initial?.gameType === "uno" ? "uno"
     : initial?.gameType === "codenames" ? "codenames"
+    : initial?.gameType === "superfight" ? "superfight"
     : "cards-against-humanity"
   );
 
@@ -348,7 +349,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         flavorThemes,
         chaosLevel,
         wildcard: wildcard.trim(),
-        gameType: isCodenames ? "codenames" : isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : "cah",
+        gameType: isCodenames ? "codenames" : isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : gameType === "superfight" ? "superfight" : "cah",
         premiumArt,
       });
     } catch (e: any) {
@@ -457,6 +458,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
           <option value="apples-to-apples">Apples to Apples</option>
           <option value="uno">Uno (Custom Theme)</option>
           <option value="codenames">Codenames (Word Grid)</option>
+          <option value="superfight">Superfight (Debate Battle)</option>
         </select>
         <p className="text-gray-500 text-xs mt-1">
           {gameType === "joking-hazard"
@@ -467,6 +469,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
             ? "Turn-based card matching game — custom-themed colors and action cards with standard Uno rules"
             : gameType === "codenames"
             ? "Team word-guessing game — Spymasters give clues to help their team find words on a 5x5 grid"
+            : gameType === "superfight"
+            ? "Debate battle game — combine a Character + Attribute to build a fighter, then argue who would win"
             : "Fill-in-the-blank party game — a Czar reads a prompt, players submit answers"}
         </p>
 
@@ -1202,7 +1206,7 @@ function BulkAdd({
                   : "bg-gray-800 text-gray-400 hover:text-white"
               }`}
             >
-              {isJH ? "Scenes" : "Prompts"}
+              {isJH ? "Scenes" : gameType === "superfight" ? "Characters" : "Prompts"}
             </button>
             <button
               onClick={() => setType("knowledge")}
@@ -1212,7 +1216,7 @@ function BulkAdd({
                   : "bg-gray-800 text-gray-400 hover:text-white"
               }`}
             >
-              {isJH ? "Panels" : "Answers"}
+              {isJH ? "Panels" : gameType === "superfight" ? "Attributes" : "Answers"}
             </button>
           </div>
           <textarea
@@ -1494,7 +1498,7 @@ function AIGenerationPanel({
               <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">Cards to Generate</label>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Prompt cards</label>
+                  <label className="block text-xs text-gray-500 mb-1">{gameType === "superfight" ? "Character cards" : "Prompt cards"}</label>
                   <input
                     type="number"
                     value={chaosCount}
@@ -1505,7 +1509,7 @@ function AIGenerationPanel({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Answer cards</label>
+                  <label className="block text-xs text-gray-500 mb-1">{gameType === "superfight" ? "Attribute cards" : "Answer cards"}</label>
                   <input
                     type="number"
                     value={knowledgeCount}
@@ -1750,7 +1754,7 @@ function AIGenerate({
       <div className="flex gap-4">
         {!jhPanelsOnly && (
           <label className="flex items-center gap-2 text-xs text-gray-400">
-            <span>{gameType === "joking-hazard" ? "Scenes" : "Prompts"}</span>
+            <span>{gameType === "joking-hazard" ? "Scenes" : gameType === "superfight" ? "Characters" : "Prompts"}</span>
             <input
               type="number"
               min={1}
@@ -1762,7 +1766,7 @@ function AIGenerate({
           </label>
         )}
         <label className="flex items-center gap-2 text-xs text-gray-400">
-          <span>{gameType === "joking-hazard" ? "Panels" : "Answers"}</span>
+          <span>{gameType === "joking-hazard" ? "Panels" : gameType === "superfight" ? "Attributes" : "Answers"}</span>
           <input
             type="number"
             min={1}
