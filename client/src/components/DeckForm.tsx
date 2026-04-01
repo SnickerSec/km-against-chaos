@@ -324,8 +324,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       allChaos = packs.flatMap((p) => p.chaosCards).filter((c) => c.text.trim());
       allKnowledge = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
 
-      if (!isUno && allChaos.length < 5) { setError("Need at least 5 prompt cards with text across all packs"); return; }
-      if (!isUno && allKnowledge.length < 15) { setError("Need at least 15 answer cards with text across all packs"); return; }
+      if (!isUno && allChaos.length < 5) { setError(`Need at least 5 ${gameType === "superfight" ? "character" : "prompt"} cards with text across all packs`); return; }
+      if (!isUno && allKnowledge.length < 15) { setError(`Need at least 15 ${gameType === "superfight" ? "attribute" : "answer"} cards with text across all packs`); return; }
     }
 
     const packData = packs.map((p) => ({
@@ -810,7 +810,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
 
       {!initial && !baseHasCards && packs.length === 1 && (
         <p className="text-gray-500 text-xs text-center">
-          Add at least 5 prompt cards and 15 answer cards to the Base Game to unlock Expansion Boxes and Themed Packs
+          Create a Base Game to unlock Expansion Boxes and Themed Packs
         </p>
       )}
 
@@ -970,20 +970,26 @@ function CardPackEditor({
             <>
               {/* Chaos / Green Cards */}
               <CardListEditor
-                label={gameType === "apples-to-apples" ? "Green Cards" : "Prompt Cards"}
-                labelColor={gameType === "apples-to-apples" ? "text-green-400" : "text-red-400"}
+                label={gameType === "apples-to-apples" ? "Green Cards" : gameType === "superfight" ? "Character Cards" : "Prompt Cards"}
+                labelColor={gameType === "apples-to-apples" ? "text-green-400" : gameType === "superfight" ? "text-pink-400" : "text-red-400"}
                 cards={pack.chaosCards}
                 placeholder={(i) => gameType === "apples-to-apples"
                   ? `Green card ${i + 1}, e.g. "Scary", "Hilarious"`
+                  : gameType === "superfight"
+                  ? `Character ${i + 1}, e.g. "A T-Rex", "Abraham Lincoln"`
                   : `Prompt ${i + 1}, e.g. "The root cause was ___"`}
                 hint={gameType === "apples-to-apples"
                   ? (isBase ? "Single adjective or short description per card. No blanks. Min 5 cards." : "Single adjective or short description per card. No blanks.")
+                  : gameType === "superfight"
+                  ? (isBase ? "People, animals, or archetypes. 1-5 words each. Min 5 cards." : "People, animals, or archetypes. 1-5 words each.")
                   : (isBase ? "Use ___ as a blank for players to fill in. Min 5 cards." : "Use ___ as a blank for players to fill in.")}
                 addButtonColor={gameType === "apples-to-apples"
                   ? "bg-green-600/20 hover:bg-green-600/30 text-green-400 border-green-600/50"
+                  : gameType === "superfight"
+                  ? "bg-pink-600/20 hover:bg-pink-600/30 text-pink-400 border-pink-600/50"
                   : "bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-600/50"}
-                focusColor={gameType === "apples-to-apples" ? "focus:border-green-500" : "focus:border-red-500"}
-                showPick={gameType !== "apples-to-apples"}
+                focusColor={gameType === "apples-to-apples" ? "focus:border-green-500" : gameType === "superfight" ? "focus:border-pink-500" : "focus:border-red-500"}
+                showPick={gameType !== "apples-to-apples" && gameType !== "superfight"}
                 packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
                 onUpdate={(index, field, value) => updateChaos(index, field, value)}
                 onAdd={() => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, { text: "", pick: 1 }] }))}
@@ -994,14 +1000,18 @@ function CardPackEditor({
 
               {/* Knowledge / Red Cards */}
               <CardListEditor
-                label={gameType === "apples-to-apples" ? "Red Cards" : "Answer Cards"}
-                labelColor={gameType === "apples-to-apples" ? "text-red-400" : "text-purple-400"}
+                label={gameType === "apples-to-apples" ? "Red Cards" : gameType === "superfight" ? "Attribute Cards" : "Answer Cards"}
+                labelColor={gameType === "apples-to-apples" ? "text-red-400" : gameType === "superfight" ? "text-purple-400" : "text-purple-400"}
                 cards={pack.knowledgeCards}
                 placeholder={(i) => gameType === "apples-to-apples"
                   ? `Red card ${i + 1}, e.g. "Puppies", "My first paycheck"`
+                  : gameType === "superfight"
+                  ? `Attribute ${i + 1}, e.g. "with laser eyes", "who can fly"`
                   : `Answer ${i + 1}`}
                 hint={gameType === "apples-to-apples"
                   ? (isBase ? "Nouns, things, or short phrases. Min 15 cards." : "Nouns, things, or short phrases.")
+                  : gameType === "superfight"
+                  ? (isBase ? "Powers, traits, or conditions. Start with \"with\", \"who\", etc. Min 15 cards." : "Powers, traits, or conditions.")
                   : (isBase ? "Short answers or phrases. Min 15 cards." : "Short answers or phrases.")}
                 addButtonColor={gameType === "apples-to-apples"
                   ? "bg-red-600/20 hover:bg-red-600/30 text-red-400 border-red-600/50"
@@ -1452,7 +1462,7 @@ function AIGenerationPanel({
           </label>
           <input type="range" min={0} max={50} step={5} value={chaosLevel} onChange={(e) => setChaosLevel(parseInt(e.target.value))} className="w-full accent-orange-500" />
           <div className="flex justify-between text-xs text-gray-600 mt-0.5">
-            <span>0% — {gameType === "uno" ? "standard Uno actions" : gameType === "joking-hazard" ? "all comic panels" : gameType === "apples-to-apples" ? "all adjective prompts" : "all fill-in-the-blank"}</span>
+            <span>0% — {gameType === "uno" ? "standard Uno actions" : gameType === "joking-hazard" ? "all comic panels" : gameType === "apples-to-apples" ? "all adjective prompts" : gameType === "superfight" ? "all characters & attributes" : "all fill-in-the-blank"}</span>
             <span>50% — {gameType === "uno" ? "half are custom actions" : "half are rule-breakers"}</span>
           </div>
           {chaosLevel > 0 && (
