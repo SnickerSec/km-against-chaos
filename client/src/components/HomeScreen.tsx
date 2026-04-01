@@ -13,6 +13,7 @@ import DeckPicker from "@/components/DeckPicker";
 export default function HomeScreen() {
   const searchParams = useSearchParams();
   const codeFromUrl = searchParams.get("code");
+  const deckFromUrl = searchParams.get("deck");
 
   const nameRef = useRef<HTMLInputElement>(null);
   const roomCodeRef = useRef<HTMLInputElement>(null);
@@ -37,6 +38,19 @@ export default function HomeScreen() {
       setName(authUser.name.split(" ")[0]); // Use first name
     }
   }, [authUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-host when ?deck= param is present
+  useEffect(() => {
+    if (!deckFromUrl) return;
+    if (name.trim()) {
+      handleCreate(deckFromUrl);
+    } else {
+      // Pre-select deck, prompt for name
+      setSelectedDeck(deckFromUrl);
+      setError("Enter your name to host this deck");
+      nameRef.current?.focus();
+    }
+  }, [deckFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const focusName = () => {
     setError("Enter your name first");
@@ -131,7 +145,10 @@ export default function HomeScreen() {
             setError(null);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && roomCode.trim()) handleJoin();
+            if (e.key === "Enter") {
+              if (selectedDeck) handleCreate(selectedDeck);
+              else if (roomCode.trim()) handleJoin();
+            }
           }}
           maxLength={20}
           className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-lg"
