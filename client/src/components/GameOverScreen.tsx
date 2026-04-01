@@ -96,17 +96,31 @@ export default function GameOverScreen() {
       </div>
 
       {/* Rate this deck */}
-      {authUser && lobby?.deckId && (
+      {lobby?.deckId && (
         <div className="flex flex-col items-center mb-6">
-          <p className="text-gray-400 text-sm mb-2">
-            {hasRated ? "Thanks for rating!" : "How was this deck?"}
-          </p>
-          <StarRating
-            value={userRating}
-            onChange={hasRated ? undefined : handleRate}
-            readonly={hasRated}
-            size="text-2xl"
-          />
+          {authUser ? (
+            <>
+              <p className="text-gray-400 text-sm mb-2">
+                {hasRated ? "Thanks for rating!" : "How was this deck?"}
+              </p>
+              <StarRating
+                value={userRating}
+                onChange={hasRated ? undefined : handleRate}
+                readonly={hasRated}
+                size="text-2xl"
+              />
+            </>
+          ) : (
+            <p className="text-gray-500 text-sm">
+              <button
+                onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                className="text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                Sign in
+              </button>
+              {" "}to rate this deck
+            </p>
+          )}
         </div>
       )}
 

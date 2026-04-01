@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import InviteToast from "@/components/InviteToast";
 import PartyBar from "@/components/PartyBar";
-import SearchModal from "@/components/SearchModal";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -46,7 +45,6 @@ export default function RootLayout({
         `}</Script>
         <InviteToast />
         <PartyBar />
-        <SearchModal />
         {children}
       </body>
     </html>
