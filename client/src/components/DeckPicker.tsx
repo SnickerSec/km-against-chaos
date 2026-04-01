@@ -227,16 +227,19 @@ function DeckCard({
   );
 }
 
-export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLink = true }: {
+export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLink = true, search: externalSearch, onSearchChange }: {
   onSelect: (deckId: string) => void;
   title?: string;
   buttonLabel?: string;
   showCreateLink?: boolean;
+  search?: string;
+  onSearchChange?: (val: string) => void;
 }) {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [trending, setTrending] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [internalSearch, setInternalSearch] = useState("");
+  const search = externalSearch ?? internalSearch;
   const [filter, setFilter] = useState<GameTypeFilter>("all");
   const [maturity, setMaturity] = useState<MaturityFilter>("all");
   const [sort, setSort] = useState<SortOption>("popular");
@@ -287,8 +290,18 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Debounced reload when external search prop changes
+  useEffect(() => {
+    if (externalSearch === undefined) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      loadDecks(externalSearch, filter, sort, maturity);
+    }, 350);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalSearch]);
+
   const handleSearchChange = (val: string) => {
-    setSearch(val);
+    setInternalSearch(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       loadDecks(val, filter, sort, maturity);
@@ -322,17 +335,19 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
     <div>
       {title && <h2 className="text-lg font-semibold text-gray-300 mb-3 text-center">{title}</h2>}
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
-        <input
-          type="text"
-          placeholder="Search by name or description..."
-          value={search}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
-        />
-      </div>
+      {/* Search — only render inline when not externally controlled */}
+      {!onSearchChange && (
+        <div className="relative mb-4">
+          <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
+          <input
+            type="text"
+            placeholder="Search by name or description..."
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+          />
+        </div>
+      )}
 
       {/* Trending section — hide when searching/filtering */}
       {!hasActiveFilters && trending.length > 0 && (

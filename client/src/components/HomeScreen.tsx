@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Icon } from "@iconify/react";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { useAuthStore } from "@/lib/auth";
@@ -20,6 +21,7 @@ export default function HomeScreen() {
   const [name, setName] = useState("");
   const [roomCode, setRoomCode] = useState(codeFromUrl?.toUpperCase() || "");
   const [selectedDeck, setSelectedDeck] = useState<string | null>(null);
+  const [deckSearch, setDeckSearch] = useState("");
   const { error, setError, setPlayerName } = useGameStore();
   const { createLobby, joinLobby, spectateGame } = useSocket();
 
@@ -98,7 +100,19 @@ export default function HomeScreen() {
             <text x="58" y="42" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="42" fill="#c084fc" letterSpacing="2">ecked</text>
           </svg>
           </h1>
-          <GoogleSignIn />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
+              <input
+                type="text"
+                placeholder="Search decks..."
+                value={deckSearch}
+                onChange={(e) => setDeckSearch(e.target.value)}
+                className="w-48 sm:w-64 pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+              />
+            </div>
+            <GoogleSignIn />
+          </div>
         </div>
         <p className="text-gray-400">
           Create and play custom card games
@@ -163,7 +177,7 @@ export default function HomeScreen() {
       )}
 
       {/* Host a Game */}
-      <DeckPicker title="Host a Game" onSelect={handleCreate} />
+      <DeckPicker title="Host a Game" onSelect={handleCreate} search={deckSearch} onSearchChange={setDeckSearch} />
 
       {/* Legal footer */}
       <div className="flex justify-center mt-6 pb-4">
