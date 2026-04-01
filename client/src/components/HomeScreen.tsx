@@ -18,6 +18,8 @@ export default function HomeScreen() {
 
   const nameRef = useRef<HTMLInputElement>(null);
   const roomCodeRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
   const authUser = useAuthStore((s) => s.user);
 
   const [name, setName] = useState("");
@@ -32,6 +34,25 @@ export default function HomeScreen() {
       setRoomCode(codeFromUrl.toUpperCase());
     }
   }, [codeFromUrl]);
+
+  // Focus search bar on '/' key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if ((e.target as HTMLElement)?.isContentEditable) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        // Focus whichever search input is visible
+        const desktop = searchRef.current;
+        const mobile = mobileSearchRef.current;
+        if (desktop && desktop.offsetParent !== null) desktop.focus();
+        else mobile?.focus();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Auto-populate name from Google sign-in
   useEffect(() => {
@@ -121,6 +142,7 @@ export default function HomeScreen() {
             <div className="relative hidden sm:block">
               <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
               <input
+                ref={searchRef}
                 type="text"
                 placeholder="Search decks..."
                 value={deckSearch}
@@ -138,6 +160,7 @@ export default function HomeScreen() {
         <div className="relative w-full mt-3 sm:hidden">
           <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
           <input
+            ref={mobileSearchRef}
             type="text"
             placeholder="Search decks..."
             value={deckSearch}
