@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Icon } from "@iconify/react";
-import { fetchDecks, rateDeck, toggleFavorite, getFavorites, DeckSummary } from "@/lib/api";
+import { fetchDecks, toggleFavorite, getFavorites, DeckSummary } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import GameTypeBadge from "./GameTypeBadge";
+import StarRating from "./StarRating";
 
 const GAME_TYPE_FILTERS = [
   ["all", "All Games", "mdi:cards-playing"],
@@ -33,47 +34,6 @@ const SORT_OPTIONS = [
 type GameTypeFilter = typeof GAME_TYPE_FILTERS[number][0];
 type MaturityFilter = typeof MATURITY_FILTERS[number][0];
 type SortOption = typeof SORT_OPTIONS[number][0];
-
-function StarRating({
-  value,
-  onChange,
-  readonly,
-  size = "text-base",
-}: {
-  value: number;
-  onChange?: (rating: number) => void;
-  readonly?: boolean;
-  size?: string;
-}) {
-  const [hover, setHover] = useState(0);
-
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <button
-          key={star}
-          type="button"
-          disabled={readonly}
-          onClick={() => onChange?.(star)}
-          onMouseEnter={() => !readonly && setHover(star)}
-          onMouseLeave={() => !readonly && setHover(0)}
-          className={`${size} ${readonly ? "cursor-default" : "cursor-pointer hover:scale-110"} transition-transform`}
-          title={readonly ? `${value.toFixed(1)} stars` : `Rate ${star} star${star > 1 ? "s" : ""}`}
-        >
-          <span
-            className={
-              (hover || value) >= star
-                ? "text-yellow-400"
-                : "text-gray-700"
-            }
-          >
-            &#9733;
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function TrendingCard({
   deck,
@@ -117,7 +77,6 @@ function DeckCard({
   deck,
   isLoggedIn,
   isFavorited,
-  onRate,
   onToggleFavorite,
   onSelect,
   buttonLabel,
@@ -125,7 +84,6 @@ function DeckCard({
   deck: DeckSummary;
   isLoggedIn: boolean;
   isFavorited: boolean;
-  onRate: (deckId: string, rating: number) => void;
   onToggleFavorite: (deckId: string) => void;
   onSelect: (id: string) => void;
   buttonLabel?: string;
@@ -185,8 +143,7 @@ function DeckCard({
             </div>
             <StarRating
               value={deck.avgRating || 0}
-              onChange={isLoggedIn ? (r) => onRate(deck.id, r) : undefined}
-              readonly={!isLoggedIn}
+              readonly
               size="text-sm"
             />
             {(deck.avgRating || 0) > 0 && (
@@ -306,13 +263,6 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
     debounceRef.current = setTimeout(() => {
       loadDecks(val, filter, sort, maturity);
     }, 350);
-  };
-
-  const handleRate = async (deckId: string, rating: number) => {
-    try {
-      await rateDeck(deckId, rating);
-      loadDecks(search, filter, sort, maturity);
-    } catch {}
   };
 
   const handleToggleFavorite = async (deckId: string) => {
@@ -437,7 +387,6 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
               deck={deck}
               isLoggedIn={!!authUser}
               isFavorited={favoriteIds.has(deck.id)}
-              onRate={handleRate}
               onToggleFavorite={handleToggleFavorite}
               onSelect={onSelect}
               buttonLabel={buttonLabel}

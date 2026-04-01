@@ -4,14 +4,20 @@ import { useState } from "react";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
+import { rateDeck } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth";
 import PlayerAvatar from "./PlayerAvatar";
 import DeckPicker from "./DeckPicker";
+import StarRating from "./StarRating";
 
 export default function GameOverScreen() {
   const { scores, lobby, reset } = useGameStore();
   const { leaveLobby, rematch, voteRematch, changeDeck } = useSocket();
   const [hasVoted, setHasVoted] = useState(false);
   const [showDeckPicker, setShowDeckPicker] = useState(false);
+  const [userRating, setUserRating] = useState(0);
+  const [hasRated, setHasRated] = useState(false);
+  const authUser = useAuthStore((s) => s.user);
   const socket = getSocket();
   const isHost = lobby?.hostId === socket.id;
 
@@ -33,6 +39,16 @@ export default function GameOverScreen() {
     if (index === total - 1) return "Underdog";
     return null;
   }
+
+  const handleRate = async (rating: number) => {
+    setUserRating(rating);
+    if (lobby?.deckId && authUser) {
+      try {
+        await rateDeck(lobby.deckId, rating);
+        setHasRated(true);
+      } catch {}
+    }
+  };
 
   const handlePlayAgain = () => {
     reset();
@@ -78,6 +94,21 @@ export default function GameOverScreen() {
           );
         })}
       </div>
+
+      {/* Rate this deck */}
+      {authUser && lobby?.deckId && (
+        <div className="flex flex-col items-center mb-6">
+          <p className="text-gray-400 text-sm mb-2">
+            {hasRated ? "Thanks for rating!" : "How was this deck?"}
+          </p>
+          <StarRating
+            value={userRating}
+            onChange={hasRated ? undefined : handleRate}
+            readonly={hasRated}
+            size="text-2xl"
+          />
+        </div>
+      )}
 
       <div className="flex flex-col items-center gap-3">
         {isHost ? (
