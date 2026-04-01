@@ -85,6 +85,7 @@ const app = express();
 app.set("trust proxy", 1); // trust Railway's proxy for correct client IP in rate limiting
 app.use(helmet({
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
 }));
 app.use(
   cors({
