@@ -55,7 +55,7 @@ function ProfileDropdown({ user, onLogout }: { user: { name: string; picture?: s
             <p className="text-sm font-medium text-white truncate">{user.name}</p>
           </div>
           <Link
-            href="/decks/browse"
+            href="/"
             onClick={() => setOpen(false)}
             className="block px-3 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
           >
