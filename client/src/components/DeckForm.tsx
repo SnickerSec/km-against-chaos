@@ -1673,7 +1673,9 @@ function AIGenerate({
   pillars?: { maturity: string; flavorThemes: string[]; chaosLevel: number; wildcard: string };
   onGenerated: (chaos: CardInput[], knowledge: CardInput[], name?: string, description?: string) => void;
 }) {
-  const defaultPrompts = packType === "themed" ? 2 : 5;
+  // Joking Hazard expansion/themed packs only generate panel cards (not scenes)
+  const jhPanelsOnly = gameType === "joking-hazard" && packType !== "base";
+  const defaultPrompts = jhPanelsOnly ? 0 : packType === "themed" ? 2 : 5;
   const defaultAnswers = packType === "themed" ? 6 : 12;
 
   const [theme, setTheme] = useState("");
@@ -1723,7 +1725,7 @@ function AIGenerate({
         AI Card Generator
       </p>
       <p className="text-gray-400 text-xs mb-3">
-        Add more cards to {packName}
+        {jhPanelsOnly ? `Add panel cards to ${packName}` : `Add more cards to ${packName}`}
       </p>
       <div className="flex gap-2 mb-3">
         <input
@@ -1746,17 +1748,19 @@ function AIGenerate({
         </button>
       </div>
       <div className="flex gap-4">
-        <label className="flex items-center gap-2 text-xs text-gray-400">
-          <span>{gameType === "joking-hazard" ? "Scenes" : "Prompts"}</span>
-          <input
-            type="number"
-            min={1}
-            max={30}
-            value={promptCount}
-            onChange={(e) => setPromptCount(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
-            className="w-14 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-white text-xs focus:outline-none focus:border-purple-500 text-center"
-          />
-        </label>
+        {!jhPanelsOnly && (
+          <label className="flex items-center gap-2 text-xs text-gray-400">
+            <span>{gameType === "joking-hazard" ? "Scenes" : "Prompts"}</span>
+            <input
+              type="number"
+              min={1}
+              max={30}
+              value={promptCount}
+              onChange={(e) => setPromptCount(Math.max(1, Math.min(30, parseInt(e.target.value) || 1)))}
+              className="w-14 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-white text-xs focus:outline-none focus:border-purple-500 text-center"
+            />
+          </label>
+        )}
         <label className="flex items-center gap-2 text-xs text-gray-400">
           <span>{gameType === "joking-hazard" ? "Panels" : "Answers"}</span>
           <input
