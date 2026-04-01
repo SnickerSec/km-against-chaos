@@ -101,7 +101,7 @@ export default function HomeScreen() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 min-h-screen">
       {/* Header */}
-      <div className="mb-8">
+      <div className="flex flex-col items-start mb-8">
         <div className="flex items-center justify-between w-full mb-2">
           <h1>
             <svg viewBox="-10 0 240 58" className="w-64 h-auto block -ml-3" aria-label="Decked">
@@ -117,12 +117,25 @@ export default function HomeScreen() {
             <text x="58" y="42" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="42" fill="#c084fc" letterSpacing="2">ecked</text>
           </svg>
           </h1>
-          <GoogleSignIn />
+          <div className="flex items-center gap-3">
+            <div className="relative hidden sm:block">
+              <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
+              <input
+                type="text"
+                placeholder="Search decks..."
+                value={deckSearch}
+                onChange={(e) => setDeckSearch(e.target.value)}
+                className="w-64 pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+              />
+            </div>
+            <GoogleSignIn />
+          </div>
         </div>
-        <p className="text-gray-400 mb-3">
+        <p className="text-gray-400">
           Create and play custom card games
         </p>
-        <div className="relative">
+        {/* Mobile search — visible only on small screens */}
+        <div className="relative w-full mt-3 sm:hidden">
           <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
           <input
             type="text"
