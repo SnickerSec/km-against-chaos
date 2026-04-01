@@ -3,6 +3,7 @@ import { requireAuth } from "./auth.js";
 import pool from "./db.js";
 import { randomBytes } from "crypto";
 import { getPresenceBulk } from "./presence.js";
+import { createNotification, getVapidPublicKey } from "./notifications.js";
 
 const router = Router();
 
@@ -142,6 +143,11 @@ router.post("/api/friends/request", requireAuth, async (req: any, res) => {
       [genId(), userId, friendId]
     );
 
+    // Notify the target user
+    const sender = await pool.query("SELECT name FROM users WHERE id = $1", [userId]);
+    const senderName = sender.rows[0]?.name || "Someone";
+    await createNotification(friendId, "friend_request", { fromName: senderName, fromUserId: userId });
+
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -160,6 +166,13 @@ router.post("/api/friends/:id/accept", requireAuth, async (req: any, res) => {
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: "Request not found" });
+
+    // Notify the original requester that their request was accepted
+    const acceptor = await pool.query("SELECT name FROM users WHERE id = $1", [userId]);
+    const acceptorName = acceptor.rows[0]?.name || "Someone";
+    const requesterId = result.rows[0].user_id;
+    await createNotification(requesterId, "friend_accepted", { fromName: acceptorName, fromUserId: userId });
+
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -464,6 +477,47 @@ router.get("/api/friends/unread-counts", requireAuth, async (req: any, res) => {
     const counts: Record<string, number> = {};
     for (const row of result.rows) counts[row.sender_id] = parseInt(row.unread_count);
     res.json(counts);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Push Notifications ──
+
+router.get("/api/push/vapid-key", (_req, res) => {
+  const key = getVapidPublicKey();
+  if (!key) return res.status(404).json({ error: "Push not configured" });
+  res.json({ publicKey: key });
+});
+
+router.post("/api/push/subscribe", requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.id;
+    const { subscription } = req.body;
+    if (!subscription?.endpoint) return res.status(400).json({ error: "Invalid subscription" });
+
+    // Upsert: remove existing sub with same endpoint, then insert
+    await pool.query("DELETE FROM push_subscriptions WHERE user_id = $1 AND subscription->>'endpoint' = $2", [userId, subscription.endpoint]);
+    await pool.query(
+      "INSERT INTO push_subscriptions (id, user_id, subscription) VALUES ($1, $2, $3)",
+      [genId(), userId, JSON.stringify(subscription)]
+    );
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post("/api/push/unsubscribe", requireAuth, async (req: any, res) => {
+  try {
+    const userId = req.user.id;
+    const { endpoint } = req.body;
+    if (endpoint) {
+      await pool.query("DELETE FROM push_subscriptions WHERE user_id = $1 AND subscription->>'endpoint' = $2", [userId, endpoint]);
+    } else {
+      await pool.query("DELETE FROM push_subscriptions WHERE user_id = $1", [userId]);
+    }
+    res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

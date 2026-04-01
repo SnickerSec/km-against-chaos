@@ -18,6 +18,7 @@ import tgcRoutes from "./tgcRoutes.js";
 import statsRoutes from "./statsRoutes.js";
 import friendRoutes from "./friendRoutes.js";
 import stripeRoutes from "./stripeRoutes.js";
+import { setIO as setNotificationIO } from "./notifications.js";
 import { recordGameResult } from "./statsStore.js";
 import { verifyJwt } from "./auth.js";
 import { setOnline, setOffline, setInGame, setNotInGame, getUserIdForSocket, getSocketIdsForUser, isOnline, getPresence, remapSocket as remapPresenceSocket } from "./presence.js";
@@ -122,6 +123,8 @@ const io = new Server<ClientEvents, ServerEvents>(httpServer, {
   pingInterval: 10_000,
   pingTimeout: 5_000,
 });
+
+setNotificationIO(io);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
@@ -674,6 +677,11 @@ io.on("connection", (socket) => {
         gameType,
       });
     }
+
+    // Persist notification
+    const { createNotification } = await import("./notifications.js");
+    await createNotification(targetUserId, "game_invite", { fromName: senderName, fromUserId: userId, deckName, lobbyCode: code });
+
     callback?.({ success: true });
   });
 

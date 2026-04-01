@@ -13,6 +13,50 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// ── Push Notifications ──
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  try {
+    const data = event.data.json();
+    const title = data.title || "Decked";
+    const options = {
+      body: data.body || "",
+      icon: data.icon || "/icon-192.png",
+      badge: data.badge || "/icon-192.png",
+      data: data.data || {},
+      tag: data.data?.type || "default",
+      renotify: true,
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch {}
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  let url = "/";
+  if (data.type === "game_invite" && data.lobbyCode) {
+    url = `/?code=${data.lobbyCode}`;
+  } else if (data.type === "friend_request" || data.type === "friend_accepted") {
+    url = "/friends";
+  }
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if (new URL(client.url).origin === self.location.origin) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   // Only cache GET requests for static assets
   if (event.request.method !== "GET") return;

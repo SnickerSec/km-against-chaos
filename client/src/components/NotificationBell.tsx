@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "@/lib/auth";
 import { useFriendsStore } from "@/lib/friendsStore";
-import { fetchNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/api";
+import { fetchNotifications, markNotificationRead, markAllNotificationsRead, getVapidPublicKey, subscribePush } from "@/lib/api";
 
 function timeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -11,6 +11,15 @@ function timeAgo(date: string): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return new Date(date).toLocaleDateString();
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
 }
 
 export default function NotificationBell() {
@@ -24,6 +33,27 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!user) return;
     fetchNotifications().then(setNotifications).catch(() => {});
+
+    // Subscribe to web push notifications
+    if ("serviceWorker" in navigator && "PushManager" in window) {
+      (async () => {
+        try {
+          const vapidKey = await getVapidPublicKey();
+          if (!vapidKey) return;
+          const reg = await navigator.serviceWorker.ready;
+          const existing = await reg.pushManager.getSubscription();
+          if (existing) {
+            await subscribePush(existing);
+            return;
+          }
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidKey) as BufferSource,
+          });
+          await subscribePush(sub);
+        } catch {}
+      })();
+    }
   }, [user, setNotifications]);
 
   useEffect(() => {
@@ -86,7 +116,7 @@ export default function NotificationBell() {
                 >
                   <p className="text-sm text-gray-200">
                     {n.type === "friend_request" && `${n.data?.fromName || "Someone"} sent you a friend request`}
-                    {n.type === "friend_accepted" && `${n.data?.name || "Someone"} accepted your friend request`}
+                    {n.type === "friend_accepted" && `${n.data?.fromName || n.data?.name || "Someone"} accepted your friend request`}
                     {n.type === "game_invite" && `${n.data?.fromName || "Someone"} invited you to play ${n.data?.deckName || ""}`}
                     {!["friend_request", "friend_accepted", "game_invite"].includes(n.type) && (n.data?.message || "New notification")}
                   </p>

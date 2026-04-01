@@ -384,6 +384,32 @@ export async function markAllNotificationsRead() {
   await fetch(`${API_URL}/api/notifications/read-all`, { method: "POST", headers: getAuthHeaders() });
 }
 
+// Push notifications
+export async function getVapidPublicKey(): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/push/vapid-key`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.publicKey || null;
+  } catch { return null; }
+}
+
+export async function subscribePush(subscription: PushSubscription) {
+  await fetch(`${API_URL}/api/push/subscribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ subscription: subscription.toJSON() }),
+  });
+}
+
+export async function unsubscribePush(endpoint?: string) {
+  await fetch(`${API_URL}/api/push/unsubscribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ endpoint }),
+  });
+}
+
 // Unread DM counts
 export async function fetchUnreadCounts() {
   const res = await fetch(`${API_URL}/api/friends/unread-counts`, { headers: getAuthHeaders() });
