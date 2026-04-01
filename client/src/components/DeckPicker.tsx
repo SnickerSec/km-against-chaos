@@ -322,6 +322,18 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
     <div>
       {title && <h2 className="text-lg font-semibold text-gray-300 mb-3 text-center">{title}</h2>}
 
+      {/* Search */}
+      <div className="relative mb-4">
+        <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
+        <input
+          type="text"
+          placeholder="Search by name or description..."
+          value={search}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+        />
+      </div>
+
       {/* Trending section — hide when searching/filtering */}
       {!hasActiveFilters && trending.length > 0 && (
         <div className="mb-6">
@@ -336,18 +348,6 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
           </div>
         </div>
       )}
-
-      {/* Search */}
-      <div className="relative mb-4">
-        <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
-        <input
-          type="text"
-          placeholder="Search by name or description..."
-          value={search}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
-        />
-      </div>
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
