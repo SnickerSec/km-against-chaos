@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Icon } from "@iconify/react";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
@@ -12,6 +12,7 @@ import DeckPicker from "@/components/DeckPicker";
 
 export default function HomeScreen() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const codeFromUrl = searchParams.get("code");
   const deckFromUrl = searchParams.get("deck");
 
@@ -42,6 +43,8 @@ export default function HomeScreen() {
   // Auto-host when ?deck= param is present
   useEffect(() => {
     if (!deckFromUrl) return;
+    // Clear the param from URL so it doesn't re-trigger
+    router.replace("/", { scroll: false });
     if (name.trim()) {
       handleCreate(deckFromUrl);
     } else {
