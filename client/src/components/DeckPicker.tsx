@@ -384,7 +384,7 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
         ))}
 
         <div className="ml-auto flex items-center gap-1">
-          {SORT_OPTIONS.map(([value, label, icon]) => (
+          {SORT_OPTIONS.filter(([value]) => value !== "favorites" || authUser).map(([value, label, icon]) => (
             <button
               key={value}
               onClick={() => setSort(value)}
