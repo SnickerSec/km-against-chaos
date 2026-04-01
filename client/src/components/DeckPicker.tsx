@@ -212,7 +212,7 @@ function DeckCard({
               className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
               title="Remix this deck"
             >
-              <Icon icon="mdi:shuffle-variant" width={14} />
+              <Icon icon="svg-spinners:blocks-shuffle-3" width={14} />
             </Link>
             <button
               onClick={() => onSelect(deck.id)}
