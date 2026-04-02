@@ -229,16 +229,8 @@ export async function generatePreviewImage(
 ): Promise<string | null> {
   const style = getArtStyle(gameType);
 
-  // Generate image prompt via configured AI provider
-  const prompts = await generateImagePrompts(
-    [{ id: "preview", text: cardText }],
-    { theme, gameType, maturity }
-  );
-
-  const prompt = prompts.get("preview");
-  if (!prompt) return null;
-
-  return generateCardImage(prompt, style);
+  // Send card text directly to fal.ai with the art style — no LLM prompt rewriting needed
+  return generateCardImage(cardText, style);
 }
 
 // Main pipeline: generate art for all cards in a deck
@@ -276,30 +268,27 @@ export async function generateDeckArt(deckId: string): Promise<void> {
       return;
     }
 
-    // Generate image prompts via configured AI provider
-    console.log(`[ART] Generating image prompts for ${allCards.length} cards in deck ${deckId}`);
-    const imagePrompts = await generateImagePrompts(allCards, { theme, gameType, maturity });
+    // Generate images directly from card text — art style provides the visual direction
+    console.log(`[ART] Generating images for ${allCards.length} cards in deck ${deckId}`);
 
     // Generate images in parallel batches
     const CONCURRENCY = 5;
     const cardImageMap = new Map<string, string>();
-    const cardIds = Array.from(imagePrompts.keys());
 
-    for (let i = 0; i < cardIds.length; i += CONCURRENCY) {
-      const batch = cardIds.slice(i, i + CONCURRENCY);
+    for (let i = 0; i < allCards.length; i += CONCURRENCY) {
+      const batch = allCards.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
-        batch.map(async (cardId) => {
-          const prompt = imagePrompts.get(cardId)!;
-          const url = await generateCardImage(prompt, style);
+        batch.map(async (card) => {
+          const url = await generateCardImage(card.text, style);
           if (url) {
-            cardImageMap.set(cardId, url);
+            cardImageMap.set(card.id, url);
           }
         })
       );
       // Log failures
       for (let j = 0; j < results.length; j++) {
         if (results[j].status === "rejected") {
-          console.error(`[ART] Failed to generate image for card ${batch[j]}:`, (results[j] as PromiseRejectedResult).reason);
+          console.error(`[ART] Failed to generate image for card ${batch[j].id}:`, (results[j] as PromiseRejectedResult).reason);
         }
       }
     }
