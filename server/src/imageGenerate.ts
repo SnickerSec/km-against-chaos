@@ -1,4 +1,6 @@
 import * as fal from "@fal-ai/serverless-client";
+import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import pool from "./db.js";
 
@@ -7,7 +9,101 @@ if (process.env.FAL_KEY) {
   fal.config({ credentials: process.env.FAL_KEY });
 }
 
-// Art style registry — extensible per game type
+// ── AI provider support (mirrors aiGenerate.ts) ──
+
+type AiProvider = "anthropic" | "openai" | "deepseek" | "gemini";
+
+interface AiSettings {
+  provider: AiProvider;
+  model: string;
+  maxTokens: number;
+}
+
+const DEFAULTS: AiSettings = {
+  provider: "deepseek",
+  model: "deepseek-chat",
+  maxTokens: 2048,
+};
+
+async function getAiSettings(): Promise<AiSettings> {
+  try {
+    const { rows } = await pool.query(
+      "SELECT value FROM settings WHERE key = 'ai'"
+    );
+    if (rows.length > 0) {
+      return { ...DEFAULTS, ...rows[0].value };
+    }
+  } catch {
+    // DB not available, use defaults
+  }
+  return DEFAULTS;
+}
+
+function getApiKey(provider: AiProvider): string | undefined {
+  const envMap: Record<AiProvider, string> = {
+    anthropic: "ANTHROPIC_API_KEY",
+    openai: "OPENAI_API_KEY",
+    deepseek: "DEEPSEEK_API_KEY",
+    gemini: "GEMINI_API_KEY",
+  };
+  return process.env[envMap[provider]];
+}
+
+async function callProvider(settings: AiSettings, prompt: string): Promise<string> {
+  const apiKey = getApiKey(settings.provider);
+  if (!apiKey) throw new Error(`${settings.provider} API key not configured`);
+
+  switch (settings.provider) {
+    case "deepseek": {
+      const client = new OpenAI({ apiKey, baseURL: "https://api.deepseek.com" });
+      const response = await client.chat.completions.create({
+        model: settings.model,
+        max_tokens: settings.maxTokens,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const text = response.choices[0]?.message?.content;
+      if (!text) throw new Error("Empty response from DeepSeek");
+      return text;
+    }
+    case "openai": {
+      const client = new OpenAI({ apiKey });
+      const response = await client.chat.completions.create({
+        model: settings.model,
+        max_tokens: settings.maxTokens,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const text = response.choices[0]?.message?.content;
+      if (!text) throw new Error("Empty response from OpenAI");
+      return text;
+    }
+    case "gemini": {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const genModel = genAI.getGenerativeModel({
+        model: settings.model,
+        generationConfig: { maxOutputTokens: settings.maxTokens },
+      });
+      const result = await genModel.generateContent(prompt);
+      const text = result.response.text();
+      if (!text) throw new Error("Empty response from Gemini");
+      return text;
+    }
+    case "anthropic":
+    default: {
+      const client = new Anthropic({ apiKey });
+      const message = await client.messages.create({
+        model: settings.model,
+        max_tokens: settings.maxTokens,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const content = message.content[0];
+      if (content.type !== "text" || !content.text) throw new Error("Empty response from Anthropic");
+      return content.text;
+    }
+  }
+}
+
+// ── Art style registry ──
+
 interface ArtStyleConfig {
   basePrompt: string;
   aspectRatio: string;
@@ -41,15 +137,12 @@ export function getArtStyle(gameType: string): ArtStyleConfig {
   return ART_STYLES[gameType] || ART_STYLES.default;
 }
 
-// Generate image prompts for cards using Claude
+// Generate image prompts for cards using configured AI provider
 export async function generateImagePrompts(
   cards: { id: string; text: string }[],
   context: { theme: string; gameType: string; maturity?: string }
 ): Promise<Map<string, string>> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
-
-  const client = new Anthropic({ apiKey });
+  const settings = await getAiSettings();
   const style = getArtStyle(context.gameType);
   const result = new Map<string, string>();
 
@@ -81,12 +174,7 @@ Respond ONLY with valid JSON — an object mapping card IDs to image prompts:
 }`;
 
     try {
-      const message = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 2048,
-        messages: [{ role: "user", content: prompt }],
-      });
-      const text = message.content[0].type === "text" ? message.content[0].text : "";
+      const text = await callProvider(settings, prompt);
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
@@ -141,7 +229,7 @@ export async function generatePreviewImage(
 ): Promise<string | null> {
   const style = getArtStyle(gameType);
 
-  // Generate image prompt via Claude
+  // Generate image prompt via configured AI provider
   const prompts = await generateImagePrompts(
     [{ id: "preview", text: cardText }],
     { theme, gameType, maturity }
@@ -188,7 +276,7 @@ export async function generateDeckArt(deckId: string): Promise<void> {
       return;
     }
 
-    // Generate image prompts via Claude
+    // Generate image prompts via configured AI provider
     console.log(`[ART] Generating image prompts for ${allCards.length} cards in deck ${deckId}`);
     const imagePrompts = await generateImagePrompts(allCards, { theme, gameType, maturity });
 
