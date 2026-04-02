@@ -192,6 +192,26 @@ Respond ONLY with valid JSON — an object mapping card IDs to image prompts:
   return result;
 }
 
+// Build a full image prompt from card text + deck context
+function buildImagePrompt(
+  cardText: string,
+  style: ArtStyleConfig,
+  context?: { theme?: string; maturity?: string; flavorThemes?: string[]; wildcard?: string }
+): string {
+  const parts = [style.basePrompt];
+  if (context?.flavorThemes?.length) {
+    parts.push(context.flavorThemes.join(", ") + " theme");
+  }
+  if (context?.wildcard) {
+    parts.push(context.wildcard);
+  }
+  if (context?.maturity && context.maturity !== "adult") {
+    parts.push(`${context.maturity} tone`);
+  }
+  parts.push(cardText);
+  return parts.join(", ");
+}
+
 // Generate a single card image via fal.ai Flux
 async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise<string | null> {
   if (!process.env.FAL_KEY) {
@@ -199,12 +219,10 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
     return null;
   }
 
-  const fullPrompt = `${style.basePrompt}, ${prompt}`;
-
   try {
     const result = await fal.subscribe("fal-ai/flux/schnell", {
       input: {
-        prompt: fullPrompt,
+        prompt,
         image_size: style.aspectRatio === "4:3"
           ? { width: 512, height: 384 }
           : { width: 384, height: 512 },
@@ -225,12 +243,13 @@ export async function generatePreviewImage(
   cardText: string,
   gameType: string,
   theme: string,
-  maturity: string = "adult"
+  maturity: string = "adult",
+  flavorThemes?: string[],
+  wildcard?: string,
 ): Promise<string | null> {
   const style = getArtStyle(gameType);
-
-  // Send card text directly to fal.ai with the art style — no LLM prompt rewriting needed
-  return generateCardImage(cardText, style);
+  const prompt = buildImagePrompt(cardText, style, { theme, maturity, flavorThemes, wildcard });
+  return generateCardImage(prompt, style);
 }
 
 // Main pipeline: generate art for all cards in a deck
@@ -252,7 +271,10 @@ export async function generateDeckArt(deckId: string): Promise<void> {
     const gameType = deck.game_type || "cah";
     const theme = deck.name;
     const maturity = deck.maturity || "adult";
+    const flavorThemes: string[] = deck.flavor_themes || [];
+    const wildcard: string = deck.wildcard || "";
     const style = getArtStyle(gameType);
+    const context = { theme, maturity, flavorThemes, wildcard };
 
     // Collect all cards that need images
     const allCards = [
@@ -279,7 +301,8 @@ export async function generateDeckArt(deckId: string): Promise<void> {
       const batch = allCards.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         batch.map(async (card) => {
-          const url = await generateCardImage(card.text, style);
+          const prompt = buildImagePrompt(card.text, style, context);
+          const url = await generateCardImage(prompt, style);
           if (url) {
             cardImageMap.set(card.id, url);
           }

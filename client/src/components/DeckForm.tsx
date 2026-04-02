@@ -1582,7 +1582,7 @@ function AIGenerationPanel({
                   setPreviewLoading(true);
                   setPreviewError(null);
                   try {
-                    const { imageUrl, previewsRemaining: rem } = await generateArtPreview(sample.text, apiGameType, deckName || "Custom Deck", maturity);
+                    const { imageUrl, previewsRemaining: rem } = await generateArtPreview(sample.text, apiGameType, deckName || "Custom Deck", maturity, flavorThemes, wildcard);
                     setPreviewUrl(imageUrl);
                     if (rem !== undefined) setPreviewsRemaining(rem);
                   } catch (err: any) {

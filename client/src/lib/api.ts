@@ -485,11 +485,14 @@ export async function getFavorites(): Promise<string[]> {
   return res.json();
 }
 
-export async function generateArtPreview(cardText: string, gameType: string, theme: string, maturity?: string): Promise<{ imageUrl: string; previewsRemaining?: number }> {
+export async function generateArtPreview(
+  cardText: string, gameType: string, theme: string,
+  maturity?: string, flavorThemes?: string[], wildcard?: string,
+): Promise<{ imageUrl: string; previewsRemaining?: number }> {
   const res = await fetch(`${API_URL}/api/art/preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ cardText, gameType, theme, maturity }),
+    body: JSON.stringify({ cardText, gameType, theme, maturity, flavorThemes, wildcard }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

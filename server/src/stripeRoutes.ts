@@ -181,7 +181,7 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
     return;
   }
 
-  const { cardText, gameType, theme, maturity } = req.body || {};
+  const { cardText, gameType, theme, maturity, flavorThemes, wildcard } = req.body || {};
   if (!cardText || !gameType) {
     res.status(400).json({ error: "cardText and gameType are required" });
     return;
@@ -192,7 +192,9 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
       cardText,
       gameType,
       theme || "Custom Deck",
-      maturity || "adult"
+      maturity || "adult",
+      flavorThemes,
+      wildcard,
     );
     if (!imageUrl) {
       res.status(500).json({ error: "Failed to generate preview" });
