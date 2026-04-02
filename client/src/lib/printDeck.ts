@@ -4,7 +4,9 @@ import type { CustomDeck } from "./api";
 const CARD_W = 2.5;
 const CARD_H = 3.5;
 const PAGE_MARGIN = 0.25;
+const PAGE_MARGIN_V = 0.1;
 const GUTTER = 0.25;
+const GUTTER_V = 0.15;
 const COLS = 3;
 const ROWS = 3;
 const CARDS_PER_PAGE = COLS * ROWS;
@@ -15,7 +17,7 @@ function cardPosition(index: number): { x: number; y: number } {
   const col = index % COLS;
   const row = Math.floor(index / COLS);
   const x = PAGE_MARGIN + col * (CARD_W + GUTTER);
-  const y = PAGE_MARGIN + row * (CARD_H + GUTTER);
+  const y = PAGE_MARGIN_V + row * (CARD_H + GUTTER_V);
   return { x, y };
 }
 
