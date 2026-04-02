@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState, useCallback } from "react";
 import { Icon } from "@iconify/react";
 import { useGameStore, UnoColor } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
@@ -74,6 +75,52 @@ export default function UnoGameScreen() {
   const handleCancelColor = () => {
     useGameStore.setState({ selectedUnoCard: null, choosingColor: false });
   };
+
+  // Drag-to-play state
+  const [dragCardId, setDragCardId] = useState<string | null>(null);
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
+  const [overDrop, setOverDrop] = useState(false);
+  const discardRef = useRef<HTMLDivElement>(null);
+  const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const isOverDiscard = useCallback((px: number, py: number) => {
+    if (!discardRef.current) return false;
+    const r = discardRef.current.getBoundingClientRect();
+    // Generous hit zone (expanded by 24px)
+    return px >= r.left - 24 && px <= r.right + 24 && py >= r.top - 24 && py <= r.bottom + 24;
+  }, []);
+
+  const onDragStart = useCallback((cardId: string, e: React.PointerEvent) => {
+    if (!isMyTurn || isRoundOver || !playableCardIds.includes(cardId)) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    setDragCardId(cardId);
+    setDragPos({ x: e.clientX, y: e.clientY });
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, [isMyTurn, isRoundOver, playableCardIds]);
+
+  const onDragMove = useCallback((e: React.PointerEvent) => {
+    if (!dragCardId) return;
+    setDragPos({ x: e.clientX, y: e.clientY });
+    setOverDrop(isOverDiscard(e.clientX, e.clientY));
+  }, [dragCardId, isOverDiscard]);
+
+  const onDragEnd = useCallback(() => {
+    if (!dragCardId || !dragPos) {
+      setDragCardId(null);
+      setDragPos(null);
+      setOverDrop(false);
+      return;
+    }
+    if (isOverDiscard(dragPos.x, dragPos.y)) {
+      handleCardClick(dragCardId);
+    }
+    setDragCardId(null);
+    setDragPos(null);
+    setOverDrop(false);
+  }, [dragCardId, dragPos, isOverDiscard]);
+
+  const dragCard = dragCardId ? unoHand.find(c => c.id === dragCardId) : null;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -151,7 +198,7 @@ export default function UnoGameScreen() {
           </button>
 
           {/* Discard Pile */}
-          <div className="relative">
+          <div ref={discardRef} className={`relative rounded-xl transition-all ${overDrop ? "ring-4 ring-purple-400 ring-offset-2 ring-offset-gray-900 scale-110" : ""}`}>
             <UnoCard card={unoTurn.discardTop} />
           </div>
         </div>
@@ -245,16 +292,40 @@ export default function UnoGameScreen() {
       {!isRoundOver && (
         <div className="bg-gray-900 border-t border-gray-800 px-4 py-4">
           <div className="flex gap-2 overflow-x-auto pb-2 justify-center flex-wrap">
-            {unoHand.map((card) => (
-              <UnoCard
-                key={card.id}
-                card={card}
-                playable={isMyTurn && playableCardIds.includes(card.id)}
-                selected={selectedUnoCard === card.id}
-                onClick={() => handleCardClick(card.id)}
-              />
-            ))}
+            {unoHand.map((card) => {
+              const isPlayable = isMyTurn && playableCardIds.includes(card.id);
+              return (
+                <div
+                  key={card.id}
+                  onPointerDown={(e) => onDragStart(card.id, e)}
+                  onPointerMove={onDragMove}
+                  onPointerUp={onDragEnd}
+                  onPointerCancel={onDragEnd}
+                  className={`touch-none ${dragCardId === card.id ? "opacity-30" : ""}`}
+                >
+                  <UnoCard
+                    card={card}
+                    playable={isPlayable}
+                    selected={selectedUnoCard === card.id}
+                    onClick={() => handleCardClick(card.id)}
+                  />
+                </div>
+              );
+            })}
           </div>
+
+          {/* Drag ghost */}
+          {dragCard && dragPos && (
+            <div
+              className="fixed pointer-events-none z-50"
+              style={{
+                left: dragPos.x - dragOffset.current.x,
+                top: dragPos.y - dragOffset.current.y,
+              }}
+            >
+              <UnoCard card={dragCard} playable />
+            </div>
+          )}
           {unoHand.length === 0 && (
             <p className="text-center text-gray-500 text-sm">No cards in hand</p>
           )}
