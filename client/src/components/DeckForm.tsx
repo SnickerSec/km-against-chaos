@@ -163,6 +163,7 @@ interface CardPack {
 interface Props {
   initial?: DeckFormData & { maturity?: string; flavorThemes?: string[]; chaosLevel?: number; wildcard?: string };
   onSubmit: (data: DeckFormData) => Promise<void>;
+  onGenerateArt?: (data: DeckFormData) => Promise<void>;
   submitLabel: string;
 }
 
@@ -176,7 +177,7 @@ function makeId() {
   return Math.random().toString(36).slice(2, 8);
 }
 
-export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
+export default function DeckForm({ initial, onSubmit, onGenerateArt, submitLabel }: Props) {
   const [name, setName] = useState(initial?.name || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [winMode, setWinMode] = useState<WinCondition["mode"]>(initial?.winCondition?.mode || "rounds");
@@ -277,9 +278,9 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
     ]);
   };
 
-  const handleSubmit = async () => {
+  const buildFormData = (): DeckFormData | null => {
     setError(null);
-    if (!name.trim()) { setError("Deck name is required"); return; }
+    if (!name.trim()) { setError("Deck name is required"); return null; }
 
     const isJH = gameType === "joking-hazard";
     const isUno = gameType === "uno";
@@ -291,9 +292,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
     if (isCodenames) {
       allChaos = [];
       allKnowledge = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
-      if (allKnowledge.length < 25) { setError("Need at least 25 words for the word pool"); return; }
+      if (allKnowledge.length < 25) { setError("Need at least 25 words for the word pool"); return null; }
     } else if (isUno) {
-      // Uno: store template as a single chaos card
       const template = {
         colorNames: unoColorNames,
         actionNames: Object.keys(unoActionNames).length > 0 ? unoActionNames : undefined,
@@ -302,17 +302,12 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       allChaos = [{ text: JSON.stringify(template), pick: 1 } as any];
       allKnowledge = [];
     } else if (isJH) {
-      // JH: all cards are in knowledgeCards. Auto-split:
-      // - Red (bonus) cards → chaosCards (drawn from deck, trigger bonus rounds)
-      // - ~30% of black cards → chaosCards (drawn as regular Panel 1 starters)
-      // - Remaining black cards → knowledgeCards (dealt to hands)
       const allPanels = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
       const redCards = allPanels.filter((c) => c.bonus);
       const blackCards = allPanels.filter((c) => !c.bonus);
 
-      if (allPanels.length < 20) { setError("Need at least 20 panel cards for a Joking Hazard deck"); return; }
+      if (allPanels.length < 20) { setError("Need at least 20 panel cards for a Joking Hazard deck"); return null; }
 
-      // Shuffle black cards and split ~30% to draw pile, rest to hands
       const shuffledBlack = [...blackCards].sort(() => Math.random() - 0.5);
       const drawCount = Math.max(5, Math.round(blackCards.length * 0.3));
       const blackForDeck = shuffledBlack.slice(0, drawCount).map((c) => ({ ...c, pick: 1 }));
@@ -324,8 +319,8 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       allChaos = packs.flatMap((p) => p.chaosCards).filter((c) => c.text.trim());
       allKnowledge = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
 
-      if (!isUno && allChaos.length < 5) { setError(`Need at least 5 ${gameType === "superfight" ? "character" : "prompt"} cards with text across all packs`); return; }
-      if (!isUno && allKnowledge.length < 15) { setError(`Need at least 15 ${gameType === "superfight" ? "attribute" : "answer"} cards with text across all packs`); return; }
+      if (!isUno && allChaos.length < 5) { setError(`Need at least 5 ${gameType === "superfight" ? "character" : "prompt"} cards with text across all packs`); return null; }
+      if (!isUno && allKnowledge.length < 15) { setError(`Need at least 15 ${gameType === "superfight" ? "attribute" : "answer"} cards with text across all packs`); return null; }
     }
 
     const packData = packs.map((p) => ({
@@ -336,22 +331,43 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
       knowledgeCards: p.knowledgeCards.filter((c) => c.text.trim()),
     })).filter((p) => p.chaosCards.length > 0 || p.knowledgeCards.length > 0);
 
+    return {
+      name: name.trim(),
+      description: description.trim(),
+      chaosCards: allChaos,
+      knowledgeCards: allKnowledge,
+      winCondition: { mode: winMode, value: winValue },
+      packs: packData,
+      maturity,
+      flavorThemes,
+      chaosLevel,
+      wildcard: wildcard.trim(),
+      gameType: isCodenames ? "codenames" : isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : gameType === "superfight" ? "superfight" : "cah",
+      premiumArt,
+    };
+  };
+
+  const handleSubmit = async () => {
+    const data = buildFormData();
+    if (!data) return;
     setSaving(true);
     try {
-      await onSubmit({
-        name: name.trim(),
-        description: description.trim(),
-        chaosCards: allChaos,
-        knowledgeCards: allKnowledge,
-        winCondition: { mode: winMode, value: winValue },
-        packs: packData,
-        maturity,
-        flavorThemes,
-        chaosLevel,
-        wildcard: wildcard.trim(),
-        gameType: isCodenames ? "codenames" : isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : gameType === "superfight" ? "superfight" : "cah",
-        premiumArt,
-      });
+      await onSubmit(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleGenerateArt = async () => {
+    if (!onGenerateArt) return;
+    const data = buildFormData();
+    if (!data) return;
+    data.premiumArt = true;
+    setSaving(true);
+    try {
+      await onGenerateArt(data);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -505,6 +521,7 @@ export default function DeckForm({ initial, onSubmit, submitLabel }: Props) {
         setPreviewsRemaining={setPreviewsRemaining}
         packs={packs}
         deckName={name}
+        onGenerateArt={onGenerateArt ? handleGenerateArt : undefined}
       />
 
       {/* Add packs (edit mode only) */}
@@ -1286,6 +1303,7 @@ function AIGenerationPanel({
   setPreviewsRemaining,
   packs,
   deckName,
+  onGenerateArt,
 }: {
   gameType: string;
   isCreate: boolean;
@@ -1314,6 +1332,7 @@ function AIGenerationPanel({
   setPreviewsRemaining: (v: number | null) => void;
   packs: { chaosCards: { text: string }[]; knowledgeCards: { text: string }[] }[];
   deckName: string;
+  onGenerateArt?: () => Promise<void>;
 }) {
   const [theme, setTheme] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -1620,10 +1639,10 @@ function AIGenerationPanel({
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setPremiumArt(true)}
+                    onClick={() => onGenerateArt ? onGenerateArt() : setPremiumArt(true)}
                     className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-semibold text-white transition-colors"
                   >
-                    Get Premium Art — $1.50
+                    {onGenerateArt ? "Generate Art for All Cards" : "Get Premium Art — $1.50"}
                   </button>
                   {previewsRemaining !== 0 && (
                     <button

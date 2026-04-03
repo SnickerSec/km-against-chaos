@@ -89,22 +89,6 @@ function EditDeckContent() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">Edit Deck</h1>
         <div className="flex items-center gap-4">
-          {isAdmin && !artStatus && (
-            <button
-              onClick={async () => {
-                try {
-                  await adminGenerateArt(id!);
-                  setArtStatus("pending");
-                } catch (err: any) {
-                  alert(err.message);
-                }
-              }}
-              className="text-gray-400 hover:text-purple-400 text-sm transition-colors flex items-center gap-1"
-            >
-              <Icon icon="mdi:image-auto-adjust" width={16} />
-              Generate Art
-            </button>
-          )}
           <EditPrintDropdown deck={deck} deckId={id!} />
           <Link href="/decks" className="text-gray-400 hover:text-white text-sm">
             Back to Decks
@@ -155,6 +139,11 @@ function EditDeckContent() {
           await updateDeck(id, data);
           router.push("/decks");
         }}
+        onGenerateArt={isAdmin ? async (data) => {
+          await updateDeck(id, data);
+          await adminGenerateArt(id!);
+          setArtStatus("pending");
+        } : undefined}
       />
     </div>
   );

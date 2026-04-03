@@ -72,28 +72,25 @@ function NewDeckContent() {
         onSubmit={async (data) => {
           const deck = await createDeck({ ...data, remixedFrom: remixOf || undefined });
           if (data.premiumArt && deck.id) {
-            if (isAdmin) {
-              try {
-                await adminGenerateArt(deck.id);
-                router.push(`/decks/edit?id=${deck.id}&art=generating`);
+            try {
+              const { sessionUrl } = await createCheckoutSession(deck.id);
+              if (sessionUrl) {
+                window.location.href = sessionUrl;
                 return;
-              } catch (err) {
-                console.error("Failed to start art generation:", err);
               }
-            } else {
-              try {
-                const { sessionUrl } = await createCheckoutSession(deck.id);
-                if (sessionUrl) {
-                  window.location.href = sessionUrl;
-                  return;
-                }
-              } catch (err) {
-                console.error("Failed to create checkout:", err);
-              }
+            } catch (err) {
+              console.error("Failed to create checkout:", err);
             }
           }
           router.push("/decks");
         }}
+        onGenerateArt={isAdmin ? async (data) => {
+          const deck = await createDeck({ ...data, remixedFrom: remixOf || undefined });
+          if (deck.id) {
+            await adminGenerateArt(deck.id);
+            router.push(`/decks/edit?id=${deck.id}&art=generating`);
+          }
+        } : undefined}
       />
     </div>
   );
