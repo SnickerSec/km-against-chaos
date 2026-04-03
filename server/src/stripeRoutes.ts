@@ -211,9 +211,12 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
       previewJobs.set(jobId, { status: "error", error: "Failed to generate preview" });
       return;
     }
-    const entry = previewUsage.get(userId)!;
-    entry.count++;
-    previewJobs.set(jobId, { status: "done", imageUrl, previewsRemaining: PREVIEW_LIMIT - entry.count });
+    const entry = previewUsage.get(userId);
+    if (entry) {
+      entry.count++;
+    }
+    const remaining = entry ? PREVIEW_LIMIT - entry.count : undefined;
+    previewJobs.set(jobId, { status: "done", imageUrl, previewsRemaining: remaining });
     // Clean up after 5 minutes
     setTimeout(() => previewJobs.delete(jobId), 5 * 60 * 1000);
   }).catch((err) => {
