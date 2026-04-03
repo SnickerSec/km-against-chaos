@@ -250,45 +250,50 @@ async function addSpeechBubble(imageUrl: string, text: string): Promise<string> 
   const width = metadata.width || 512;
   const height = metadata.height || 384;
 
-  // Word-wrap text to fit bubble
-  const maxCharsPerLine = 30;
-  const words = text.split(" ");
-  const lines: string[] = [];
-  let currentLine = "";
-  for (const word of words) {
-    if ((currentLine + " " + word).trim().length > maxCharsPerLine) {
-      lines.push(currentLine.trim());
-      currentLine = word;
-    } else {
-      currentLine = (currentLine + " " + word).trim();
-    }
-  }
-  if (currentLine.trim()) lines.push(currentLine.trim());
+  // Render text as an image using sharp's text input (uses pango, no font issues)
+  const maxWidth = width - 60;
+  const textSvg = `<svg xmlns="http://www.w3.org/2000/svg">
+    <style>
+      .bubble-text { font: bold 14px "DejaVu Sans", "Noto Sans", "Liberation Sans", sans-serif; fill: #000; }
+    </style>
+    <text class="bubble-text"><tspan x="0" y="14">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")}</tspan></text>
+  </svg>`;
 
-  const fontSize = 14;
-  const lineHeight = fontSize + 4;
-  const padding = 10;
-  const bubbleHeight = lines.length * lineHeight + padding * 2;
-  const bubbleWidth = Math.min(width - 40, maxCharsPerLine * (fontSize * 0.6) + padding * 2);
-  const bubbleX = (width - bubbleWidth) / 2;
-  const bubbleY = 8;
+  // Create text image with word wrapping via sharp's text input
+  const textImage = await sharp({
+    text: {
+      text: `<span font="14" weight="bold">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")}</span>`,
+      font: "sans-serif",
+      width: maxWidth,
+      height: 200,
+      align: "centre",
+      rgba: true,
+    },
+  }).png().toBuffer();
+
+  const textMeta = await sharp(textImage).metadata();
+  const textWidth = textMeta.width || 200;
+  const textHeight = textMeta.height || 20;
+
+  const padding = 12;
   const tailSize = 10;
+  const bubbleWidth = textWidth + padding * 2;
+  const bubbleHeight = textHeight + padding * 2;
+  const bubbleX = Math.round((width - bubbleWidth) / 2);
+  const bubbleY = 8;
 
-  // Build SVG speech bubble overlay
-  const textLines = lines.map((line, i) => {
-    const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    return `<text x="${bubbleX + bubbleWidth / 2}" y="${bubbleY + padding + (i + 1) * lineHeight - 4}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="bold" fill="#000">${escaped}</text>`;
-  }).join("\n");
-
-  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+  // SVG for just the bubble shape (no text)
+  const bubbleSvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
     <rect x="${bubbleX}" y="${bubbleY}" width="${bubbleWidth}" height="${bubbleHeight}" rx="8" ry="8" fill="white" stroke="black" stroke-width="2"/>
     <polygon points="${bubbleX + bubbleWidth / 2 - tailSize},${bubbleY + bubbleHeight} ${bubbleX + bubbleWidth / 2 + tailSize},${bubbleY + bubbleHeight} ${bubbleX + bubbleWidth / 2},${bubbleY + bubbleHeight + tailSize}" fill="white" stroke="black" stroke-width="2"/>
     <rect x="${bubbleX + 1}" y="${bubbleY + bubbleHeight - 2}" width="${tailSize * 2}" height="4" fill="white" transform="translate(${bubbleWidth / 2 - tailSize}, 0)"/>
-    ${textLines}
   </svg>`;
 
   const result = await sharp(imageBuffer)
-    .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+    .composite([
+      { input: Buffer.from(bubbleSvg), top: 0, left: 0 },
+      { input: textImage, top: bubbleY + padding, left: bubbleX + padding },
+    ])
     .jpeg({ quality: 85 })
     .toBuffer();
 
