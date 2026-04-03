@@ -243,61 +243,61 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
 
 // Composite a speech bubble with text onto an image using sharp
 async function addSpeechBubble(imageUrl: string, text: string): Promise<string> {
-  // Download the base image
-  const response = await fetch(imageUrl);
-  const imageBuffer = Buffer.from(await response.arrayBuffer());
-  const metadata = await sharp(imageBuffer).metadata();
-  const width = metadata.width || 512;
-  const height = metadata.height || 384;
+  try {
+    // Download the base image
+    const response = await fetch(imageUrl);
+    const imageBuffer = Buffer.from(await response.arrayBuffer());
+    const metadata = await sharp(imageBuffer).metadata();
+    const width = metadata.width || 512;
+    const height = metadata.height || 384;
 
-  // Render text as an image using sharp's text input (uses pango, no font issues)
-  const maxWidth = width - 60;
-  const textSvg = `<svg xmlns="http://www.w3.org/2000/svg">
-    <style>
-      .bubble-text { font: bold 14px "DejaVu Sans", "Noto Sans", "Liberation Sans", sans-serif; fill: #000; }
-    </style>
-    <text class="bubble-text"><tspan x="0" y="14">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")}</tspan></text>
-  </svg>`;
+    const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const maxWidth = width - 60;
+    const maxBubbleHeight = Math.round(height * 0.4);
 
-  // Create text image with word wrapping via sharp's text input
-  const textImage = await sharp({
-    text: {
-      text: `<span font="14" weight="bold">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")}</span>`,
-      font: "sans-serif",
-      width: maxWidth,
-      height: 200,
-      align: "centre",
-      rgba: true,
-    },
-  }).png().toBuffer();
+    // Create text image with word wrapping via sharp's text input (pango-based)
+    const textImage = await sharp({
+      text: {
+        text: `<span font="13" weight="bold">${escaped}</span>`,
+        font: "sans-serif",
+        width: maxWidth,
+        height: maxBubbleHeight,
+        align: "centre",
+        rgba: true,
+      },
+    }).png().toBuffer();
 
-  const textMeta = await sharp(textImage).metadata();
-  const textWidth = textMeta.width || 200;
-  const textHeight = textMeta.height || 20;
+    const textMeta = await sharp(textImage).metadata();
+    const textWidth = textMeta.width || 200;
+    const textHeight = textMeta.height || 20;
 
-  const padding = 12;
-  const tailSize = 10;
-  const bubbleWidth = textWidth + padding * 2;
-  const bubbleHeight = textHeight + padding * 2;
-  const bubbleX = Math.round((width - bubbleWidth) / 2);
-  const bubbleY = 8;
+    const padding = 10;
+    const tailSize = 10;
+    const bubbleWidth = textWidth + padding * 2;
+    const bubbleHeight = textHeight + padding * 2;
+    const bubbleX = Math.round((width - bubbleWidth) / 2);
+    const bubbleY = 6;
 
-  // SVG for just the bubble shape (no text)
-  const bubbleSvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <rect x="${bubbleX}" y="${bubbleY}" width="${bubbleWidth}" height="${bubbleHeight}" rx="8" ry="8" fill="white" stroke="black" stroke-width="2"/>
-    <polygon points="${bubbleX + bubbleWidth / 2 - tailSize},${bubbleY + bubbleHeight} ${bubbleX + bubbleWidth / 2 + tailSize},${bubbleY + bubbleHeight} ${bubbleX + bubbleWidth / 2},${bubbleY + bubbleHeight + tailSize}" fill="white" stroke="black" stroke-width="2"/>
-    <rect x="${bubbleX + 1}" y="${bubbleY + bubbleHeight - 2}" width="${tailSize * 2}" height="4" fill="white" transform="translate(${bubbleWidth / 2 - tailSize}, 0)"/>
-  </svg>`;
+    // SVG for just the bubble shape (no text — text is composited separately)
+    const bubbleSvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="${bubbleX}" y="${bubbleY}" width="${bubbleWidth}" height="${bubbleHeight}" rx="8" ry="8" fill="white" stroke="black" stroke-width="2"/>
+      <polygon points="${bubbleX + bubbleWidth / 2 - tailSize},${bubbleY + bubbleHeight} ${bubbleX + bubbleWidth / 2 + tailSize},${bubbleY + bubbleHeight} ${bubbleX + bubbleWidth / 2},${bubbleY + bubbleHeight + tailSize}" fill="white" stroke="black" stroke-width="2"/>
+      <rect x="${bubbleX + 1}" y="${bubbleY + bubbleHeight - 2}" width="${tailSize * 2}" height="4" fill="white" transform="translate(${bubbleWidth / 2 - tailSize}, 0)"/>
+    </svg>`;
 
-  const result = await sharp(imageBuffer)
-    .composite([
-      { input: Buffer.from(bubbleSvg), top: 0, left: 0 },
-      { input: textImage, top: bubbleY + padding, left: bubbleX + padding },
-    ])
-    .jpeg({ quality: 85 })
-    .toBuffer();
+    const result = await sharp(imageBuffer)
+      .composite([
+        { input: Buffer.from(bubbleSvg), top: 0, left: 0 },
+        { input: textImage, top: bubbleY + padding, left: bubbleX + padding },
+      ])
+      .jpeg({ quality: 85 })
+      .toBuffer();
 
-  return `data:image/jpeg;base64,${result.toString("base64")}`;
+    return `data:image/jpeg;base64,${result.toString("base64")}`;
+  } catch (err) {
+    console.error("[ART] Speech bubble compositing failed, using plain image:", err);
+    return imageUrl;
+  }
 }
 
 // Generate a single preview image for one card (free, no payment required)
