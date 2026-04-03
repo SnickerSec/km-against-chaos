@@ -198,7 +198,8 @@ Respond ONLY with valid JSON — an object mapping card IDs to image prompts:
 function buildImagePrompt(
   cardText: string,
   style: ArtStyleConfig,
-  context?: { theme?: string; maturity?: string; flavorThemes?: string[]; wildcard?: string }
+  context?: { theme?: string; maturity?: string; flavorThemes?: string[]; wildcard?: string },
+  gameType?: string,
 ): string {
   const parts = [style.basePrompt];
   if (context?.flavorThemes?.length) {
@@ -210,7 +211,19 @@ function buildImagePrompt(
   if (context?.maturity && context.maturity !== "adult") {
     parts.push(`${context.maturity} tone`);
   }
-  parts.push(cardText);
+
+  // For Joking Hazard, instruct the model to render card text as a speech bubble
+  if (gameType === "joking_hazard") {
+    const isAction = cardText.startsWith("[") || cardText.startsWith("*");
+    if (isAction) {
+      parts.push(cardText);
+    } else {
+      parts.push(`character with a speech bubble that says "${cardText}"`);
+    }
+  } else {
+    parts.push(cardText);
+  }
+
   return parts.join(", ");
 }
 
@@ -266,7 +279,7 @@ export async function generatePreviewImage(
   wildcard?: string,
 ): Promise<string | null> {
   const style = getArtStyle(gameType);
-  const prompt = buildImagePrompt(cardText, style, { theme, maturity, flavorThemes, wildcard });
+  const prompt = buildImagePrompt(cardText, style, { theme, maturity, flavorThemes, wildcard }, gameType);
   return generateCardImage(prompt, style);
 }
 
@@ -319,7 +332,7 @@ export async function generateDeckArt(deckId: string): Promise<void> {
       const batch = allCards.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         batch.map(async (card) => {
-          const prompt = buildImagePrompt(card.text, style, context);
+          const prompt = buildImagePrompt(card.text, style, context, gameType);
           const url = await generateCardImage(prompt, style);
           if (url) {
             cardImageMap.set(card.id, url);
