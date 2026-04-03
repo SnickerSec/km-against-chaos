@@ -12,6 +12,8 @@ const BODY_SIZE_LIMIT = 100 * 1024;
 router.use((req, res, next) => {
   // Skip body parsing for webhook route — it needs raw body
   if (req.path === "/api/stripe/webhook") { next(); return; }
+  // Skip if body was already parsed by a previous router
+  if ((req as any).body !== undefined) { next(); return; }
   if (req.headers["content-type"]?.includes("application/json")) {
     let body = "";
     let size = 0;
