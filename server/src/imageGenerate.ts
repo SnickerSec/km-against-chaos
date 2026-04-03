@@ -251,9 +251,11 @@ async function addSpeechBubble(imageUrl: string, text: string): Promise<string> 
     const width = metadata.width || 512;
     const height = metadata.height || 384;
 
-    const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const maxWidth = width - 60;
-    const maxBubbleHeight = Math.round(height * 0.4);
+    // Truncate very long text to avoid Sharp/Pango overflow
+    const truncated = text.length > 200 ? text.slice(0, 197) + "..." : text;
+    const escaped = truncated.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const maxWidth = Math.min(width - 60, 600);
+    const maxBubbleHeight = Math.min(Math.round(height * 0.4), 200);
 
     // Create text image with word wrapping via sharp's text input (pango-based)
     const textImage = await sharp({
