@@ -249,9 +249,9 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
     : { width: 384, height: 512 };
 
   try {
-    // Use flux-lora endpoint when LoRAs are configured, otherwise schnell
+    // Use Flux.2 Klein 9B with LoRA when configured, otherwise Flux Schnell
     const hasLoras = style.loras && style.loras.length > 0;
-    const endpoint = hasLoras ? "fal-ai/flux-lora" : "fal-ai/flux/schnell";
+    const endpoint = hasLoras ? "fal-ai/flux-2/klein/9b/base/lora" : "fal-ai/flux/schnell";
 
     const input: any = {
       prompt,
@@ -262,7 +262,8 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
     if (hasLoras) {
       input.loras = style.loras;
       input.num_inference_steps = 28;
-      input.guidance_scale = 3.5;
+      input.guidance_scale = 5.0;
+      if (style.negativePrompt) input.negative_prompt = style.negativePrompt;
     } else {
       input.num_inference_steps = 4;
     }
