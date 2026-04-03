@@ -132,6 +132,8 @@ function EditDeckContent() {
         </div>
       )}
 
+      <ArtGallery deck={deck} />
+
       <DeckForm
         initial={{
           name: deck.name,
@@ -153,6 +155,67 @@ function EditDeckContent() {
         }}
       />
     </div>
+  );
+}
+
+function ArtGallery({ deck }: { deck: CustomDeck }) {
+  const cardsWithArt = [
+    ...deck.chaosCards.filter((c) => c.imageUrl).map((c) => ({ ...c, type: "chaos" as const })),
+    ...deck.knowledgeCards.filter((c) => c.imageUrl).map((c) => ({ ...c, type: "knowledge" as const })),
+  ];
+  const [expanded, setExpanded] = useState(false);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+
+  if (cardsWithArt.length === 0) return null;
+
+  return (
+    <>
+      <div className="mb-6">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-2 text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors"
+        >
+          <Icon icon={expanded ? "mdi:chevron-down" : "mdi:chevron-right"} width={20} />
+          <Icon icon="mdi:image-multiple" width={16} />
+          Card Art Gallery ({cardsWithArt.length} cards)
+        </button>
+        {expanded && (
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {cardsWithArt.map((card) => (
+              <div
+                key={card.id}
+                onClick={() => setLightbox(card.imageUrl!)}
+                className="cursor-pointer group rounded-lg overflow-hidden border border-gray-700 hover:border-purple-500 transition-colors"
+              >
+                <img
+                  src={card.imageUrl}
+                  alt={card.text}
+                  className="w-full aspect-[4/3] object-cover"
+                  loading="lazy"
+                />
+                <div className="p-1.5 bg-gray-800">
+                  <p className="text-[10px] text-gray-400 truncate">{card.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <img
+            src={lightbox}
+            alt=""
+            className="max-w-full max-h-full rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </>
   );
 }
 
