@@ -127,7 +127,7 @@ interface ArtStyleConfig {
 const ART_STYLES: Record<string, ArtStyleConfig> = {
   joking_hazard: {
     basePrompt: "single panel webcomic, 1-2 simple stick figures only, round heads, colored shirts, bold black outlines, plain white background, lots of empty space, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
-    aspectRatio: "4:3",
+    aspectRatio: "5:7",
     negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright, crowd, group, many people, busy, detailed background, text, words, letters",
   },
   cah: {
@@ -241,6 +241,8 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
         prompt,
         image_size: style.aspectRatio === "4:3"
           ? { width: 512, height: 384 }
+          : style.aspectRatio === "5:7"
+          ? { width: 384, height: 536 }
           : { width: 384, height: 512 },
         num_inference_steps: 4,
         num_images: 1,
@@ -261,8 +263,8 @@ async function addSpeechBubble(imageUrl: string, text: string): Promise<string> 
     const response = await fetch(imageUrl);
     const imageBuffer = Buffer.from(await response.arrayBuffer());
     const metadata = await sharp(imageBuffer).metadata();
-    const origWidth = metadata.width || 512;
-    const origHeight = metadata.height || 384;
+    const origWidth = metadata.width || 384;
+    const origHeight = metadata.height || 536;
 
     // Truncate very long text to avoid Sharp/Pango overflow
     const truncated = text.length > 200 ? text.slice(0, 197) + "..." : text;

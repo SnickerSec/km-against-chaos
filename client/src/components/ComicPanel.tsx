@@ -657,7 +657,7 @@ export default function ComicPanel({
         {label && (
           <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${labelColor}`}>{label}</p>
         )}
-        <div className="aspect-[4/3] bg-gray-800/50 rounded-lg flex items-center justify-center">
+        <div className="aspect-[5/7] bg-gray-800/50 rounded-lg flex items-center justify-center">
           <p className="text-gray-600 text-sm italic">{emptyText}</p>
         </div>
       </div>
@@ -673,24 +673,24 @@ export default function ComicPanel({
       {label && (
         <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${labelColor}`}>{label}</p>
       )}
-      <div className="aspect-[4/3] bg-white rounded-lg overflow-hidden">
+      <div className="aspect-[5/7] bg-white rounded-lg overflow-hidden">
         {imageUrl ? (
           <img src={imageUrl} alt={displayText} className="w-full h-full object-cover" loading="lazy" />
         ) : (
-        <svg viewBox="0 0 200 150" className="w-full h-full">
-          <rect width="200" height="150" fill="white" />
+        <svg viewBox="0 0 150 210" className="w-full h-full">
+          <rect width="150" height="210" fill="white" />
 
           {/* Scene background */}
           <SceneBackground scene={cues.scene} />
 
           {/* Ground line */}
-          <line x1="0" y1="140" x2="200" y2="140" stroke="#ddd" strokeWidth="1" />
+          <line x1="0" y1="198" x2="150" y2="198" stroke="#ddd" strokeWidth="1" />
 
           {numChars === 1 ? (
             <>
               <Character
-                x={100}
-                y={68}
+                x={75}
+                y={120}
                 shirtColor={SHIRT_COLORS[shirtIdx]}
                 hairColor={hairColor1}
                 hairStyle={hairStyle1}
@@ -702,22 +702,22 @@ export default function ComicPanel({
               />
               {showBubble && (
                 <Bubble
-                  x={100}
-                  y={55}
+                  x={75}
+                  y={40}
                   text={displayText}
-                  maxWidth={170}
-                  tailX={100}
-                  tailY={62}
+                  maxWidth={130}
+                  tailX={75}
+                  tailY={100}
                   thought={useThought}
                 />
               )}
-              <Effects actionType={cues.actionType} x={100} y={68} />
+              <Effects actionType={cues.actionType} x={75} y={120} />
             </>
           ) : (
             <>
               <Character
-                x={50}
-                y={72}
+                x={38}
+                y={125}
                 shirtColor={SHIRT_COLORS[shirtIdx]}
                 hairColor={hairColor1}
                 hairStyle={hairStyle1}
@@ -728,8 +728,8 @@ export default function ComicPanel({
                 prop={cues.prop}
               />
               <Character
-                x={140}
-                y={72}
+                x={112}
+                y={125}
                 shirtColor={SHIRT_COLORS[shirtIdx2]}
                 hairColor={hairColor2}
                 hairStyle={hairStyle2}
@@ -741,31 +741,31 @@ export default function ComicPanel({
               />
               {showBubble && (
                 <Bubble
-                  x={85}
-                  y={58}
+                  x={65}
+                  y={40}
                   text={displayText}
-                  maxWidth={150}
-                  tailX={66}
-                  tailY={66}
+                  maxWidth={120}
+                  tailX={50}
+                  tailY={105}
                   thought={useThought}
                 />
               )}
-              <Effects actionType={cues.actionType} x={50} y={72} />
+              <Effects actionType={cues.actionType} x={38} y={125} />
             </>
           )}
 
           {/* Stage direction as narration box */}
           {isStageDirection && (
             <g>
-              <rect x={10} y={8} width={180} height={22} rx={3} fill="#ffeaa7" stroke="#f39c12" strokeWidth="1" opacity="0.9" />
-              <text x={100} y={23} textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="10" fontStyle="italic" fill="#333">
+              <rect x={10} y={8} width={130} height={22} rx={3} fill="#ffeaa7" stroke="#f39c12" strokeWidth="1" opacity="0.9" />
+              <text x={75} y={23} textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="10" fontStyle="italic" fill="#333">
                 {displayText.slice(1, -1)}
               </text>
             </g>
           )}
 
           {/* Panel border */}
-          <rect width="200" height="150" fill="none" stroke="black" strokeWidth="3" />
+          <rect width="150" height="210" fill="none" stroke="black" strokeWidth="3" />
         </svg>
         )}
       </div>
