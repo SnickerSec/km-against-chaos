@@ -155,9 +155,22 @@ function ArtGallery({ deck }: { deck: CustomDeck }) {
     ...deck.knowledgeCards.filter((c) => c.imageUrl).map((c) => ({ ...c, type: "knowledge" as const })),
   ];
   const [expanded, setExpanded] = useState(false);
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") setLightboxIndex((i) => i !== null ? Math.min(i + 1, cardsWithArt.length - 1) : null);
+      else if (e.key === "ArrowLeft") setLightboxIndex((i) => i !== null ? Math.max(i - 1, 0) : null);
+      else if (e.key === "Escape") setLightboxIndex(null);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [lightboxIndex, cardsWithArt.length]);
 
   if (cardsWithArt.length === 0) return null;
+
+  const activeCard = lightboxIndex !== null ? cardsWithArt[lightboxIndex] : null;
 
   return (
     <>
@@ -172,10 +185,10 @@ function ArtGallery({ deck }: { deck: CustomDeck }) {
         </button>
         {expanded && (
           <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {cardsWithArt.map((card) => (
+            {cardsWithArt.map((card, i) => (
               <div
                 key={card.id}
-                onClick={() => setLightbox(card.imageUrl!)}
+                onClick={() => setLightboxIndex(i)}
                 className="cursor-pointer group rounded-lg overflow-hidden border border-gray-700 hover:border-purple-500 transition-colors"
               >
                 <img
@@ -193,17 +206,42 @@ function ArtGallery({ deck }: { deck: CustomDeck }) {
         )}
       </div>
 
-      {lightbox && (
+      {activeCard && (
         <div
           className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setLightbox(null)}
+          onClick={() => setLightboxIndex(null)}
         >
-          <img
-            src={lightbox}
-            alt=""
-            className="max-w-full max-h-full rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <div className="relative max-w-2xl w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            {/* Navigation arrows */}
+            {lightboxIndex! > 0 && (
+              <button
+                onClick={() => setLightboxIndex(lightboxIndex! - 1)}
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 text-white/70 hover:text-white transition-colors"
+              >
+                <Icon icon="mdi:chevron-left" width={40} />
+              </button>
+            )}
+            {lightboxIndex! < cardsWithArt.length - 1 && (
+              <button
+                onClick={() => setLightboxIndex(lightboxIndex! + 1)}
+                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 text-white/70 hover:text-white transition-colors"
+              >
+                <Icon icon="mdi:chevron-right" width={40} />
+              </button>
+            )}
+
+            <img
+              src={activeCard.imageUrl}
+              alt={activeCard.text}
+              className="max-w-full max-h-[70vh] rounded-lg"
+            />
+            <div className="mt-3 text-center">
+              <p className="text-white text-sm">{activeCard.text}</p>
+              <p className="text-gray-500 text-xs mt-1">
+                {lightboxIndex! + 1} / {cardsWithArt.length} · {activeCard.type === "chaos" ? "Prompt" : "Answer"} card
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </>
