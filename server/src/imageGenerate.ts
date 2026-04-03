@@ -255,15 +255,15 @@ async function addSpeechBubble(imageUrl: string, text: string): Promise<string> 
     const truncated = text.length > 200 ? text.slice(0, 197) + "..." : text;
     const escaped = truncated.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     const maxWidth = Math.min(width - 60, 600);
-    const maxBubbleHeight = Math.min(Math.round(height * 0.4), 200);
+    const maxTextHeight = Math.min(Math.round(height * 0.35), 180);
 
-    // Create text image with word wrapping via sharp's text input (pango-based)
+    // Create bold text with word wrapping via sharp's text input (pango-based)
     const textImage = await sharp({
       text: {
-        text: `<span font="13" weight="bold">${escaped}</span>`,
+        text: `<span font="14" weight="bold">${escaped}</span>`,
         font: "sans-serif",
         width: maxWidth,
-        height: maxBubbleHeight,
+        height: maxTextHeight,
         align: "centre",
         rgba: true,
       },
@@ -273,24 +273,49 @@ async function addSpeechBubble(imageUrl: string, text: string): Promise<string> 
     const textWidth = textMeta.width || 200;
     const textHeight = textMeta.height || 20;
 
-    const padding = 10;
-    const tailSize = 10;
-    const bubbleWidth = textWidth + padding * 2;
-    const bubbleHeight = textHeight + padding * 2;
-    const bubbleX = Math.round((width - bubbleWidth) / 2);
-    const bubbleY = 6;
+    const textX = Math.round((width - textWidth) / 2);
+    const textY = 10;
 
-    // SVG for just the bubble shape (no text — text is composited separately)
-    const bubbleSvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="${bubbleX}" y="${bubbleY}" width="${bubbleWidth}" height="${bubbleHeight}" rx="8" ry="8" fill="white" stroke="black" stroke-width="2"/>
-      <polygon points="${bubbleX + bubbleWidth / 2 - tailSize},${bubbleY + bubbleHeight} ${bubbleX + bubbleWidth / 2 + tailSize},${bubbleY + bubbleHeight} ${bubbleX + bubbleWidth / 2},${bubbleY + bubbleHeight + tailSize}" fill="white" stroke="black" stroke-width="2"/>
-      <rect x="${bubbleX + 1}" y="${bubbleY + bubbleHeight - 2}" width="${tailSize * 2}" height="4" fill="white" transform="translate(${bubbleWidth / 2 - tailSize}, 0)"/>
+    // Joking Hazard style: just a small curved tail line below the text, no bubble
+    const tailStartX = Math.round(width * 0.45);
+    const tailEndX = Math.round(width * 0.42);
+    const tailStartY = textY + textHeight + 4;
+    const tailEndY = tailStartY + 16;
+    const tailCpX = tailStartX - 8;
+    const tailCpY = tailStartY + 10;
+
+    // White outline behind text for readability + curved tail
+    const overlaySvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <path d="M ${tailStartX} ${tailStartY} Q ${tailCpX} ${tailCpY} ${tailEndX} ${tailEndY}" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round"/>
     </svg>`;
+
+    // Create white text outline by rendering text slightly larger as white, then overlay black text
+    const outlineImage = await sharp({
+      text: {
+        text: `<span font="14" weight="bold" foreground="white">${escaped}</span>`,
+        font: "sans-serif",
+        width: maxWidth,
+        height: maxTextHeight,
+        align: "centre",
+        rgba: true,
+      },
+    }).png().toBuffer();
 
     const result = await sharp(imageBuffer)
       .composite([
-        { input: Buffer.from(bubbleSvg), top: 0, left: 0 },
-        { input: textImage, top: bubbleY + padding, left: bubbleX + padding },
+        // White text outlines (offset in each direction for stroke effect)
+        { input: outlineImage, top: textY - 1, left: textX },
+        { input: outlineImage, top: textY + 1, left: textX },
+        { input: outlineImage, top: textY, left: textX - 1 },
+        { input: outlineImage, top: textY, left: textX + 1 },
+        { input: outlineImage, top: textY - 1, left: textX - 1 },
+        { input: outlineImage, top: textY + 1, left: textX + 1 },
+        { input: outlineImage, top: textY - 1, left: textX + 1 },
+        { input: outlineImage, top: textY + 1, left: textX - 1 },
+        // Black text on top
+        { input: textImage, top: textY, left: textX },
+        // Curved tail line
+        { input: Buffer.from(overlaySvg), top: 0, left: 0 },
       ])
       .jpeg({ quality: 85 })
       .toBuffer();
