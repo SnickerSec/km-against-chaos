@@ -167,7 +167,12 @@ function checkPreviewLimit(userId: string): { allowed: boolean; remaining: numbe
   return { allowed: entry.count < PREVIEW_LIMIT, remaining: PREVIEW_LIMIT - entry.count };
 }
 
-// Generate a free preview image for one card
+// Async preview jobs: start generation, return job ID, client polls for result
+const previewJobs = new Map<string, { status: "pending" | "done" | "error"; imageUrl?: string; error?: string; previewsRemaining?: number }>();
+
+let previewJobCounter = 0;
+
+// Start a preview generation job
 router.post("/api/art/preview", requireAuth, async (req: any, res) => {
   if (!process.env.FAL_KEY) {
     res.status(503).json({ error: "Art generation not configured" });
@@ -187,27 +192,48 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
     return;
   }
 
-  try {
-    const imageUrl = await generatePreviewImage(
-      cardText,
-      gameType,
-      theme || "Custom Deck",
-      maturity || "adult",
-      flavorThemes,
-      wildcard,
-    );
+  const jobId = `preview_${++previewJobCounter}_${Date.now()}`;
+  previewJobs.set(jobId, { status: "pending" });
+
+  // Return job ID immediately
+  res.json({ jobId });
+
+  // Generate in background
+  generatePreviewImage(
+    cardText, gameType, theme || "Custom Deck", maturity || "adult", flavorThemes, wildcard,
+  ).then((imageUrl) => {
     if (!imageUrl) {
-      res.status(500).json({ error: "Failed to generate preview" });
+      previewJobs.set(jobId, { status: "error", error: "Failed to generate preview" });
       return;
     }
-    // Count successful preview
     const entry = previewUsage.get(userId)!;
     entry.count++;
-    res.json({ imageUrl, previewsRemaining: PREVIEW_LIMIT - entry.count });
-  } catch (err: any) {
+    previewJobs.set(jobId, { status: "done", imageUrl, previewsRemaining: PREVIEW_LIMIT - entry.count });
+    // Clean up after 5 minutes
+    setTimeout(() => previewJobs.delete(jobId), 5 * 60 * 1000);
+  }).catch((err) => {
     console.error("Preview generation failed:", err);
-    res.status(500).json({ error: "Failed to generate preview" });
+    previewJobs.set(jobId, { status: "error", error: "Failed to generate preview" });
+    setTimeout(() => previewJobs.delete(jobId), 5 * 60 * 1000);
+  });
+});
+
+// Poll for preview job result
+router.get("/api/art/preview/:jobId", (_req, res) => {
+  const job = previewJobs.get(_req.params.jobId);
+  if (!job) {
+    res.status(404).json({ error: "Job not found" });
+    return;
   }
+  if (job.status === "pending") {
+    res.json({ status: "pending" });
+    return;
+  }
+  if (job.status === "error") {
+    res.status(500).json({ error: job.error });
+    return;
+  }
+  res.json({ status: "done", imageUrl: job.imageUrl, previewsRemaining: job.previewsRemaining });
 });
 
 // Check art generation status

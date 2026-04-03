@@ -489,16 +489,35 @@ export async function generateArtPreview(
   cardText: string, gameType: string, theme: string,
   maturity?: string, flavorThemes?: string[], wildcard?: string,
 ): Promise<{ imageUrl: string; previewsRemaining?: number }> {
-  const res = await fetch(`${API_URL}/api/art/preview`, {
+  // Start the job
+  const startRes = await fetch(`${API_URL}/api/art/preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ cardText, gameType, theme, maturity, flavorThemes, wildcard }),
   });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
+  if (!startRes.ok) {
+    const data = await startRes.json().catch(() => ({}));
     throw new Error(data.error || "Failed to generate preview");
   }
-  return res.json();
+  const { jobId } = await startRes.json();
+
+  // Poll for result
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const pollRes = await fetch(`${API_URL}/api/art/preview/${jobId}`);
+    if (!pollRes.ok) {
+      const data = await pollRes.json().catch(() => ({}));
+      throw new Error(data.error || "Failed to generate preview");
+    }
+    const result = await pollRes.json();
+    if (result.status === "done") {
+      return { imageUrl: result.imageUrl, previewsRemaining: result.previewsRemaining };
+    }
+    if (result.status === "error") {
+      throw new Error(result.error || "Failed to generate preview");
+    }
+  }
+  throw new Error("Preview generation timed out");
 }
 
 export async function createCheckoutSession(deckId: string): Promise<{ sessionUrl: string }> {
