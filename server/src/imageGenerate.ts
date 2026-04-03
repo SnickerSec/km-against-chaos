@@ -108,6 +108,7 @@ interface ArtStyleConfig {
   basePrompt: string;
   aspectRatio: string;
   negativePrompt: string;
+  imageModel?: "flux-schnell" | "ideogram-v2-turbo";
 }
 
 const ART_STYLES: Record<string, ArtStyleConfig> = {
@@ -115,6 +116,7 @@ const ART_STYLES: Record<string, ArtStyleConfig> = {
     basePrompt: "simple webcomic panel, bold black outlines, stick figure characters with round heads and colored shirts, flat colors, white background, minimalist comic strip style, single panel comic, no watermarks, no logos, no signatures, no copyright marks",
     aspectRatio: "4:3",
     negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright",
+    imageModel: "ideogram-v2-turbo",
   },
   cah: {
     basePrompt: "dark humor editorial cartoon illustration, bold ink style, simple black and white with one accent color, minimalist",
@@ -212,24 +214,40 @@ function buildImagePrompt(
   return parts.join(", ");
 }
 
-// Generate a single card image via fal.ai Flux
+// Generate a single card image via fal.ai
 async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise<string | null> {
   if (!process.env.FAL_KEY) {
     console.error("FAL_KEY not configured");
     return null;
   }
 
+  const model = style.imageModel || "flux-schnell";
+
   try {
-    const result = await fal.subscribe("fal-ai/flux/schnell", {
-      input: {
-        prompt,
-        image_size: style.aspectRatio === "4:3"
-          ? { width: 512, height: 384 }
-          : { width: 384, height: 512 },
-        num_inference_steps: 4,
-        num_images: 1,
-      },
-    }) as any;
+    let result: any;
+
+    if (model === "ideogram-v2-turbo") {
+      result = await fal.subscribe("fal-ai/ideogram/v2/turbo", {
+        input: {
+          prompt,
+          negative_prompt: style.negativePrompt,
+          aspect_ratio: style.aspectRatio,
+          style: "design",
+          expand_prompt: true,
+        },
+      });
+    } else {
+      result = await fal.subscribe("fal-ai/flux/schnell", {
+        input: {
+          prompt,
+          image_size: style.aspectRatio === "4:3"
+            ? { width: 512, height: 384 }
+            : { width: 384, height: 512 },
+          num_inference_steps: 4,
+          num_images: 1,
+        },
+      });
+    }
 
     return result?.images?.[0]?.url || null;
   } catch (err) {
