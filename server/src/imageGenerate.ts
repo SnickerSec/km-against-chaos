@@ -254,81 +254,93 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
   }
 }
 
-// Composite a speech bubble with text onto an image using sharp
+// Composite text onto an image (Joking Hazard style: white strip at top with text + curved tail)
 async function addSpeechBubble(imageUrl: string, text: string): Promise<string> {
   try {
     // Download the base image
     const response = await fetch(imageUrl);
     const imageBuffer = Buffer.from(await response.arrayBuffer());
     const metadata = await sharp(imageBuffer).metadata();
-    const width = metadata.width || 512;
-    const height = metadata.height || 384;
+    const origWidth = metadata.width || 512;
+    const origHeight = metadata.height || 384;
 
     // Truncate very long text to avoid Sharp/Pango overflow
     const truncated = text.length > 200 ? text.slice(0, 197) + "..." : text;
     const escaped = truncated.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const maxWidth = Math.min(width - 60, 600);
-    const maxTextHeight = Math.min(Math.round(height * 0.35), 180);
+    const maxTextWidth = Math.min(origWidth - 40, 600);
+    const maxStripHeight = Math.round(origHeight * 0.3); // Cap text area at 30% of image
 
-    // Create bold text with word wrapping via sharp's text input (pango-based)
-    const textImage = await sharp({
-      text: {
-        text: `<span font="CreativeBlock BB 14">${escaped}</span>`,
-        font: "CreativeBlock BB",
-        width: maxWidth,
-        height: maxTextHeight,
-        align: "centre",
-        rgba: true,
-      },
-    }).png().toBuffer();
+    // Try font size 14, fall back to 11 if text is too tall
+    let textImage: Buffer = Buffer.alloc(0);
+    let textWidth = 200;
+    let textHeight = 20;
 
-    const textMeta = await sharp(textImage).metadata();
-    const textWidth = textMeta.width || 200;
-    const textHeight = textMeta.height || 20;
+    for (const fontSize of [14, 11]) {
+      textImage = await sharp({
+        text: {
+          text: `<span font="CreativeBlock BB ${fontSize}">${escaped}</span>`,
+          font: "CreativeBlock BB",
+          width: maxTextWidth,
+          dpi: 200,
+          align: "centre",
+          rgba: true,
+        },
+      }).png().toBuffer();
 
-    const textX = Math.round((width - textWidth) / 2);
-    const textY = 10;
+      const textMeta = await sharp(textImage!).metadata();
+      textWidth = textMeta.width || 200;
+      textHeight = textMeta.height || 20;
 
-    // Joking Hazard style: just a small curved tail line below the text, no bubble
-    const tailStartX = Math.round(width * 0.45);
-    const tailEndX = Math.round(width * 0.42);
+      if (textHeight + 34 <= maxStripHeight) break; // 34 = padding*2 + tailSize
+    }
+
+    // White strip height: text height + padding + tail
+    const padding = 10;
+    const tailSize = 14;
+    const stripHeight = textHeight + padding * 2 + tailSize;
+
+    // Keep original dimensions — white strip on top, image fills the rest
+    const finalWidth = origWidth;
+    const finalHeight = origHeight;
+
+    const textX = Math.round((finalWidth - textWidth) / 2);
+    const textY = padding;
+
+    // Curved tail from bottom of text area pointing down-left
+    const tailStartX = Math.round(finalWidth * 0.45);
+    const tailEndX = Math.round(finalWidth * 0.40);
     const tailStartY = textY + textHeight + 4;
-    const tailEndY = tailStartY + 16;
-    const tailCpX = tailStartX - 8;
-    const tailCpY = tailStartY + 10;
+    const tailEndY = stripHeight - 2;
+    const tailCpX = tailStartX - 10;
+    const tailCpY = tailStartY + (tailEndY - tailStartY) * 0.6;
 
-    // White outline behind text for readability + curved tail
-    const overlaySvg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+    // SVG for the tail line
+    const tailSvg = `<svg width="${finalWidth}" height="${finalHeight}" xmlns="http://www.w3.org/2000/svg">
       <path d="M ${tailStartX} ${tailStartY} Q ${tailCpX} ${tailCpY} ${tailEndX} ${tailEndY}" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round"/>
     </svg>`;
 
-    // Create white text outline by rendering text slightly larger as white, then overlay black text
-    const outlineImage = await sharp({
-      text: {
-        text: `<span font="14" weight="bold" foreground="white">${escaped}</span>`,
-        font: "sans-serif",
-        width: maxWidth,
-        height: maxTextHeight,
-        align: "centre",
-        rgba: true,
-      },
-    }).png().toBuffer();
+    // Resize original image to fit below the white strip, maintaining width
+    const imageAreaHeight = finalHeight - stripHeight;
+    const resizedImage = await sharp(imageBuffer)
+      .resize(finalWidth, imageAreaHeight, { fit: "cover", position: "top" })
+      .toBuffer();
 
-    const result = await sharp(imageBuffer)
+    // Create white canvas, then composite resized image below strip and text on top
+    const result = await sharp({
+      create: {
+        width: finalWidth,
+        height: finalHeight,
+        channels: 3,
+        background: { r: 255, g: 255, b: 255 },
+      },
+    })
       .composite([
-        // White text outlines (offset in each direction for stroke effect)
-        { input: outlineImage, top: textY - 1, left: textX },
-        { input: outlineImage, top: textY + 1, left: textX },
-        { input: outlineImage, top: textY, left: textX - 1 },
-        { input: outlineImage, top: textY, left: textX + 1 },
-        { input: outlineImage, top: textY - 1, left: textX - 1 },
-        { input: outlineImage, top: textY + 1, left: textX + 1 },
-        { input: outlineImage, top: textY - 1, left: textX + 1 },
-        { input: outlineImage, top: textY + 1, left: textX - 1 },
-        // Black text on top
+        // Original image placed below the white strip
+        { input: resizedImage, top: stripHeight, left: 0 },
+        // Black text
         { input: textImage, top: textY, left: textX },
         // Curved tail line
-        { input: Buffer.from(overlaySvg), top: 0, left: 0 },
+        { input: Buffer.from(tailSvg), top: 0, left: 0 },
       ])
       .jpeg({ quality: 85 })
       .toBuffer();
