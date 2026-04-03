@@ -4,14 +4,14 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import DeckForm from "@/components/DeckForm";
-import { createDeck, createCheckoutSession, fetchDeck } from "@/lib/api";
+import { createDeck, createCheckoutSession, adminGenerateArt, fetchDeck } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 
 function NewDeckContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const remixOf = searchParams.get("remixOf");
-  const { user, loading, restore } = useAuthStore();
+  const { user, loading, restore, isAdmin } = useAuthStore();
   const [initialData, setInitialData] = useState<any>(null);
   const [remixLoading, setRemixLoading] = useState(!!remixOf);
   const [remixName, setRemixName] = useState<string | null>(null);
@@ -72,14 +72,24 @@ function NewDeckContent() {
         onSubmit={async (data) => {
           const deck = await createDeck({ ...data, remixedFrom: remixOf || undefined });
           if (data.premiumArt && deck.id) {
-            try {
-              const { sessionUrl } = await createCheckoutSession(deck.id);
-              if (sessionUrl) {
-                window.location.href = sessionUrl;
+            if (isAdmin) {
+              try {
+                await adminGenerateArt(deck.id);
+                router.push(`/decks/edit?id=${deck.id}&art=generating`);
                 return;
+              } catch (err) {
+                console.error("Failed to start art generation:", err);
               }
-            } catch (err) {
-              console.error("Failed to create checkout:", err);
+            } else {
+              try {
+                const { sessionUrl } = await createCheckoutSession(deck.id);
+                if (sessionUrl) {
+                  window.location.href = sessionUrl;
+                  return;
+                }
+              } catch (err) {
+                console.error("Failed to create checkout:", err);
+              }
             }
           }
           router.push("/decks");

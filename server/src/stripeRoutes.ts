@@ -261,4 +261,40 @@ router.get("/api/stripe/art-status/:deckId", requireAuth, async (req: any, res) 
   });
 });
 
+// Admin: generate art for a deck without payment
+router.post("/api/art/generate", requireAuth, async (req: any, res) => {
+  if (!isAdmin(req.user.email, req.user.role)) {
+    res.status(403).json({ error: "Admin only" });
+    return;
+  }
+
+  const { deckId } = (req as any).body || {};
+  if (!deckId) {
+    res.status(400).json({ error: "deckId is required" });
+    return;
+  }
+
+  const { rows } = await pool.query("SELECT id, name, art_generation_status FROM decks WHERE id = $1", [deckId]);
+  if (rows.length === 0) {
+    res.status(404).json({ error: "Deck not found" });
+    return;
+  }
+
+  if (rows[0].art_generation_status === "generating") {
+    res.status(409).json({ error: "Art generation already in progress" });
+    return;
+  }
+
+  await pool.query(
+    "UPDATE decks SET art_tier = 'premium', art_generation_status = 'pending' WHERE id = $1",
+    [deckId]
+  );
+
+  generateDeckArt(deckId).catch((err) => {
+    console.error(`[ART] Admin art generation failed for deck ${deckId}:`, err);
+  });
+
+  res.json({ success: true, message: `Art generation started for "${rows[0].name}"` });
+});
+
 export default router;

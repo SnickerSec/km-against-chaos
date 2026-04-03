@@ -540,3 +540,16 @@ export async function checkArtStatus(deckId: string): Promise<{ artTier: string;
   if (!res.ok) throw new Error("Failed to check art status");
   return res.json();
 }
+
+export async function adminGenerateArt(deckId: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_URL}/api/art/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ deckId }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Failed to start art generation");
+  }
+  return res.json();
+}
