@@ -1,6 +1,6 @@
 import { Router } from "express";
 import Stripe from "stripe";
-import { requireAuth } from "./auth.js";
+import { requireAuth, isAdmin } from "./auth.js";
 import pool from "./db.js";
 import { generateDeckArt, generatePreviewImage } from "./imageGenerate.js";
 
@@ -182,10 +182,13 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
   }
 
   const userId = req.user.id;
-  const { allowed, remaining } = checkPreviewLimit(userId);
-  if (!allowed) {
-    res.status(429).json({ error: "Preview limit reached (3 per day). Purchase premium art to generate for all cards." });
-    return;
+  const admin = isAdmin(req.user.email, req.user.role);
+  if (!admin) {
+    const { allowed, remaining } = checkPreviewLimit(userId);
+    if (!allowed) {
+      res.status(429).json({ error: "Preview limit reached (3 per day). Purchase premium art to generate for all cards." });
+      return;
+    }
   }
 
   const { cardText, gameType, theme, maturity, flavorThemes, wildcard } = req.body || {};
