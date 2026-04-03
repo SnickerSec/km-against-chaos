@@ -57,6 +57,8 @@ function EditDeckContent() {
         setArtStatus(artGenerationStatus);
         if (artGenerationStatus === "complete" || artGenerationStatus === "failed") {
           clearInterval(interval);
+          // Re-fetch deck to get updated card images
+          fetchDeck(id).then((d) => setDeck(d)).catch(() => {});
         }
       } catch {}
     }, 3000);
