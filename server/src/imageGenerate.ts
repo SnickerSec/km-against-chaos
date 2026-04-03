@@ -122,13 +122,20 @@ interface ArtStyleConfig {
   basePrompt: string;
   aspectRatio: string;
   negativePrompt: string;
+  loras?: { path: string; scale: number }[];
 }
 
 const ART_STYLES: Record<string, ArtStyleConfig> = {
   joking_hazard: {
-    basePrompt: "single panel webcomic, 1-2 simple stick figures, round heads, colored shirts, bold black outlines, plain white background, characters large and centered filling most of the frame, close-up framing, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
+    basePrompt: "ch_visual_style, stick figure character, single panel webcomic, round heads, colored shirts, bold black outlines, plain white background, characters large and centered filling most of the frame, close-up framing, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
     aspectRatio: "5:7",
     negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright, crowd, group, many people, busy, detailed background, text, words, letters",
+    loras: [
+      {
+        path: "https://huggingface.co/DeverStyle/Flux.2-Klein-Loras/resolve/main/dever_cyanide_and_happiness_flux2_klein_9b.safetensors",
+        scale: 0.8,
+      },
+    ],
   },
   cah: {
     basePrompt: "dark humor editorial cartoon illustration, bold ink style, simple black and white with one accent color, minimalist",
@@ -228,26 +235,39 @@ function buildImagePrompt(
   return parts.join(", ");
 }
 
-// Generate a single card image via fal.ai Flux Schnell
+// Generate a single card image via fal.ai Flux
 async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise<string | null> {
   if (!process.env.FAL_KEY) {
     console.error("FAL_KEY not configured");
     return null;
   }
 
+  const imageSize = style.aspectRatio === "4:3"
+    ? { width: 512, height: 384 }
+    : style.aspectRatio === "5:7"
+    ? { width: 384, height: 536 }
+    : { width: 384, height: 512 };
+
   try {
-    const result = await fal.subscribe("fal-ai/flux/schnell", {
-      input: {
-        prompt,
-        image_size: style.aspectRatio === "4:3"
-          ? { width: 512, height: 384 }
-          : style.aspectRatio === "5:7"
-          ? { width: 384, height: 536 }
-          : { width: 384, height: 512 },
-        num_inference_steps: 4,
-        num_images: 1,
-      },
-    }) as any;
+    // Use flux-lora endpoint when LoRAs are configured, otherwise schnell
+    const hasLoras = style.loras && style.loras.length > 0;
+    const endpoint = hasLoras ? "fal-ai/flux-lora" : "fal-ai/flux/schnell";
+
+    const input: any = {
+      prompt,
+      image_size: imageSize,
+      num_images: 1,
+    };
+
+    if (hasLoras) {
+      input.loras = style.loras;
+      input.num_inference_steps = 28;
+      input.guidance_scale = 3.5;
+    } else {
+      input.num_inference_steps = 4;
+    }
+
+    const result = await fal.subscribe(endpoint, { input }) as any;
 
     return result?.images?.[0]?.url || null;
   } catch (err) {
