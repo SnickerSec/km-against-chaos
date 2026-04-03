@@ -112,9 +112,9 @@ interface ArtStyleConfig {
 
 const ART_STYLES: Record<string, ArtStyleConfig> = {
   joking_hazard: {
-    basePrompt: "simple webcomic panel, bold black outlines, stick figure characters with round heads and colored shirts, flat colors, white background, Cyanide and Happiness art style, single panel comic",
+    basePrompt: "simple webcomic panel, bold black outlines, stick figure characters with round heads and colored shirts, flat colors, white background, minimalist comic strip style, single panel comic, no text, no speech bubbles, no captions, no watermarks, no logos",
     aspectRatio: "4:3",
-    negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga",
+    negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, text, words, letters, speech bubbles, captions, watermarks, logos, signatures",
   },
   cah: {
     basePrompt: "dark humor editorial cartoon illustration, bold ink style, simple black and white with one accent color, minimalist",
