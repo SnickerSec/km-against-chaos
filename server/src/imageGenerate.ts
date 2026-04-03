@@ -4,6 +4,19 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
 import pool from "./db.js";
+import path from "path";
+import fs from "fs";
+
+// Register Creative Block BB font with fontconfig
+const fontsDir = path.resolve(__dirname, "../fonts");
+if (fs.existsSync(fontsDir)) {
+  const fcDir = path.join(process.env.HOME || "/root", ".config/fontconfig");
+  fs.mkdirSync(fcDir, { recursive: true });
+  fs.writeFileSync(path.join(fcDir, "fonts.conf"), `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig><dir>${fontsDir}</dir></fontconfig>`);
+  console.log("[ART] Registered custom fonts from", fontsDir);
+}
 
 // Configure fal.ai
 if (process.env.FAL_KEY) {
@@ -260,8 +273,8 @@ async function addSpeechBubble(imageUrl: string, text: string): Promise<string> 
     // Create bold text with word wrapping via sharp's text input (pango-based)
     const textImage = await sharp({
       text: {
-        text: `<span font="14" weight="bold">${escaped}</span>`,
-        font: "sans-serif",
+        text: `<span font="CreativeBlock BB 14">${escaped}</span>`,
+        font: "CreativeBlock BB",
         width: maxWidth,
         height: maxTextHeight,
         align: "centre",
