@@ -2,6 +2,7 @@ import * as fal from "@fal-ai/serverless-client";
 import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
+import sharp from "sharp";
 import pool from "./db.js";
 
 // Configure fal.ai
@@ -108,15 +109,13 @@ interface ArtStyleConfig {
   basePrompt: string;
   aspectRatio: string;
   negativePrompt: string;
-  imageModel?: "flux-schnell" | "ideogram-v2-turbo";
 }
 
 const ART_STYLES: Record<string, ArtStyleConfig> = {
   joking_hazard: {
-    basePrompt: "single panel webcomic, 1-2 simple stick figures only, round heads, colored shirts, bold black outlines, plain white background, lots of empty space, minimal detail, no crowd, no background objects, no watermarks",
+    basePrompt: "single panel webcomic, 1-2 simple stick figures only, round heads, colored shirts, bold black outlines, plain white background, lots of empty space, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
     aspectRatio: "4:3",
-    negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright, crowd, group, many people, busy, detailed background",
-    imageModel: "ideogram-v2-turbo",
+    negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright, crowd, group, many people, busy, detailed background, text, words, letters",
   },
   cah: {
     basePrompt: "dark humor editorial cartoon illustration, bold ink style, simple black and white with one accent color, minimalist",
@@ -199,7 +198,6 @@ function buildImagePrompt(
   cardText: string,
   style: ArtStyleConfig,
   context?: { theme?: string; maturity?: string; flavorThemes?: string[]; wildcard?: string },
-  gameType?: string,
 ): string {
   const parts = [style.basePrompt];
   if (context?.flavorThemes?.length) {
@@ -212,61 +210,89 @@ function buildImagePrompt(
     parts.push(`${context.maturity} tone`);
   }
 
-  // For Joking Hazard, instruct the model to render card text as a speech bubble
-  if (gameType === "joking_hazard") {
-    const isAction = cardText.startsWith("[") || cardText.startsWith("*");
-    if (isAction) {
-      parts.push(cardText);
-    } else {
-      parts.push(`character with a speech bubble that says "${cardText}"`);
-    }
-  } else {
-    parts.push(cardText);
-  }
+  parts.push(cardText);
 
   return parts.join(", ");
 }
 
-// Generate a single card image via fal.ai
+// Generate a single card image via fal.ai Flux Schnell
 async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise<string | null> {
   if (!process.env.FAL_KEY) {
     console.error("FAL_KEY not configured");
     return null;
   }
 
-  const model = style.imageModel || "flux-schnell";
-
   try {
-    let result: any;
-
-    if (model === "ideogram-v2-turbo") {
-      result = await fal.subscribe("fal-ai/ideogram/v2/turbo", {
-        input: {
-          prompt,
-          negative_prompt: style.negativePrompt,
-          aspect_ratio: style.aspectRatio,
-          style: "design",
-          expand_prompt: true,
-        },
-      });
-    } else {
-      result = await fal.subscribe("fal-ai/flux/schnell", {
-        input: {
-          prompt,
-          image_size: style.aspectRatio === "4:3"
-            ? { width: 512, height: 384 }
-            : { width: 384, height: 512 },
-          num_inference_steps: 4,
-          num_images: 1,
-        },
-      });
-    }
+    const result = await fal.subscribe("fal-ai/flux/schnell", {
+      input: {
+        prompt,
+        image_size: style.aspectRatio === "4:3"
+          ? { width: 512, height: 384 }
+          : { width: 384, height: 512 },
+        num_inference_steps: 4,
+        num_images: 1,
+      },
+    }) as any;
 
     return result?.images?.[0]?.url || null;
   } catch (err) {
     console.error("fal.ai image generation failed:", err);
     return null;
   }
+}
+
+// Composite a speech bubble with text onto an image using sharp
+async function addSpeechBubble(imageUrl: string, text: string): Promise<string> {
+  // Download the base image
+  const response = await fetch(imageUrl);
+  const imageBuffer = Buffer.from(await response.arrayBuffer());
+  const metadata = await sharp(imageBuffer).metadata();
+  const width = metadata.width || 512;
+  const height = metadata.height || 384;
+
+  // Word-wrap text to fit bubble
+  const maxCharsPerLine = 30;
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let currentLine = "";
+  for (const word of words) {
+    if ((currentLine + " " + word).trim().length > maxCharsPerLine) {
+      lines.push(currentLine.trim());
+      currentLine = word;
+    } else {
+      currentLine = (currentLine + " " + word).trim();
+    }
+  }
+  if (currentLine.trim()) lines.push(currentLine.trim());
+
+  const fontSize = 14;
+  const lineHeight = fontSize + 4;
+  const padding = 10;
+  const bubbleHeight = lines.length * lineHeight + padding * 2;
+  const bubbleWidth = Math.min(width - 40, maxCharsPerLine * (fontSize * 0.6) + padding * 2);
+  const bubbleX = (width - bubbleWidth) / 2;
+  const bubbleY = 8;
+  const tailSize = 10;
+
+  // Build SVG speech bubble overlay
+  const textLines = lines.map((line, i) => {
+    const escaped = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    return `<text x="${bubbleX + bubbleWidth / 2}" y="${bubbleY + padding + (i + 1) * lineHeight - 4}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="bold" fill="#000">${escaped}</text>`;
+  }).join("\n");
+
+  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+    <rect x="${bubbleX}" y="${bubbleY}" width="${bubbleWidth}" height="${bubbleHeight}" rx="8" ry="8" fill="white" stroke="black" stroke-width="2"/>
+    <polygon points="${bubbleX + bubbleWidth / 2 - tailSize},${bubbleY + bubbleHeight} ${bubbleX + bubbleWidth / 2 + tailSize},${bubbleY + bubbleHeight} ${bubbleX + bubbleWidth / 2},${bubbleY + bubbleHeight + tailSize}" fill="white" stroke="black" stroke-width="2"/>
+    <rect x="${bubbleX + 1}" y="${bubbleY + bubbleHeight - 2}" width="${tailSize * 2}" height="4" fill="white" transform="translate(${bubbleWidth / 2 - tailSize}, 0)"/>
+    ${textLines}
+  </svg>`;
+
+  const result = await sharp(imageBuffer)
+    .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+    .jpeg({ quality: 85 })
+    .toBuffer();
+
+  return `data:image/jpeg;base64,${result.toString("base64")}`;
 }
 
 // Generate a single preview image for one card (free, no payment required)
@@ -279,8 +305,16 @@ export async function generatePreviewImage(
   wildcard?: string,
 ): Promise<string | null> {
   const style = getArtStyle(gameType);
-  const prompt = buildImagePrompt(cardText, style, { theme, maturity, flavorThemes, wildcard }, gameType);
-  return generateCardImage(prompt, style);
+  const prompt = buildImagePrompt(cardText, style, { theme, maturity, flavorThemes, wildcard });
+  const imageUrl = await generateCardImage(prompt, style);
+  if (!imageUrl) return null;
+
+  // For Joking Hazard, composite speech bubble with card text
+  const isAction = cardText.startsWith("[") || cardText.startsWith("*");
+  if (gameType === "joking_hazard" && !isAction) {
+    return addSpeechBubble(imageUrl, cardText);
+  }
+  return imageUrl;
 }
 
 // Main pipeline: generate art for all cards in a deck
@@ -332,9 +366,14 @@ export async function generateDeckArt(deckId: string): Promise<void> {
       const batch = allCards.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         batch.map(async (card) => {
-          const prompt = buildImagePrompt(card.text, style, context, gameType);
-          const url = await generateCardImage(prompt, style);
+          const prompt = buildImagePrompt(card.text, style, context);
+          let url = await generateCardImage(prompt, style);
           if (url) {
+            // For Joking Hazard non-action cards, composite speech bubble
+            const isAction = card.text.startsWith("[") || card.text.startsWith("*");
+            if (gameType === "joking_hazard" && !isAction) {
+              url = await addSpeechBubble(url, card.text);
+            }
             cardImageMap.set(card.id, url);
           }
         })
