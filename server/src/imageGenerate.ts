@@ -126,7 +126,7 @@ interface ArtStyleConfig {
 
 const ART_STYLES: Record<string, ArtStyleConfig> = {
   joking_hazard: {
-    basePrompt: "single panel webcomic, 1-2 simple stick figures only, round heads, colored shirts, bold black outlines, plain white background, lots of empty space, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
+    basePrompt: "single panel webcomic, 1-2 simple stick figures, round heads, colored shirts, bold black outlines, plain white background, characters large and centered filling most of the frame, close-up framing, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
     aspectRatio: "5:7",
     negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright, crowd, group, many people, busy, detailed background, text, words, letters",
   },
@@ -269,8 +269,8 @@ async function addSpeechBubble(imageUrl: string, text: string): Promise<string> 
     // Truncate very long text to avoid Sharp/Pango overflow
     const truncated = text.length > 200 ? text.slice(0, 197) + "..." : text;
     const escaped = truncated.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const maxTextWidth = Math.min(origWidth - 40, 600);
-    const maxStripHeight = Math.round(origHeight * 0.3); // Cap text area at 30% of image
+    const maxTextWidth = Math.min(origWidth - 24, 600);
+    const maxStripHeight = Math.round(origHeight * 0.25); // Cap text area at 25% of image
 
     // Try font size 14, fall back to 11 if text is too tall
     let textImage: Buffer = Buffer.alloc(0);
@@ -293,12 +293,12 @@ async function addSpeechBubble(imageUrl: string, text: string): Promise<string> 
       textWidth = textMeta.width || 200;
       textHeight = textMeta.height || 20;
 
-      if (textHeight + 34 <= maxStripHeight) break; // 34 = padding*2 + tailSize
+      if (textHeight + 22 <= maxStripHeight) break; // 22 = padding*2 + tailSize
     }
 
     // White strip height: text height + padding + tail
-    const padding = 10;
-    const tailSize = 14;
+    const padding = 6;
+    const tailSize = 10;
     const stripHeight = textHeight + padding * 2 + tailSize;
 
     // Keep original dimensions — white strip on top, image fills the rest
