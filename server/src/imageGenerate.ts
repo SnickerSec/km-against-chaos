@@ -113,9 +113,9 @@ interface ArtStyleConfig {
 
 const ART_STYLES: Record<string, ArtStyleConfig> = {
   joking_hazard: {
-    basePrompt: "simple webcomic panel, bold black outlines, stick figure characters with round heads and colored shirts, flat colors, white background, minimalist comic strip style, single panel comic, no watermarks, no logos, no signatures, no copyright marks",
+    basePrompt: "single panel webcomic, 1-2 simple stick figures only, round heads, colored shirts, bold black outlines, plain white background, lots of empty space, minimal detail, no crowd, no background objects, no watermarks",
     aspectRatio: "4:3",
-    negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright",
+    negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright, crowd, group, many people, busy, detailed background",
     imageModel: "ideogram-v2-turbo",
   },
   cah: {
