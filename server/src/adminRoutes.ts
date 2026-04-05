@@ -1,6 +1,8 @@
 import { Router } from "express";
 import pool from "./db.js";
 import { requireAuth, requireAdmin } from "./auth.js";
+import { DEFAULT_ART_STYLES, DEFAULT_IMAGE_SUFFIX } from "./imageGenerate.js";
+import { GAME_TYPE_KEYS, MATURITY_KEYS, getDefaultEngineRules, getDefaultMaturityRules } from "./aiGenerate.js";
 
 // Cache OpenRouter models for 1 hour
 let modelsCache: { data: any[]; fetchedAt: number } | null = null;
@@ -326,6 +328,120 @@ router.put("/decks/:id/featured", async (req, res) => {
     );
     if (rows.length === 0) { res.status(404).json({ error: "Deck not found" }); return; }
     res.json({ id: rows[0].id, name: rows[0].name, builtIn: rows[0].built_in });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get prompt templates (defaults merged with overrides)
+router.get("/prompt-templates", async (_req, res) => {
+  try {
+    // Load overrides from settings
+    const { rows } = await pool.query("SELECT value FROM settings WHERE key = 'prompt_templates'");
+    const overrides = rows.length > 0 ? rows[0].value || {} : {};
+
+    // Build art styles with defaults + overrides
+    const artStyles: Record<string, any> = {};
+    for (const [key, style] of Object.entries(DEFAULT_ART_STYLES)) {
+      artStyles[key] = {
+        basePrompt: overrides.artStyles?.[key]?.basePrompt ?? style.basePrompt,
+        negativePrompt: overrides.artStyles?.[key]?.negativePrompt ?? style.negativePrompt,
+        aspectRatio: overrides.artStyles?.[key]?.aspectRatio ?? style.aspectRatio,
+        ...(style.loras ? { loras: overrides.artStyles?.[key]?.loras ?? style.loras } : {}),
+      };
+    }
+
+    // Build card engine rules with defaults + overrides
+    const cardEngineRules: Record<string, string> = {};
+    for (const gt of GAME_TYPE_KEYS) {
+      cardEngineRules[gt] = overrides.cardEngineRules?.[gt] ?? getDefaultEngineRules(gt);
+    }
+
+    // Build maturity rules with defaults + overrides
+    const cardMaturityRules: Record<string, string> = {};
+    for (const m of MATURITY_KEYS) {
+      cardMaturityRules[m] = overrides.cardMaturityRules?.[m] ?? getDefaultMaturityRules(m);
+    }
+
+    res.json({
+      artStyles,
+      imagePromptSuffix: overrides.imagePromptSuffix ?? DEFAULT_IMAGE_SUFFIX,
+      cardEngineRules,
+      cardMaturityRules,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update prompt templates (stores only overrides that differ from defaults)
+router.put("/prompt-templates", async (req, res) => {
+  const body = (req as any).body;
+  if (!body || typeof body !== "object") {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+
+  try {
+    // Build overrides object — only store values that differ from defaults
+    const overrides: any = {};
+
+    if (body.artStyles) {
+      overrides.artStyles = {};
+      for (const [key, style] of Object.entries(body.artStyles as Record<string, any>)) {
+        const defaults = DEFAULT_ART_STYLES[key];
+        if (!defaults) continue;
+        const o: any = {};
+        if (style.basePrompt !== undefined && style.basePrompt !== defaults.basePrompt) o.basePrompt = style.basePrompt;
+        if (style.negativePrompt !== undefined && style.negativePrompt !== defaults.negativePrompt) o.negativePrompt = style.negativePrompt;
+        if (style.aspectRatio !== undefined && style.aspectRatio !== defaults.aspectRatio) o.aspectRatio = style.aspectRatio;
+        if (style.loras !== undefined) o.loras = style.loras;
+        if (Object.keys(o).length > 0) overrides.artStyles[key] = o;
+      }
+      if (Object.keys(overrides.artStyles).length === 0) delete overrides.artStyles;
+    }
+
+    if (body.imagePromptSuffix !== undefined && body.imagePromptSuffix !== DEFAULT_IMAGE_SUFFIX) {
+      overrides.imagePromptSuffix = body.imagePromptSuffix;
+    }
+
+    if (body.cardEngineRules) {
+      overrides.cardEngineRules = {};
+      for (const gt of GAME_TYPE_KEYS) {
+        if (body.cardEngineRules[gt] !== undefined && body.cardEngineRules[gt] !== getDefaultEngineRules(gt)) {
+          overrides.cardEngineRules[gt] = body.cardEngineRules[gt];
+        }
+      }
+      if (Object.keys(overrides.cardEngineRules).length === 0) delete overrides.cardEngineRules;
+    }
+
+    if (body.cardMaturityRules) {
+      overrides.cardMaturityRules = {};
+      for (const m of MATURITY_KEYS) {
+        if (body.cardMaturityRules[m] !== undefined && body.cardMaturityRules[m] !== getDefaultMaturityRules(m)) {
+          overrides.cardMaturityRules[m] = body.cardMaturityRules[m];
+        }
+      }
+      if (Object.keys(overrides.cardMaturityRules).length === 0) delete overrides.cardMaturityRules;
+    }
+
+    await pool.query(
+      `INSERT INTO settings (key, value, updated_at) VALUES ('prompt_templates', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [JSON.stringify(overrides)]
+    );
+
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Reset prompt templates to defaults
+router.delete("/prompt-templates", async (_req, res) => {
+  try {
+    await pool.query("DELETE FROM settings WHERE key = 'prompt_templates'");
+    res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

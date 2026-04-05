@@ -72,9 +72,30 @@ function getApiKey(provider: AiProvider): string | undefined {
   return process.env[envMap[provider]];
 }
 
+// ── Prompt template overrides from DB ──
+
+async function getPromptTemplateOverrides(): Promise<any> {
+  try {
+    const { rows } = await pool.query("SELECT value FROM settings WHERE key = 'prompt_templates'");
+    if (rows.length > 0) return rows[0].value || {};
+  } catch {}
+  return {};
+}
+
 // ── Static prompt sections (ordered for prefix-cache efficiency) ──
 
-function buildEngineRules(gameType: string): string {
+export const GAME_TYPE_KEYS = [
+  "cards-against-humanity",
+  "joking_hazard",
+  "apples_to_apples",
+  "uno",
+  "superfight",
+  "codenames",
+] as const;
+
+export const MATURITY_KEYS = ["kid-friendly", "moderate", "adult", "raunchy"] as const;
+
+export function getDefaultEngineRules(gameType: string): string {
   if (gameType === "cards-against-humanity") {
     return `=== GAME ENGINE RULES ===
 This is a Cards Against Humanity-style party game called "KM Against Chaos".
@@ -169,7 +190,13 @@ This is a Codenames-style word guessing game.
   return "Generate prompt cards and answer cards appropriate for the game type.";
 }
 
-function buildMaturityRules(maturity: string): string {
+async function buildEngineRules(gameType: string): Promise<string> {
+  const overrides = await getPromptTemplateOverrides();
+  if (overrides.cardEngineRules?.[gameType]) return overrides.cardEngineRules[gameType];
+  return getDefaultEngineRules(gameType);
+}
+
+export function getDefaultMaturityRules(maturity: string): string {
   switch (maturity) {
     case "kid-friendly":
       return `=== CONTENT SAFETY: KID-FRIENDLY (G-RATED) ===
@@ -198,6 +225,12 @@ function buildMaturityRules(maturity: string): string {
 - Think "uncomfortable but funny" — the kind of thing that makes people say "oh no" then laugh.
 - Cards that could appear in a PG movie are too safe. Aim for a hard R.`;
   }
+}
+
+async function buildMaturityRules(maturity: string): Promise<string> {
+  const overrides = await getPromptTemplateOverrides();
+  if (overrides.cardMaturityRules?.[maturity]) return overrides.cardMaturityRules[maturity];
+  return getDefaultMaturityRules(maturity);
 }
 
 function buildFlavorRules(flavorThemes: string[]): string {
@@ -272,14 +305,14 @@ ${cardBreakdown}
 ${ctx.packType !== "base" ? `Also generate a short, catchy pack name and a 1-2 sentence description.` : ""}`;
 }
 
-function buildCardsPrompt(ctx: GenerateContext, cc: number, kc: number): string {
+async function buildCardsPrompt(ctx: GenerateContext, cc: number, kc: number): Promise<string> {
   const metaCount = Math.round(cc * ((ctx.chaosLevel ?? 0) / 100));
   const maturity = ctx.maturity || "adult";
   const flavorThemes = ctx.flavorThemes || [];
 
   const sections = [
-    buildEngineRules(ctx.gameType),
-    buildMaturityRules(maturity),
+    await buildEngineRules(ctx.gameType),
+    await buildMaturityRules(maturity),
     flavorThemes.length > 0 ? buildFlavorRules(flavorThemes) : "",
     metaCount > 0 ? buildMetaCardRules(metaCount) : "",
     buildDynamicSection(ctx, cc, kc, metaCount),
@@ -307,7 +340,7 @@ ${ctx.packType !== "base" ? `{
 }`}`;
 }
 
-function buildDeckPrompt(ctx: GenerateContext, cc: number, kc: number): string {
+async function buildDeckPrompt(ctx: GenerateContext, cc: number, kc: number): Promise<string> {
   const maturity = ctx.maturity || "adult";
   const flavorThemes = ctx.flavorThemes || [];
   const isUno = ctx.gameType === "uno";
@@ -322,8 +355,8 @@ function buildDeckPrompt(ctx: GenerateContext, cc: number, kc: number): string {
       : "";
 
     return [
-      buildEngineRules(ctx.gameType),
-      buildMaturityRules(maturity),
+      await buildEngineRules(ctx.gameType),
+      await buildMaturityRules(maturity),
       flavorThemes.length > 0 ? buildFlavorRules(flavorThemes) : "",
     ].filter(Boolean).join("\n\n") + `
 
@@ -337,8 +370,8 @@ Respond ONLY with valid JSON, no other text.`;
   const metaCount = Math.round(cc * ((ctx.chaosLevel ?? 0) / 100));
 
   const sections = [
-    buildEngineRules(ctx.gameType),
-    buildMaturityRules(maturity),
+    await buildEngineRules(ctx.gameType),
+    await buildMaturityRules(maturity),
     flavorThemes.length > 0 ? buildFlavorRules(flavorThemes) : "",
     metaCount > 0 ? buildMetaCardRules(metaCount) : "",
     buildDynamicSection(ctx, cc, kc, metaCount),
@@ -491,7 +524,7 @@ export async function generateCards(ctx: GenerateContext): Promise<GeneratedCard
   const settings = await getAiSettings();
   const cc = ctx.chaosCount || 10;
   const kc = ctx.knowledgeCount || 25;
-  const prompt = buildCardsPrompt(ctx, cc, kc);
+  const prompt = await buildCardsPrompt(ctx, cc, kc);
   const responseText = await callProvider(settings, prompt);
   return extractJson<GeneratedCards>(responseText, isValidCards);
 }
@@ -500,7 +533,7 @@ export async function generateDeck(ctx: GenerateContext): Promise<GeneratedDeck>
   const settings = await getAiSettings();
   const cc = ctx.chaosCount || 10;
   const kc = ctx.knowledgeCount || 25;
-  const prompt = buildDeckPrompt(ctx, cc, kc);
+  const prompt = await buildDeckPrompt(ctx, cc, kc);
   const responseText = await callProvider(settings, prompt);
   const validator = ctx.gameType === "uno" ? isValidUnoDeck : isValidDeck;
   return extractJson<GeneratedDeck>(responseText, validator);

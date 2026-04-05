@@ -125,7 +125,9 @@ interface ArtStyleConfig {
   loras?: { path: string; scale: number }[];
 }
 
-const ART_STYLES: Record<string, ArtStyleConfig> = {
+export const DEFAULT_IMAGE_SUFFIX = "absolutely no text, no letters, no words, no writing, no captions anywhere in the image";
+
+export const DEFAULT_ART_STYLES: Record<string, ArtStyleConfig> = {
   joking_hazard: {
     basePrompt: "ch_visual_style, stick figure character, single panel webcomic, round heads, colored shirts, bold black outlines, plain white background, characters large and centered filling most of the frame, close-up framing, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
     aspectRatio: "5:7",
@@ -154,8 +156,38 @@ const ART_STYLES: Record<string, ArtStyleConfig> = {
   },
 };
 
-export function getArtStyle(gameType: string): ArtStyleConfig {
-  return ART_STYLES[gameType] || ART_STYLES.default;
+async function getPromptTemplateOverrides(): Promise<any> {
+  try {
+    const { rows } = await pool.query("SELECT value FROM settings WHERE key = 'prompt_templates'");
+    if (rows.length > 0) return rows[0].value || {};
+  } catch {}
+  return {};
+}
+
+export async function getArtStyle(gameType: string): Promise<ArtStyleConfig> {
+  const defaults = DEFAULT_ART_STYLES[gameType] || DEFAULT_ART_STYLES.default;
+  try {
+    const overrides = await getPromptTemplateOverrides();
+    if (overrides.artStyles?.[gameType]) {
+      const o = overrides.artStyles[gameType];
+      return {
+        ...defaults,
+        ...(o.basePrompt !== undefined ? { basePrompt: o.basePrompt } : {}),
+        ...(o.negativePrompt !== undefined ? { negativePrompt: o.negativePrompt } : {}),
+        ...(o.aspectRatio !== undefined ? { aspectRatio: o.aspectRatio } : {}),
+        ...(o.loras !== undefined ? { loras: o.loras } : {}),
+      };
+    }
+  } catch {}
+  return defaults;
+}
+
+export async function getImageSuffix(): Promise<string> {
+  try {
+    const overrides = await getPromptTemplateOverrides();
+    if (overrides.imagePromptSuffix !== undefined) return overrides.imagePromptSuffix;
+  } catch {}
+  return DEFAULT_IMAGE_SUFFIX;
 }
 
 // Generate image prompts for cards using configured AI provider
@@ -164,7 +196,7 @@ export async function generateImagePrompts(
   context: { theme: string; gameType: string; maturity?: string }
 ): Promise<Map<string, string>> {
   const settings = await getAiSettings();
-  const style = getArtStyle(context.gameType);
+  const style = await getArtStyle(context.gameType);
   const result = new Map<string, string>();
 
   // Batch cards into groups of 30
@@ -214,11 +246,12 @@ Respond ONLY with valid JSON — an object mapping card IDs to image prompts:
 }
 
 // Build a full image prompt from card text + deck context
-function buildImagePrompt(
+async function buildImagePrompt(
   cardText: string,
   style: ArtStyleConfig,
   context?: { theme?: string; maturity?: string; flavorThemes?: string[]; wildcard?: string },
-): string {
+): Promise<string> {
+  const suffix = await getImageSuffix();
   const parts = [style.basePrompt];
   if (context?.flavorThemes?.length) {
     parts.push(context.flavorThemes.join(", ") + " theme");
@@ -232,7 +265,9 @@ function buildImagePrompt(
 
   // Wrap card text as a scene description to prevent Flux from rendering it as visible text
   parts.push(`depicting the scene: ${cardText}`);
-  parts.push("absolutely no text, no letters, no words, no writing, no captions anywhere in the image");
+  if (suffix) {
+    parts.push(suffix);
+  }
 
   return parts.join(", ");
 }
@@ -386,8 +421,8 @@ export async function generatePreviewImage(
   flavorThemes?: string[],
   wildcard?: string,
 ): Promise<string | null> {
-  const style = getArtStyle(gameType);
-  const prompt = buildImagePrompt(cardText, style, { theme, maturity, flavorThemes, wildcard });
+  const style = await getArtStyle(gameType);
+  const prompt = await buildImagePrompt(cardText, style, { theme, maturity, flavorThemes, wildcard });
   const imageUrl = await generateCardImage(prompt, style);
   if (!imageUrl) return null;
 
@@ -420,7 +455,7 @@ export async function generateDeckArt(deckId: string): Promise<void> {
     const maturity = deck.maturity || "adult";
     const flavorThemes: string[] = deck.flavor_themes || [];
     const wildcard: string = deck.wildcard || "";
-    const style = getArtStyle(gameType);
+    const style = await getArtStyle(gameType);
     const context = { theme, maturity, flavorThemes, wildcard };
 
     // Collect all cards that need images
@@ -448,7 +483,7 @@ export async function generateDeckArt(deckId: string): Promise<void> {
       const batch = allCards.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         batch.map(async (card) => {
-          const prompt = buildImagePrompt(card.text, style, context);
+          const prompt = await buildImagePrompt(card.text, style, context);
           let url = await generateCardImage(prompt, style);
           if (url) {
             // For Joking Hazard non-action cards, composite speech bubble

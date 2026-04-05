@@ -5,7 +5,7 @@ import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore, getAuthHeaders } from "@/lib/auth";
-import { fetchAdminSettings, updateAdminSetting, fetchModels, fetchApiKeysStatus, testProvider, ModelInfo } from "@/lib/api";
+import { fetchAdminSettings, updateAdminSetting, fetchModels, fetchApiKeysStatus, testProvider, ModelInfo, fetchPromptTemplates, updatePromptTemplates, resetPromptTemplates, PromptTemplates } from "@/lib/api";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
 const API_URL =
@@ -73,6 +73,17 @@ export default function AdminPage() {
   const [decksLoading, setDecksLoading] = useState(false);
   const [featuredStatus, setFeaturedStatus] = useState<Record<string, { success?: boolean; error?: string }>>({});
 
+  // Prompt templates
+  const [promptTemplates, setPromptTemplates] = useState<PromptTemplates | null>(null);
+  const [promptsLoading, setPromptsLoading] = useState(false);
+  const [promptsSaving, setPromptsSaving] = useState(false);
+  const [promptsSaved, setPromptsSaved] = useState(false);
+  const [promptsError, setPromptsError] = useState<string | null>(null);
+  const [promptsExpanded, setPromptsExpanded] = useState<Record<string, boolean>>({});
+  const [activeArtStyle, setActiveArtStyle] = useState("joking_hazard");
+  const [activeEngineRule, setActiveEngineRule] = useState("cards-against-humanity");
+  const [activeMaturityRule, setActiveMaturityRule] = useState("adult");
+
   useEffect(() => {
     restore();
   }, [restore]);
@@ -99,6 +110,12 @@ export default function AdminPage() {
       .then((r) => r.json())
       .then((data) => { setAdminDecks(data); setDecksLoading(false); })
       .catch(() => setDecksLoading(false));
+
+    // Fetch prompt templates
+    setPromptsLoading(true);
+    fetchPromptTemplates()
+      .then((data) => { setPromptTemplates(data); setPromptsLoading(false); })
+      .catch((e) => { setPromptsError(e.message); setPromptsLoading(false); });
   }, [user, isAdmin]);
 
   useEffect(() => {
@@ -241,6 +258,67 @@ export default function AdminPage() {
     } catch (e: any) {
       setFeaturedStatus((prev) => ({ ...prev, [deckId]: { error: e.message } }));
     }
+  };
+
+  const handleSavePromptTemplates = async () => {
+    if (!promptTemplates) return;
+    setPromptsSaving(true);
+    setPromptsSaved(false);
+    setPromptsError(null);
+    try {
+      await updatePromptTemplates(promptTemplates);
+      setPromptsSaved(true);
+      setTimeout(() => setPromptsSaved(false), 3000);
+    } catch (e: any) {
+      setPromptsError(e.message);
+    } finally {
+      setPromptsSaving(false);
+    }
+  };
+
+  const handleResetPromptTemplates = async () => {
+    if (!confirm("Reset all prompt templates to defaults? This cannot be undone.")) return;
+    try {
+      await resetPromptTemplates();
+      const data = await fetchPromptTemplates();
+      setPromptTemplates(data);
+      setPromptsSaved(false);
+      setPromptsError(null);
+    } catch (e: any) {
+      setPromptsError(e.message);
+    }
+  };
+
+  const updateArtStyle = (gameType: string, field: string, value: string) => {
+    if (!promptTemplates) return;
+    setPromptTemplates({
+      ...promptTemplates,
+      artStyles: {
+        ...promptTemplates.artStyles,
+        [gameType]: { ...promptTemplates.artStyles[gameType], [field]: value },
+      },
+    });
+  };
+
+  const toggleSection = (section: string) => {
+    setPromptsExpanded((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const GAME_TYPE_LABELS: Record<string, string> = {
+    "cards-against-humanity": "Cards Against Humanity",
+    joking_hazard: "Joking Hazard",
+    apples_to_apples: "Apples to Apples",
+    uno: "Uno",
+    superfight: "Superfight",
+    codenames: "Codenames",
+    default: "Default",
+  };
+
+  const MATURITY_LABELS: Record<string, string> = {
+    "kid-friendly": "Kid-Friendly (G)",
+    moderate: "Moderate (PG-13)",
+    adult: "Adult (R)",
+    raunchy: "Raunchy (NC-17)",
   };
 
   if (authLoading || !user || !isAdmin) {
@@ -555,6 +633,223 @@ export default function AdminPage() {
 
           {!decksLoading && adminDecks.length === 0 && (
             <p className="text-gray-500 text-sm">No decks found.</p>
+          )}
+        </div>
+
+        {/* Prompt Templates */}
+        <div className="bg-gray-900 rounded-xl p-6">
+          <h2 className="text-xl font-semibold mb-2">Prompt Templates</h2>
+          <p className="text-gray-400 text-sm mb-5">
+            View and edit the prompts used for AI card generation and image generation.
+            Changes are stored as overrides — reset to restore defaults.
+          </p>
+
+          {promptsLoading && <p className="text-gray-400 text-sm">Loading templates...</p>}
+          {promptsError && !promptTemplates && <p className="text-red-400 text-sm">{promptsError}</p>}
+
+          {promptTemplates && (
+            <div className="space-y-4">
+              {/* Image Prompt Suffix */}
+              <div className="bg-gray-800 rounded-lg p-4">
+                <button
+                  onClick={() => toggleSection("imageSuffix")}
+                  className="flex items-center justify-between w-full text-left"
+                >
+                  <h3 className="text-sm font-semibold text-purple-300">Image Prompt Suffix</h3>
+                  <Icon icon={promptsExpanded.imageSuffix ? "mdi:chevron-up" : "mdi:chevron-down"} width={20} className="text-gray-500" />
+                </button>
+                <p className="text-gray-500 text-xs mt-1">Appended to every image generation prompt</p>
+                {promptsExpanded.imageSuffix && (
+                  <textarea
+                    value={promptTemplates.imagePromptSuffix}
+                    onChange={(e) => setPromptTemplates({ ...promptTemplates, imagePromptSuffix: e.target.value })}
+                    rows={3}
+                    className="w-full mt-3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
+                  />
+                )}
+              </div>
+
+              {/* Art Styles */}
+              <div className="bg-gray-800 rounded-lg p-4">
+                <button
+                  onClick={() => toggleSection("artStyles")}
+                  className="flex items-center justify-between w-full text-left"
+                >
+                  <h3 className="text-sm font-semibold text-purple-300">Image Art Styles</h3>
+                  <Icon icon={promptsExpanded.artStyles ? "mdi:chevron-up" : "mdi:chevron-down"} width={20} className="text-gray-500" />
+                </button>
+                <p className="text-gray-500 text-xs mt-1">Base prompt, negative prompt, and aspect ratio per game type</p>
+                {promptsExpanded.artStyles && (
+                  <div className="mt-3 space-y-3">
+                    <div className="flex flex-wrap gap-1">
+                      {Object.keys(promptTemplates.artStyles).map((gt) => (
+                        <button
+                          key={gt}
+                          onClick={() => setActiveArtStyle(gt)}
+                          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            activeArtStyle === gt
+                              ? "bg-purple-600 text-white"
+                              : "bg-gray-700 text-gray-400 hover:text-white"
+                          }`}
+                        >
+                          {GAME_TYPE_LABELS[gt] || gt}
+                        </button>
+                      ))}
+                    </div>
+                    {promptTemplates.artStyles[activeArtStyle] && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Base Prompt</label>
+                          <textarea
+                            value={promptTemplates.artStyles[activeArtStyle].basePrompt}
+                            onChange={(e) => updateArtStyle(activeArtStyle, "basePrompt", e.target.value)}
+                            rows={4}
+                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Negative Prompt</label>
+                          <textarea
+                            value={promptTemplates.artStyles[activeArtStyle].negativePrompt}
+                            onChange={(e) => updateArtStyle(activeArtStyle, "negativePrompt", e.target.value)}
+                            rows={2}
+                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Aspect Ratio</label>
+                          <input
+                            type="text"
+                            value={promptTemplates.artStyles[activeArtStyle].aspectRatio}
+                            onChange={(e) => updateArtStyle(activeArtStyle, "aspectRatio", e.target.value)}
+                            className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                        {promptTemplates.artStyles[activeArtStyle].loras && (
+                          <div>
+                            <label className="block text-xs text-gray-400 mb-1">LoRAs (JSON)</label>
+                            <textarea
+                              value={JSON.stringify(promptTemplates.artStyles[activeArtStyle].loras, null, 2)}
+                              onChange={(e) => {
+                                try {
+                                  const parsed = JSON.parse(e.target.value);
+                                  updateArtStyle(activeArtStyle, "loras", parsed);
+                                } catch {}
+                              }}
+                              rows={4}
+                              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Card Engine Rules */}
+              <div className="bg-gray-800 rounded-lg p-4">
+                <button
+                  onClick={() => toggleSection("engineRules")}
+                  className="flex items-center justify-between w-full text-left"
+                >
+                  <h3 className="text-sm font-semibold text-purple-300">Card Engine Rules</h3>
+                  <Icon icon={promptsExpanded.engineRules ? "mdi:chevron-up" : "mdi:chevron-down"} width={20} className="text-gray-500" />
+                </button>
+                <p className="text-gray-500 text-xs mt-1">Game-specific rules included in card generation prompts</p>
+                {promptsExpanded.engineRules && (
+                  <div className="mt-3 space-y-3">
+                    <div className="flex flex-wrap gap-1">
+                      {Object.keys(promptTemplates.cardEngineRules).map((gt) => (
+                        <button
+                          key={gt}
+                          onClick={() => setActiveEngineRule(gt)}
+                          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            activeEngineRule === gt
+                              ? "bg-purple-600 text-white"
+                              : "bg-gray-700 text-gray-400 hover:text-white"
+                          }`}
+                        >
+                          {GAME_TYPE_LABELS[gt] || gt}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={promptTemplates.cardEngineRules[activeEngineRule] || ""}
+                      onChange={(e) =>
+                        setPromptTemplates({
+                          ...promptTemplates,
+                          cardEngineRules: { ...promptTemplates.cardEngineRules, [activeEngineRule]: e.target.value },
+                        })
+                      }
+                      rows={12}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Maturity Rules */}
+              <div className="bg-gray-800 rounded-lg p-4">
+                <button
+                  onClick={() => toggleSection("maturityRules")}
+                  className="flex items-center justify-between w-full text-left"
+                >
+                  <h3 className="text-sm font-semibold text-purple-300">Maturity Rules</h3>
+                  <Icon icon={promptsExpanded.maturityRules ? "mdi:chevron-up" : "mdi:chevron-down"} width={20} className="text-gray-500" />
+                </button>
+                <p className="text-gray-500 text-xs mt-1">Content safety rules per maturity level</p>
+                {promptsExpanded.maturityRules && (
+                  <div className="mt-3 space-y-3">
+                    <div className="flex flex-wrap gap-1">
+                      {Object.keys(promptTemplates.cardMaturityRules).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setActiveMaturityRule(m)}
+                          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            activeMaturityRule === m
+                              ? "bg-purple-600 text-white"
+                              : "bg-gray-700 text-gray-400 hover:text-white"
+                          }`}
+                        >
+                          {MATURITY_LABELS[m] || m}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={promptTemplates.cardMaturityRules[activeMaturityRule] || ""}
+                      onChange={(e) =>
+                        setPromptTemplates({
+                          ...promptTemplates,
+                          cardMaturityRules: { ...promptTemplates.cardMaturityRules, [activeMaturityRule]: e.target.value },
+                        })
+                      }
+                      rows={8}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Save / Reset */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleSavePromptTemplates}
+                  disabled={promptsSaving}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
+                >
+                  {promptsSaving ? "Saving..." : "Save Templates"}
+                </button>
+                <button
+                  onClick={handleResetPromptTemplates}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold text-sm transition-colors text-gray-300"
+                >
+                  Reset to Defaults
+                </button>
+                {promptsSaved && <span className="text-green-400 text-sm">Templates saved</span>}
+                {promptsError && promptTemplates && <span className="text-red-400 text-sm">{promptsError}</span>}
+              </div>
+            </div>
           )}
         </div>
       </div>

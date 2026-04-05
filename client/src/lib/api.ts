@@ -468,6 +468,38 @@ export async function updateAdminSetting(key: string, value: any): Promise<void>
   if (!res.ok) throw new Error("Failed to update setting");
 }
 
+export interface PromptTemplates {
+  artStyles: Record<string, { basePrompt: string; negativePrompt: string; aspectRatio: string; loras?: { path: string; scale: number }[] }>;
+  imagePromptSuffix: string;
+  cardEngineRules: Record<string, string>;
+  cardMaturityRules: Record<string, string>;
+}
+
+export async function fetchPromptTemplates(): Promise<PromptTemplates> {
+  const res = await fetch(`${API_URL}/api/admin/prompt-templates`, {
+    headers: { ...getAuthHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to fetch prompt templates");
+  return res.json();
+}
+
+export async function updatePromptTemplates(templates: PromptTemplates): Promise<void> {
+  const res = await fetch(`${API_URL}/api/admin/prompt-templates`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(templates),
+  });
+  if (!res.ok) throw new Error("Failed to update prompt templates");
+}
+
+export async function resetPromptTemplates(): Promise<void> {
+  const res = await fetch(`${API_URL}/api/admin/prompt-templates`, {
+    method: "DELETE",
+    headers: { ...getAuthHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to reset prompt templates");
+}
+
 export async function toggleFavorite(deckId: string): Promise<{ favorited: boolean }> {
   const res = await fetch(`${API_URL}/api/decks/${deckId}/favorite`, {
     method: "POST",
