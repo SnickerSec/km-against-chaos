@@ -206,6 +206,9 @@ interface GameStore {
   handBlurred: boolean;
   iconsRandomized: boolean;
 
+  // Server status
+  serverRestarting: boolean;
+
   // Lobby countdown
   countdown: number | null;
 
@@ -279,6 +282,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   activeMetaEffect: null,
   handBlurred: false,
   iconsRandomized: false,
+  serverRestarting: false,
   countdown: null,
   gameType: "cah",
   codenamesView: null,

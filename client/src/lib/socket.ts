@@ -31,6 +31,15 @@ export function getSocket(): Socket {
       identifySocket(socket!);
     });
 
+    // Server restart notice — show toast and let Socket.IO auto-reconnect
+    socket.on("server_restart" as any, () => {
+      useGameStore.setState({ serverRestarting: true });
+    });
+
+    socket.on("reconnect" as any, () => {
+      useGameStore.setState({ serverRestarting: false });
+    });
+
     // Session reconnection — must be registered at socket creation time
     // (before any useEffect runs) to avoid missing the event on page refresh
     socket.on("session:reconnected" as any, (data: any) => {

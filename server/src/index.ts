@@ -126,8 +126,29 @@ const io = new Server<ClientEvents, ServerEvents>(httpServer, {
 
 setNotificationIO(io);
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+app.get("/health", async (_req, res) => {
+  const checks: Record<string, string> = {};
+  let healthy = true;
+
+  // Check database connectivity
+  if (process.env.DATABASE_URL) {
+    try {
+      await pool.query("SELECT 1");
+      checks.database = "ok";
+    } catch {
+      checks.database = "unreachable";
+      healthy = false;
+    }
+  } else {
+    checks.database = "not configured";
+  }
+
+  checks.uptime = `${Math.floor(process.uptime())}s`;
+
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? "ok" : "degraded",
+    checks,
+  });
 });
 
 // Rate limiting for API routes
@@ -1731,6 +1752,40 @@ async function start() {
     console.log(`Decked server running on port ${PORT}`);
   });
 }
+
+// Graceful shutdown — warn players, close connections, then exit
+function gracefulShutdown(signal: string) {
+  console.log(`${signal} received — starting graceful shutdown`);
+
+  // Notify all connected clients the server is restarting
+  io.emit("server_restart", { message: "Server is restarting — you will be reconnected shortly." });
+
+  // Stop accepting new connections
+  httpServer.close(() => {
+    console.log("HTTP server closed");
+  });
+
+  // Give clients a moment to receive the restart notice, then tear down
+  setTimeout(async () => {
+    try {
+      io.disconnectSockets(true);
+      await pool.end();
+      console.log("Database pool closed");
+    } catch (err) {
+      console.error("Error during shutdown:", err);
+    }
+    process.exit(0);
+  }, 2000);
+
+  // Hard exit after 10s if something hangs
+  setTimeout(() => {
+    console.error("Shutdown timed out — forcing exit");
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 start().catch((err) => {
   console.error("Failed to start:", err);

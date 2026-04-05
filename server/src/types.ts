@@ -249,6 +249,7 @@ export interface ServerEvents {
   "chat:message": (message: { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }) => void;
   "media:sticker": (url: string, playerName: string) => void;
   "error": (message: string) => void;
+  "server_restart": (data: { message: string }) => void;
   "uno:turn-update": (view: UnoPlayerView) => void;
   "uno:card-played": (playerId: string, playerName: string, card: UnoCard, newColor?: UnoColor) => void;
   "uno:player-drew": (playerId: string, playerName: string, newCount: number) => void;
