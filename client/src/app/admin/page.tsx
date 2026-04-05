@@ -72,6 +72,7 @@ export default function AdminPage() {
   const [adminDecks, setAdminDecks] = useState<{ id: string; name: string; builtIn: boolean; ownerId: string | null; gameType: string; chaosCount: number; knowledgeCount: number }[]>([]);
   const [decksLoading, setDecksLoading] = useState(false);
   const [featuredStatus, setFeaturedStatus] = useState<Record<string, { success?: boolean; error?: string }>>({});
+  const [deckSearch, setDeckSearch] = useState("");
 
   // Prompt templates
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplates | null>(null);
@@ -585,51 +586,75 @@ export default function AdminPage() {
         {/* Featured Decks */}
         <div className="bg-gray-900 rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-2">Featured Decks</h2>
-          <p className="text-gray-400 text-sm mb-5">
+          <p className="text-gray-400 text-sm mb-4">
             Toggle which decks appear in the Featured section on the home page.
           </p>
 
           {decksLoading && <p className="text-gray-400 text-sm">Loading decks...</p>}
 
-          {!decksLoading && adminDecks.length > 0 && (
-            <div className="space-y-2">
-              {adminDecks.map((d) => (
-                <div key={d.id} className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3">
-                  <button
-                    onClick={() => handleToggleFeatured(d.id, !d.builtIn)}
-                    className={`w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ${
-                      d.builtIn ? "bg-purple-600" : "bg-gray-600"
-                    }`}
-                  >
-                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                      d.builtIn ? "left-5" : "left-1"
-                    }`} />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-white truncate">{d.name}</p>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                        d.gameType === "joking_hazard"
-                          ? "bg-orange-600/30 text-orange-300"
-                          : "bg-red-600/30 text-red-300"
-                      }`}>
-                        {d.gameType === "joking_hazard" ? "JH" : "CAH"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">{d.chaosCount} prompts · {d.knowledgeCount} answers</p>
+          {!decksLoading && adminDecks.length > 0 && (() => {
+            const featured = adminDecks.filter((d) => d.builtIn);
+            const q = deckSearch.toLowerCase().trim();
+            const searchResults = q
+              ? adminDecks.filter((d) => !d.builtIn && d.name.toLowerCase().includes(q))
+              : [];
+            const displayDecks = q ? [...featured, ...searchResults] : featured;
+
+            return (
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={deckSearch}
+                  onChange={(e) => setDeckSearch(e.target.value)}
+                  placeholder="Search decks to feature..."
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                />
+                {displayDecks.length > 0 ? (
+                  <div className="space-y-2">
+                    {displayDecks.map((d) => (
+                      <div key={d.id} className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3">
+                        <button
+                          onClick={() => handleToggleFeatured(d.id, !d.builtIn)}
+                          className={`w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ${
+                            d.builtIn ? "bg-purple-600" : "bg-gray-600"
+                          }`}
+                        >
+                          <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                            d.builtIn ? "left-5" : "left-1"
+                          }`} />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-white truncate">{d.name}</p>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                              d.gameType === "joking_hazard"
+                                ? "bg-orange-600/30 text-orange-300"
+                                : "bg-red-600/30 text-red-300"
+                            }`}>
+                              {d.gameType === "joking_hazard" ? "JH" : "CAH"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">{d.chaosCount} prompts · {d.knowledgeCount} answers</p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          {featuredStatus[d.id]?.success && (
+                            <span className="text-green-400 text-xs">Saved</span>
+                          )}
+                          {featuredStatus[d.id]?.error && (
+                            <span className="text-red-400 text-xs">{featuredStatus[d.id].error}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex-shrink-0">
-                    {featuredStatus[d.id]?.success && (
-                      <span className="text-green-400 text-xs">Saved</span>
-                    )}
-                    {featuredStatus[d.id]?.error && (
-                      <span className="text-red-400 text-xs">{featuredStatus[d.id].error}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ) : (
+                  <p className="text-gray-500 text-sm">
+                    {q ? "No decks match your search." : "No featured decks yet. Search to add some."}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           {!decksLoading && adminDecks.length === 0 && (
             <p className="text-gray-500 text-sm">No decks found.</p>
