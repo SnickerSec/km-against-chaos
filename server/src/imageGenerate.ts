@@ -230,7 +230,9 @@ function buildImagePrompt(
     parts.push(`${context.maturity} tone`);
   }
 
-  parts.push(cardText);
+  // Wrap card text as a scene description to prevent Flux from rendering it as visible text
+  parts.push(`depicting the scene: ${cardText}`);
+  parts.push("absolutely no text, no letters, no words, no writing, no captions anywhere in the image");
 
   return parts.join(", ");
 }
