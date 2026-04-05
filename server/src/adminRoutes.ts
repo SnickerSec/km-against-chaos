@@ -447,16 +447,96 @@ router.delete("/prompt-templates", async (_req, res) => {
   }
 });
 
+// Cache fal.ai models list for 1 hour
+let falModelsCache: { data: any[]; fetchedAt: number } | null = null;
+const FAL_CACHE_TTL = 60 * 60 * 1000;
+
+async function fetchFalModels(): Promise<any[]> {
+  if (falModelsCache && Date.now() - falModelsCache.fetchedAt < FAL_CACHE_TTL) {
+    return falModelsCache.data;
+  }
+
+  const falKey = process.env.FAL_KEY;
+  const allModels: any[] = [];
+
+  try {
+    // Fetch text-to-image models from fal.ai API
+    const url = "https://fal.ai/api/models?category=text-to-image&limit=100";
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`fal.ai API returned ${response.status}`);
+    const json = await response.json();
+
+    // Fetch pricing for relevant models if we have a key
+    let pricingMap: Record<string, any> = {};
+    if (falKey && json.items?.length) {
+      try {
+        const endpointIds = json.items
+          .filter((m: any) => !m.deprecated)
+          .map((m: any) => m.id)
+          .slice(0, 50);
+        const pricingUrl = `https://api.fal.ai/v1/models/pricing?${endpointIds.map((id: string) => `endpoint_id=${encodeURIComponent(id)}`).join("&")}`;
+        const pricingRes = await fetch(pricingUrl, {
+          headers: { Authorization: `Key ${falKey}` },
+        });
+        if (pricingRes.ok) {
+          const pricingData = await pricingRes.json();
+          for (const p of pricingData.data || pricingData || []) {
+            if (p.endpoint_id) pricingMap[p.endpoint_id] = p;
+          }
+        }
+      } catch {
+        // Pricing fetch failed, continue without structured pricing
+      }
+    }
+
+    for (const m of json.items || []) {
+      if (m.deprecated) continue;
+      const pricing = pricingMap[m.id];
+      const priceStr = pricing
+        ? `$${pricing.price_per_unit || pricing.base_price || "?"}/MP`
+        : m.pricingInfoOverride || "";
+
+      allModels.push({
+        id: m.id,
+        name: m.title || m.id,
+        description: m.shortDescription || "",
+        price: priceStr,
+        loraSupport: (m.id.includes("/lora") || m.tags?.includes("lora")) ?? false,
+        category: m.category || "text-to-image",
+        tags: m.tags || [],
+      });
+    }
+
+    falModelsCache = { data: allModels, fetchedAt: Date.now() };
+  } catch (err) {
+    console.error("[ADMIN] Failed to fetch fal.ai models:", err);
+    // Fall back to hardcoded lists
+    for (const m of FAL_MODELS) {
+      allModels.push({ ...m, loraSupport: false, description: m.notes, tags: [] });
+    }
+    for (const m of FAL_LORA_MODELS) {
+      allModels.push({ ...m, loraSupport: true, description: m.notes, tags: ["lora"] });
+    }
+  }
+
+  return allModels;
+}
+
 // Get image model settings + available models
 router.get("/image-model", async (_req, res) => {
   try {
-    const { rows } = await pool.query("SELECT value FROM settings WHERE key = 'image_model'");
-    const settings = rows.length > 0 ? { ...IMAGE_MODEL_DEFAULTS, ...rows[0].value } : IMAGE_MODEL_DEFAULTS;
+    const [settingsResult, models] = await Promise.all([
+      pool.query("SELECT value FROM settings WHERE key = 'image_model'"),
+      fetchFalModels(),
+    ]);
+    const settings = settingsResult.rows.length > 0
+      ? { ...IMAGE_MODEL_DEFAULTS, ...settingsResult.rows[0].value }
+      : IMAGE_MODEL_DEFAULTS;
+
     res.json({
       settings,
       defaults: IMAGE_MODEL_DEFAULTS,
-      models: FAL_MODELS,
-      loraModels: FAL_LORA_MODELS,
+      models,
       falKeyConfigured: !!process.env.FAL_KEY,
     });
   } catch (e: any) {

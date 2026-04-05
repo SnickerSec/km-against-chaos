@@ -78,12 +78,13 @@ export default function AdminPage() {
   const [imgSettings, setImgSettings] = useState<ImageModelSettings | null>(null);
   const [imgDefaults, setImgDefaults] = useState<ImageModelSettings | null>(null);
   const [imgModels, setImgModels] = useState<FalModelInfo[]>([]);
-  const [imgLoraModels, setImgLoraModels] = useState<FalModelInfo[]>([]);
   const [imgFalKey, setImgFalKey] = useState(false);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgSaving, setImgSaving] = useState(false);
   const [imgSaved, setImgSaved] = useState(false);
   const [imgError, setImgError] = useState<string | null>(null);
+  const [imgSearch, setImgSearch] = useState("");
+  const [imgLoraSearch, setImgLoraSearch] = useState("");
 
   // Prompt templates
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplates | null>(null);
@@ -136,7 +137,6 @@ export default function AdminPage() {
         setImgSettings(data.settings);
         setImgDefaults(data.defaults);
         setImgModels(data.models);
-        setImgLoraModels(data.loraModels);
         setImgFalKey(data.falKeyConfigured);
         setImgLoading(false);
       })
@@ -579,157 +579,205 @@ export default function AdminPage() {
         <div className="bg-gray-900 rounded-xl p-6">
           <h2 className="text-xl font-semibold mb-2">AI Image Generation</h2>
           <p className="text-gray-400 text-sm mb-5">
-            Configure the fal.ai model used for generating card art. Different models trade off speed, quality, and cost.
+            Configure the fal.ai model used for generating card art. Models are fetched live from fal.ai.
           </p>
 
           {imgLoading && <p className="text-gray-400 text-sm">Loading image model settings...</p>}
 
-          {!imgLoading && imgSettings && (
-            <div className="space-y-5">
-              {/* FAL_KEY status */}
-              <div className="flex items-center gap-2 text-sm">
-                {imgFalKey ? (
-                  <>
-                    <span className="text-green-400 text-xs">●</span>
-                    <span className="text-gray-300"><code className="text-green-300">FAL_KEY</code> is configured</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-gray-600 text-xs">●</span>
-                    <span className="text-yellow-400"><code className="text-yellow-300">FAL_KEY</code> is not set — <a href={RAILWAY_VARS_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-200">add it on Railway</a></span>
-                  </>
-                )}
-              </div>
+          {!imgLoading && imgSettings && (() => {
+            const standardModels = imgModels.filter((m) => !m.loraSupport);
+            const loraModels = imgModels.filter((m) => m.loraSupport);
+            const sq = imgSearch.toLowerCase().trim();
+            const lq = imgLoraSearch.toLowerCase().trim();
+            const filteredStandard = sq
+              ? standardModels.filter((m) => m.name.toLowerCase().includes(sq) || m.id.toLowerCase().includes(sq) || m.description.toLowerCase().includes(sq))
+              : standardModels;
+            const filteredLora = lq
+              ? loraModels.filter((m) => m.name.toLowerCase().includes(lq) || m.id.toLowerCase().includes(lq) || m.description.toLowerCase().includes(lq))
+              : loraModels;
 
-              {/* Standard model (no LoRA) */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Standard Model <span className="text-gray-500 font-normal">(no LoRA)</span></label>
-                <div className="space-y-2">
-                  {imgModels.map((m) => (
-                    <label
-                      key={m.id}
-                      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                        imgSettings.endpoint === m.id
-                          ? "border-purple-500 bg-purple-600/10"
-                          : "border-gray-700 bg-gray-800 hover:border-gray-600"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="img-endpoint"
-                        value={m.id}
-                        checked={imgSettings.endpoint === m.id}
-                        onChange={() => setImgSettings({ ...imgSettings, endpoint: m.id, numInferenceSteps: m.stepsDefault })}
-                        className="mt-1 accent-purple-500"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-white">{m.name}</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-300">{m.price}</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-300">{m.speed}</span>
+            // Ensure currently selected models appear at top even if not in search
+            const selectedStandard = standardModels.find((m) => m.id === imgSettings.endpoint);
+            const selectedLora = loraModels.find((m) => m.id === imgSettings.loraEndpoint);
+
+            const displayStandard = selectedStandard && !filteredStandard.find((m) => m.id === selectedStandard.id)
+              ? [selectedStandard, ...filteredStandard]
+              : filteredStandard;
+            const displayLora = selectedLora && !filteredLora.find((m) => m.id === selectedLora.id)
+              ? [selectedLora, ...filteredLora]
+              : filteredLora;
+
+            return (
+              <div className="space-y-5">
+                {/* FAL_KEY status */}
+                <div className="flex items-center gap-2 text-sm">
+                  {imgFalKey ? (
+                    <>
+                      <span className="text-green-400 text-xs">●</span>
+                      <span className="text-gray-300"><code className="text-green-300">FAL_KEY</code> is configured</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-gray-600 text-xs">●</span>
+                      <span className="text-yellow-400"><code className="text-yellow-300">FAL_KEY</code> is not set — <a href={RAILWAY_VARS_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-200">add it on Railway</a></span>
+                    </>
+                  )}
+                  <span className="text-gray-600 text-xs ml-auto">{imgModels.length} models available</span>
+                </div>
+
+                {/* Standard model */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Standard Model <span className="text-gray-500 font-normal">(no LoRA)</span></label>
+                  <input
+                    type="text"
+                    value={imgSearch}
+                    onChange={(e) => setImgSearch(e.target.value)}
+                    placeholder="Search models..."
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
+                  />
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {displayStandard.slice(0, 20).map((m) => (
+                      <label
+                        key={m.id}
+                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                          imgSettings.endpoint === m.id
+                            ? "border-purple-500 bg-purple-600/10"
+                            : "border-gray-700 bg-gray-800 hover:border-gray-600"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="img-endpoint"
+                          value={m.id}
+                          checked={imgSettings.endpoint === m.id}
+                          onChange={() => setImgSettings({ ...imgSettings, endpoint: m.id })}
+                          className="mt-1 accent-purple-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-white">{m.name}</span>
+                            {m.price && <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-300">{m.price}</span>}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">{m.description || m.id}</p>
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">{m.notes}</p>
-                      </div>
-                    </label>
-                  ))}
+                      </label>
+                    ))}
+                    {displayStandard.length === 0 && (
+                      <p className="text-gray-500 text-sm py-2">No models match &quot;{imgSearch}&quot;</p>
+                    )}
+                    {displayStandard.length > 20 && (
+                      <p className="text-gray-600 text-xs py-1">Showing 20 of {displayStandard.length} — search to narrow</p>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* LoRA model */}
-              <div>
-                <label className="block text-sm font-medium mb-2">LoRA Model <span className="text-gray-500 font-normal">(when art style has LoRAs)</span></label>
-                <div className="space-y-2">
-                  {imgLoraModels.map((m) => (
-                    <label
-                      key={m.id}
-                      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                        imgSettings.loraEndpoint === m.id
-                          ? "border-purple-500 bg-purple-600/10"
-                          : "border-gray-700 bg-gray-800 hover:border-gray-600"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="img-lora-endpoint"
-                        value={m.id}
-                        checked={imgSettings.loraEndpoint === m.id}
-                        onChange={() => setImgSettings({ ...imgSettings, loraEndpoint: m.id, loraNumInferenceSteps: m.stepsDefault })}
-                        className="mt-1 accent-purple-500"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-white">{m.name}</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-300">{m.price}</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-300">{m.speed}</span>
+                {/* LoRA model */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">LoRA Model <span className="text-gray-500 font-normal">(when art style has LoRAs)</span></label>
+                  <input
+                    type="text"
+                    value={imgLoraSearch}
+                    onChange={(e) => setImgLoraSearch(e.target.value)}
+                    placeholder="Search LoRA models..."
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
+                  />
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {displayLora.slice(0, 20).map((m) => (
+                      <label
+                        key={m.id}
+                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                          imgSettings.loraEndpoint === m.id
+                            ? "border-purple-500 bg-purple-600/10"
+                            : "border-gray-700 bg-gray-800 hover:border-gray-600"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="img-lora-endpoint"
+                          value={m.id}
+                          checked={imgSettings.loraEndpoint === m.id}
+                          onChange={() => setImgSettings({ ...imgSettings, loraEndpoint: m.id })}
+                          className="mt-1 accent-purple-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-white">{m.name}</span>
+                            {m.price && <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-300">{m.price}</span>}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">{m.description || m.id}</p>
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">{m.notes}</p>
-                      </div>
-                    </label>
-                  ))}
+                      </label>
+                    ))}
+                    {displayLora.length === 0 && (
+                      <p className="text-gray-500 text-sm py-2">
+                        {lq ? `No LoRA models match "${imgLoraSearch}"` : "No LoRA models found"}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Parameters */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Inference Steps (standard)</label>
-                  <input
-                    type="number"
-                    value={imgSettings.numInferenceSteps}
-                    onChange={(e) => setImgSettings({ ...imgSettings, numInferenceSteps: parseInt(e.target.value) || 0 })}
-                    min={0}
-                    max={50}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                  />
-                  <p className="text-gray-600 text-xs mt-1">0 = model default</p>
+                {/* Parameters */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Inference Steps (standard)</label>
+                    <input
+                      type="number"
+                      value={imgSettings.numInferenceSteps}
+                      onChange={(e) => setImgSettings({ ...imgSettings, numInferenceSteps: parseInt(e.target.value) || 0 })}
+                      min={0}
+                      max={50}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    />
+                    <p className="text-gray-600 text-xs mt-1">0 = model default</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Inference Steps (LoRA)</label>
+                    <input
+                      type="number"
+                      value={imgSettings.loraNumInferenceSteps}
+                      onChange={(e) => setImgSettings({ ...imgSettings, loraNumInferenceSteps: parseInt(e.target.value) || 0 })}
+                      min={0}
+                      max={50}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    />
+                    <p className="text-gray-600 text-xs mt-1">0 = model default</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Guidance Scale (LoRA)</label>
+                    <input
+                      type="number"
+                      value={imgSettings.guidanceScale}
+                      onChange={(e) => setImgSettings({ ...imgSettings, guidanceScale: parseFloat(e.target.value) || 0 })}
+                      min={0}
+                      max={20}
+                      step={0.5}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    />
+                    <p className="text-gray-600 text-xs mt-1">Higher = more prompt adherence</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Inference Steps (LoRA)</label>
-                  <input
-                    type="number"
-                    value={imgSettings.loraNumInferenceSteps}
-                    onChange={(e) => setImgSettings({ ...imgSettings, loraNumInferenceSteps: parseInt(e.target.value) || 0 })}
-                    min={0}
-                    max={50}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                  />
-                  <p className="text-gray-600 text-xs mt-1">0 = model default</p>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Guidance Scale (LoRA)</label>
-                  <input
-                    type="number"
-                    value={imgSettings.guidanceScale}
-                    onChange={(e) => setImgSettings({ ...imgSettings, guidanceScale: parseFloat(e.target.value) || 0 })}
-                    min={0}
-                    max={20}
-                    step={0.5}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                  />
-                  <p className="text-gray-600 text-xs mt-1">Higher = more prompt adherence</p>
-                </div>
-              </div>
 
-              {/* Save / Reset */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSaveImageModel}
-                  disabled={imgSaving}
-                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
-                >
-                  {imgSaving ? "Saving..." : "Save Settings"}
-                </button>
-                <button
-                  onClick={handleResetImageModel}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold text-sm transition-colors text-gray-300"
-                >
-                  Reset to Defaults
-                </button>
-                {imgSaved && <span className="text-green-400 text-sm">Settings saved</span>}
-                {imgError && <span className="text-red-400 text-sm">{imgError}</span>}
+                {/* Save / Reset */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleSaveImageModel}
+                    disabled={imgSaving}
+                    className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
+                  >
+                    {imgSaving ? "Saving..." : "Save Settings"}
+                  </button>
+                  <button
+                    onClick={handleResetImageModel}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold text-sm transition-colors text-gray-300"
+                  >
+                    Reset to Defaults
+                  </button>
+                  {imgSaved && <span className="text-green-400 text-sm">Settings saved</span>}
+                  {imgError && <span className="text-red-400 text-sm">{imgError}</span>}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* User Roles */}

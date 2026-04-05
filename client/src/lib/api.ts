@@ -511,18 +511,16 @@ export interface ImageModelSettings {
 export interface FalModelInfo {
   id: string;
   name: string;
+  description: string;
   price: string;
-  speed: string;
-  loraSupport?: boolean;
-  stepsDefault: number;
-  notes: string;
+  loraSupport: boolean;
+  tags: string[];
 }
 
 export interface ImageModelResponse {
   settings: ImageModelSettings;
   defaults: ImageModelSettings;
   models: FalModelInfo[];
-  loraModels: FalModelInfo[];
   falKeyConfigured: boolean;
 }
 
