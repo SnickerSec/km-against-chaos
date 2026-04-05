@@ -45,7 +45,7 @@ export interface GenerateContext {
 const DEFAULTS: AiSettings = {
   provider: "anthropic",
   model: "claude-sonnet-4-20250514",
-  maxTokens: 2048,
+  maxTokens: 8096,
 };
 
 async function getAiSettings(): Promise<AiSettings> {
