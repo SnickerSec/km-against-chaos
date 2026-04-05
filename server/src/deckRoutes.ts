@@ -274,8 +274,8 @@ router.post("/import", requireAuth, async (req, res) => {
 
 const MAX_THEME_LEN = 200;
 const MAX_WILDCARD_LEN = 200;
-const MAX_CHAOS_COUNT = 100;
-const MAX_KNOWLEDGE_COUNT = 100;
+const MAX_CHAOS_COUNT = 30;
+const MAX_KNOWLEDGE_COUNT = 50;
 
 function clampInt(val: any, min: number, max: number, fallback: number): number {
   const n = typeof val === "number" ? val : parseInt(val, 10);

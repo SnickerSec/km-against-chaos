@@ -181,8 +181,12 @@ export async function generateDeckAI(ctx: GenerateContext): Promise<GeneratedDec
     body: JSON.stringify(ctx),
   });
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to generate deck");
+    try {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to generate deck");
+    } catch {
+      throw new Error(res.status >= 500 ? "Generation timed out — try fewer cards or a simpler theme." : "Failed to generate deck");
+    }
   }
   return res.json();
 }
@@ -194,8 +198,12 @@ export async function generateCardsAI(ctx: GenerateContext): Promise<GeneratedCa
     body: JSON.stringify(ctx),
   });
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Failed to generate cards");
+    try {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to generate cards");
+    } catch {
+      throw new Error(res.status >= 500 ? "Generation timed out — try fewer cards." : "Failed to generate cards");
+    }
   }
   return res.json();
 }
