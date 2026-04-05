@@ -8,15 +8,31 @@ import PlayerAvatar from "./PlayerAvatar";
 export default function ScoreBar() {
   const { scores, lobby } = useGameStore();
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+
+  // Position dropdown relative to button using fixed coords
+  const openDropdown = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 8, right: window.innerWidth - r.right });
+    }
+    setOpen(true);
+  };
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (
+        btnRef.current?.contains(e.target as Node) ||
+        dropRef.current?.contains(e.target as Node)
+      ) return;
+      setOpen(false);
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
 
   if (!lobby) return null;
 
@@ -27,9 +43,10 @@ export default function ScoreBar() {
   const leader = sorted[0];
 
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={btnRef}
+        onClick={() => open ? setOpen(false) : openDropdown()}
         className="flex items-center gap-1.5 text-sm text-gray-300 hover:text-white transition-colors"
         aria-label="Leaderboard"
       >
@@ -40,7 +57,11 @@ export default function ScoreBar() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-50 py-1 overflow-hidden">
+        <div
+          ref={dropRef}
+          style={{ position: "fixed", top: pos.top, right: pos.right, zIndex: 9999 }}
+          className="w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-xl py-1"
+        >
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 pt-2 pb-1">Leaderboard</p>
           {sorted.map((p, i) => (
             <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 transition-colors">
@@ -54,6 +75,6 @@ export default function ScoreBar() {
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }
