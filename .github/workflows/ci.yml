@@ -24,7 +24,7 @@ jobs:
         run: npm --prefix client run lint
 
       - name: Typecheck server
-        run: npx --prefix server tsc --noEmit
+        run: cd server && ./node_modules/.bin/tsc --noEmit
 
       - name: Build
         run: npm run build
