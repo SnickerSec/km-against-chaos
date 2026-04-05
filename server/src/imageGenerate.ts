@@ -286,6 +286,28 @@ Respond ONLY with valid JSON — an object mapping card IDs to image prompts:
   return result;
 }
 
+// Convert card text to a visual-only scene description using AI
+async function cardTextToVisualPrompt(cardText: string): Promise<string> {
+  const settings = await getAiSettings();
+  const prompt = `Convert this card game text into a short (10-20 word) visual scene description for an image generator. Describe ONLY what to draw — characters, poses, expressions, objects, actions. Do NOT include any words, dialogue, text, letters, or speech in the description. Replace any spoken words with the character's emotion or physical action instead.
+
+Card text: "${cardText}"
+
+Respond with ONLY the visual description, nothing else.`;
+
+  try {
+    const description = await callProvider(settings, prompt);
+    return description.trim().replace(/^["']|["']$/g, "");
+  } catch (err) {
+    console.error("[ART] Failed to convert card text to visual prompt, using fallback:", err);
+    // Fallback: strip quoted speech and just describe the action
+    return cardText
+      .replace(/["'].*?["']/g, "")
+      .replace(/[!?.]+/g, "")
+      .trim() || cardText;
+  }
+}
+
 // Build a full image prompt from card text + deck context
 async function buildImagePrompt(
   cardText: string,
@@ -293,6 +315,10 @@ async function buildImagePrompt(
   context?: { theme?: string; maturity?: string; flavorThemes?: string[]; wildcard?: string },
 ): Promise<string> {
   const suffix = await getImageSuffix();
+
+  // Use AI to convert card text to a purely visual description
+  const visualDescription = await cardTextToVisualPrompt(cardText);
+
   const parts = [style.basePrompt];
   if (context?.flavorThemes?.length) {
     parts.push(context.flavorThemes.join(", ") + " theme");
@@ -304,8 +330,7 @@ async function buildImagePrompt(
     parts.push(`${context.maturity} tone`);
   }
 
-  // Wrap card text as a scene description to prevent Flux from rendering it as visible text
-  parts.push(`depicting the scene: ${cardText}`);
+  parts.push(visualDescription);
   if (suffix) {
     parts.push(suffix);
   }
