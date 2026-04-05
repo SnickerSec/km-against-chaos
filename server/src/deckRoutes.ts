@@ -364,11 +364,19 @@ router.post("/generate-deck", requireAuth, requireAiRateLimit, async (req, res) 
 
     // Auto-save as a draft so it isn't lost if the client closes before saving
     const ownerId = (req as any).user.id;
+    // For Uno, the AI returns a template object rather than chaosCards/knowledgeCards.
+    // Serialize it into the same single-chaos-card format used everywhere else.
+    const resolvedGameType = gameType || "cards-against-humanity";
+    const isUno = resolvedGameType === "uno";
+    const draftChaosCards = isUno
+      ? [{ text: JSON.stringify((generated as any).template), pick: 1 }]
+      : generated.chaosCards || [];
+    const draftKnowledgeCards = isUno ? [] : generated.knowledgeCards || [];
     const draftInput = {
       name: generated.name,
       description: generated.description,
-      chaosCards: generated.chaosCards,
-      knowledgeCards: generated.knowledgeCards,
+      chaosCards: draftChaosCards,
+      knowledgeCards: draftKnowledgeCards,
       ownerId,
       maturity: maturity || "adult",
       flavorThemes: Array.isArray(flavorThemes) ? flavorThemes.slice(0, 5) : [],

@@ -192,16 +192,20 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
     : "cards-against-humanity"
   );
 
-  // Uno template state
+  // Uno template state — template is stored as JSON string in chaosCards[0].text
+  const unoInitialTemplate = (() => {
+    if (initial?.gameType === "uno" && initial?.chaosCards?.[0]) {
+      const card = initial.chaosCards[0] as any;
+      if (card.colorNames) return card;
+      try { return JSON.parse(card.text); } catch {}
+    }
+    return null;
+  })();
   const [unoColorNames, setUnoColorNames] = useState<Record<string, string>>(
-    initial?.gameType === "uno" && initial?.chaosCards?.[0]
-      ? ((initial.chaosCards[0] as any).colorNames || { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" })
-      : { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" }
+    unoInitialTemplate?.colorNames || { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" }
   );
   const [unoActionNames, setUnoActionNames] = useState<Record<string, string>>(
-    initial?.gameType === "uno" && initial?.chaosCards?.[0]
-      ? ((initial.chaosCards[0] as any).actionNames || {})
-      : {}
+    unoInitialTemplate?.actionNames || {}
   );
   const [chaosCount, setChaosCount] = useState(10);
   const [knowledgeCount, setKnowledgeCount] = useState(25);
