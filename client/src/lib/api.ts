@@ -150,6 +150,7 @@ export interface GeneratedCards {
 }
 
 export interface GeneratedDeck {
+  id: string;
   name: string;
   description: string;
   chaosCards: { text: string; pick: number }[];
@@ -170,6 +171,7 @@ export interface GenerateContext {
   flavorThemes?: string[];
   chaosLevel?: number;
   wildcard?: string;
+  draftId?: string;
 }
 
 export async function generateDeckAI(ctx: GenerateContext): Promise<GeneratedDeck> {

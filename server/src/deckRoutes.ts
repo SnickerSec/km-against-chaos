@@ -331,10 +331,10 @@ router.post("/generate", requireAuth, requireAiRateLimit, async (req, res) => {
   }
 });
 
-// AI-generate a full deck (name, description, cards)
+// AI-generate a full deck (name, description, cards) and auto-save as a draft
 router.post("/generate-deck", requireAuth, requireAiRateLimit, async (req, res) => {
   const body = (req as any).body;
-  const { theme, gameType, chaosCount, knowledgeCount, maturity, flavorThemes, chaosLevel, wildcard } = body;
+  const { theme, gameType, chaosCount, knowledgeCount, maturity, flavorThemes, chaosLevel, wildcard, draftId } = body;
 
   if (!theme || typeof theme !== "string" || theme.trim().length === 0) {
     res.status(400).json({ error: "Theme is required" });
@@ -350,7 +350,7 @@ router.post("/generate-deck", requireAuth, requireAiRateLimit, async (req, res) 
   }
 
   try {
-    const deck = await generateDeck({
+    const generated = await generateDeck({
       theme: theme.trim(),
       gameType: gameType || "cards-against-humanity",
       packType: "base",
@@ -361,7 +361,33 @@ router.post("/generate-deck", requireAuth, requireAiRateLimit, async (req, res) 
       chaosLevel: clampInt(chaosLevel, 0, 100, 0),
       wildcard: typeof wildcard === "string" ? wildcard.slice(0, MAX_WILDCARD_LEN) : undefined,
     });
-    res.json(deck);
+
+    // Auto-save as a draft so it isn't lost if the client closes before saving
+    const ownerId = (req as any).user.id;
+    const draftInput = {
+      name: generated.name,
+      description: generated.description,
+      chaosCards: generated.chaosCards,
+      knowledgeCards: generated.knowledgeCards,
+      ownerId,
+      maturity: maturity || "adult",
+      flavorThemes: Array.isArray(flavorThemes) ? flavorThemes.slice(0, 5) : [],
+      chaosLevel: clampInt(chaosLevel, 0, 100, 0),
+      wildcard: typeof wildcard === "string" ? wildcard.slice(0, MAX_WILDCARD_LEN) : "",
+      gameType: gameType || "cards-against-humanity",
+      draft: true,
+    };
+
+    let savedDraft;
+    if (draftId && typeof draftId === "string") {
+      // Regenerated — overwrite the existing draft
+      savedDraft = await updateDeck(draftId, { ...draftInput, draft: true }, ownerId);
+    }
+    if (!savedDraft) {
+      savedDraft = await createDeck(draftInput);
+    }
+
+    res.json({ ...generated, id: savedDraft.id });
   } catch (e: any) {
     console.error("AI deck generation error:", e.message);
     res.status(500).json({

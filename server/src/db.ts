@@ -94,6 +94,7 @@ export async function initDb() {
 
   await pool.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS art_tier TEXT DEFAULT 'free'`);
   await pool.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS art_generation_status TEXT DEFAULT NULL`);
+  await pool.query(`ALTER TABLE decks ADD COLUMN IF NOT EXISTS draft BOOLEAN DEFAULT FALSE`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS game_history (

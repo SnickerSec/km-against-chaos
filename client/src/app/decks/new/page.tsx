@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import DeckForm from "@/components/DeckForm";
-import { createDeck, createCheckoutSession, adminGenerateArt, fetchDeck } from "@/lib/api";
+import { createDeck, updateDeck, createCheckoutSession, adminGenerateArt, fetchDeck } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 
 function NewDeckContent() {
@@ -15,6 +15,7 @@ function NewDeckContent() {
   const [initialData, setInitialData] = useState<any>(null);
   const [remixLoading, setRemixLoading] = useState(!!remixOf);
   const [remixName, setRemixName] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
 
   useEffect(() => {
     restore();
@@ -69,8 +70,11 @@ function NewDeckContent() {
       <DeckForm
         initial={initialData ?? undefined}
         submitLabel={remixOf ? "Save Remix" : "Create Deck"}
+        onDraftCreated={setDraftId}
         onSubmit={async (data) => {
-          const deck = await createDeck({ ...data, remixedFrom: remixOf || undefined });
+          const deck = draftId
+            ? await updateDeck(draftId, { ...data, draft: false } as any)
+            : await createDeck({ ...data, remixedFrom: remixOf || undefined });
           if (data.premiumArt && deck.id) {
             try {
               const { sessionUrl } = await createCheckoutSession(deck.id);
@@ -85,7 +89,9 @@ function NewDeckContent() {
           router.push("/decks");
         }}
         onGenerateArt={isAdmin ? async (data) => {
-          const deck = await createDeck({ ...data, remixedFrom: remixOf || undefined });
+          const deck = draftId
+            ? await updateDeck(draftId, { ...data, draft: false } as any)
+            : await createDeck({ ...data, remixedFrom: remixOf || undefined });
           if (deck.id) {
             await adminGenerateArt(deck.id);
             router.push(`/decks/edit?id=${deck.id}&art=generating`);

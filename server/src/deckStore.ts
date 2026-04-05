@@ -154,7 +154,8 @@ export async function listDecks(options?: { search?: string; gameType?: string; 
       paramIdx++;
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    conditions.push(`(d.draft IS NULL OR d.draft = FALSE)`);
+    const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
     let orderBy: string;
     switch (options?.sort) {
@@ -230,6 +231,7 @@ export async function createDeck(input: {
   wildcard?: string;
   remixedFrom?: string;
   gameType?: GameType;
+  draft?: boolean;
 }): Promise<CustomDeck> {
   const id = randomUUID().slice(0, 8);
   const now = new Date().toISOString();
@@ -251,8 +253,8 @@ export async function createDeck(input: {
 
   const { rows } = await pool.query(
     `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, win_condition, owner_id,
-       maturity, flavor_themes, chaos_level, wildcard, remixed_from, game_type, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       maturity, flavor_themes, chaos_level, wildcard, remixed_from, game_type, draft, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
      RETURNING *`,
     [
       id,
@@ -268,6 +270,7 @@ export async function createDeck(input: {
       input.wildcard || "",
       input.remixedFrom || null,
       input.gameType || "cah",
+      input.draft ?? false,
       now,
       now,
     ]
@@ -309,6 +312,7 @@ export async function updateDeck(
     chaosLevel?: number;
     wildcard?: string;
     gameType?: GameType;
+    draft?: boolean;
   },
   ownerId?: string,
   bypassOwnership?: boolean
@@ -338,20 +342,21 @@ export async function updateDeck(
   const chaosLevel = input.chaosLevel !== undefined ? input.chaosLevel : existing.chaosLevel ?? 0;
   const wildcard = input.wildcard !== undefined ? input.wildcard : existing.wildcard || "";
   const gameType = input.gameType !== undefined ? input.gameType : existing.gameType || "cah";
+  const draft = input.draft !== undefined ? input.draft : (existing as any).draft ?? false;
 
   let queryText: string;
   let queryParams: any[];
 
   if (bypassOwnership) {
     queryText = `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5,
-       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, updated_at = NOW()
-     WHERE id = $11 RETURNING *`;
-    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, id];
+       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, draft = $11, updated_at = NOW()
+     WHERE id = $12 RETURNING *`;
+    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, draft, id];
   } else {
     queryText = `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5,
-       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, updated_at = NOW()
-     WHERE id = $11 AND (owner_id = $12 OR owner_id IS NULL) RETURNING *`;
-    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, id, ownerId];
+       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, draft = $11, updated_at = NOW()
+     WHERE id = $12 AND (owner_id = $13 OR owner_id IS NULL) RETURNING *`;
+    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, draft, id, ownerId];
   }
 
   const { rows } = await pool.query(queryText, queryParams);

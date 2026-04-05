@@ -164,6 +164,7 @@ interface Props {
   initial?: DeckFormData & { maturity?: string; flavorThemes?: string[]; chaosLevel?: number; wildcard?: string };
   onSubmit: (data: DeckFormData) => Promise<void>;
   onGenerateArt?: (data: DeckFormData) => Promise<void>;
+  onDraftCreated?: (draftId: string) => void;
   submitLabel: string;
 }
 
@@ -177,7 +178,7 @@ function makeId() {
   return Math.random().toString(36).slice(2, 8);
 }
 
-export default function DeckForm({ initial, onSubmit, onGenerateArt, submitLabel }: Props) {
+export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCreated, submitLabel }: Props) {
   const [name, setName] = useState(initial?.name || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [winMode, setWinMode] = useState<WinCondition["mode"]>(initial?.winCondition?.mode || "rounds");
@@ -212,6 +213,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, submitLabel
   const [flavorThemes, setFlavorThemes] = useState<string[]>(initial?.flavorThemes || []);
   const [chaosLevel, setChaosLevel] = useState(initial?.chaosLevel ?? 0);
   const [wildcard, setWildcard] = useState(initial?.wildcard || "");
+  const [draftId, setDraftId] = useState<string | null>(null);
   const [premiumArt, setPremiumArt] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -398,7 +400,10 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, submitLabel
       knowledgeCount: isJH ? knowledgeCount : isUno ? 0 : isCodenames ? 50 : knowledgeCount,
       maturity, flavorThemes, chaosLevel,
       wildcard: wildcard.trim() || undefined,
+      draftId: draftId ?? undefined,
     });
+    setDraftId(deck.id);
+    onDraftCreated?.(deck.id);
     setName(deck.name);
     setDescription(deck.description);
 
