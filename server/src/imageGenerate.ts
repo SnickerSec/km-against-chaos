@@ -170,9 +170,9 @@ export const DEFAULT_IMAGE_SUFFIX = "absolutely no text, no letters, no words, n
 
 export const DEFAULT_ART_STYLES: Record<string, ArtStyleConfig> = {
   joking_hazard: {
-    basePrompt: "ch_visual_style, stick figure character, single panel webcomic, round heads, colored shirts, bold black outlines, plain white background, characters large and centered filling most of the frame, close-up framing, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
+    basePrompt: "ch_visual_style, stick figure character, single panel webcomic, round heads, colored shirts, black outlines on characters only, plain white background seamless to edges, no border, no frame, no panel outline, characters large and centered filling most of the frame, close-up framing, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
     aspectRatio: "5:7",
-    negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright, crowd, group, many people, busy, detailed background, text, words, letters",
+    negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright, crowd, group, many people, busy, detailed background, text, words, letters, border, frame, panel outline, black border",
     loras: [
       {
         path: "https://huggingface.co/DeverStyle/Flux.2-Klein-Loras/resolve/main/dever_cyanide_and_happiness_flux2_klein_9b.safetensors",
