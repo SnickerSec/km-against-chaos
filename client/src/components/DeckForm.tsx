@@ -1123,54 +1123,58 @@ function CardListEditor({
           </div>
           <div className="space-y-2">
             {cards.map((card, i) => (
-              <div key={i} className="flex gap-2 items-center">
+              <div key={i} className={`flex gap-2 ${card.imageUrl ? "items-start" : "items-center"}`}>
                 {card.imageUrl && (
-                  <img src={card.imageUrl} alt="" className="shrink-0 w-8 h-8 rounded object-cover border border-gray-600" />
+                  <img src={card.imageUrl} alt="" className="shrink-0 w-16 h-20 rounded-lg object-cover border border-gray-600" />
                 )}
-                {packBadge && (
-                  <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium leading-tight max-w-[80px] truncate ${badgeClass}`}>
-                    {packBadge.name}
-                  </span>
-                )}
-                <input
-                  type="text"
-                  placeholder={placeholder(i)}
-                  value={card.text}
-                  onChange={(e) => onUpdate(i, "text", e.target.value)}
-                  className={`flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none ${focusColor} text-sm`}
-                />
-                {showPick && (
-                  <select
-                    value={card.pick || 1}
-                    onChange={(e) => onUpdate(i, "pick", parseInt(e.target.value))}
-                    className="w-20 px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
-                  >
-                    <option value={1}>Pick 1</option>
-                    <option value={2}>Pick 2</option>
-                  </select>
-                )}
-                {showBonus && (
-                  <button
-                    type="button"
-                    onClick={() => onUpdate(i, "bonus" as keyof CardInput, !card.bonus)}
-                    className={`shrink-0 px-2 py-2 rounded-lg text-xs font-semibold border transition-colors ${
-                      card.bonus
-                        ? "bg-red-600/30 border-red-500 text-red-300"
-                        : "bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-500"
-                    }`}
-                    title={card.bonus ? "Bonus card (red) — worth 2 pts" : "Make this a bonus card (red border)"}
-                  >
-                    {card.bonus ? "RED" : "red"}
-                  </button>
-                )}
-                {cards.length > 1 && (
-                  <button
-                    onClick={() => onRemove(i)}
-                    className="p-1 text-gray-500 hover:text-red-400 transition-colors"
-                  >
-                    <Icon icon="mdi:close" width={16} />
-                  </button>
-                )}
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  <div className="flex gap-2 items-center">
+                    {packBadge && (
+                      <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium leading-tight max-w-[80px] truncate ${badgeClass}`}>
+                        {packBadge.name}
+                      </span>
+                    )}
+                    <input
+                      type="text"
+                      placeholder={placeholder(i)}
+                      value={card.text}
+                      onChange={(e) => onUpdate(i, "text", e.target.value)}
+                      className={`flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none ${focusColor} text-sm`}
+                    />
+                    {showPick && (
+                      <select
+                        value={card.pick || 1}
+                        onChange={(e) => onUpdate(i, "pick", parseInt(e.target.value))}
+                        className="w-20 px-2 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none"
+                      >
+                        <option value={1}>Pick 1</option>
+                        <option value={2}>Pick 2</option>
+                      </select>
+                    )}
+                    {showBonus && (
+                      <button
+                        type="button"
+                        onClick={() => onUpdate(i, "bonus" as keyof CardInput, !card.bonus)}
+                        className={`shrink-0 px-2 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                          card.bonus
+                            ? "bg-red-600/30 border-red-500 text-red-300"
+                            : "bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-500"
+                        }`}
+                        title={card.bonus ? "Bonus card (red) — worth 2 pts" : "Make this a bonus card (red border)"}
+                      >
+                        {card.bonus ? "RED" : "red"}
+                      </button>
+                    )}
+                    {cards.length > 1 && (
+                      <button
+                        onClick={() => onRemove(i)}
+                        className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                      >
+                        <Icon icon="mdi:close" width={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
