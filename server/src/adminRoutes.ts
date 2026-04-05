@@ -466,83 +466,60 @@ async function fetchFalModels(): Promise<any[]> {
     if (!response.ok) throw new Error(`fal.ai API returned ${response.status}`);
     const json = await response.json();
 
-    // Fetch pricing for relevant models if we have a key
-    let pricingMap: Record<string, any> = {};
+    // Fetch pricing from fal.ai platform API (requires FAL_KEY)
+    // Docs: https://fal.ai/docs/documentation/model-apis/pricing
+    let pricingMap: Record<string, { unit_price: number; unit: string }> = {};
     if (falKey && json.items?.length) {
       try {
         const endpointIds = json.items
           .filter((m: any) => !m.deprecated)
-          .map((m: any) => m.id)
-          .slice(0, 50);
-        const pricingUrl = `https://api.fal.ai/v1/models/pricing?${endpointIds.map((id: string) => `endpoint_id=${encodeURIComponent(id)}`).join("&")}`;
-        const pricingRes = await fetch(pricingUrl, {
-          headers: { Authorization: `Key ${falKey}` },
-        });
-        if (pricingRes.ok) {
-          const pricingData = await pricingRes.json();
-          for (const p of pricingData.data || pricingData || []) {
-            if (p.endpoint_id) pricingMap[p.endpoint_id] = p;
+          .map((m: any) => m.id);
+
+        // Batch in groups of 50 (API limit)
+        for (let i = 0; i < endpointIds.length; i += 50) {
+          const batch = endpointIds.slice(i, i + 50);
+          const pricingUrl = `https://api.fal.ai/v1/models/pricing?${batch.map((id: string) => `endpoint_id=${encodeURIComponent(id)}`).join("&")}`;
+          const pricingRes = await fetch(pricingUrl, {
+            headers: { Authorization: `Key ${falKey}` },
+          });
+          if (pricingRes.ok) {
+            const pricingData = await pricingRes.json();
+            for (const p of pricingData.prices || []) {
+              if (p.endpoint_id) pricingMap[p.endpoint_id] = p;
+            }
           }
         }
       } catch {
-        // Pricing fetch failed, continue without structured pricing
+        // Pricing fetch failed, continue without
       }
     }
-
-    // Known prices for models whose API doesn't include pricingInfoOverride
-    const knownPrices: Record<string, string> = {
-      "fal-ai/flux/schnell": "$0.003/MP",
-      "fal-ai/flux/dev": "$0.025/MP",
-      "fal-ai/flux/dev/image-to-image": "$0.025/MP",
-      "fal-ai/flux-lora": "$0.025/MP",
-      "fal-ai/flux-pro/v1.1": "$0.04/MP",
-      "fal-ai/flux-pro/v1.1-ultra": "$0.06/MP",
-      "fal-ai/flux-pro/kontext": "$0.04/img",
-      "fal-ai/flux-pro/kontext/max": "$0.08/img",
-      "fal-ai/flux-2": "$0.006/MP",
-      "fal-ai/flux-2-pro": "$0.03/MP",
-      "fal-ai/flux-2/turbo": "$0.01/MP",
-      "fal-ai/flux-2/klein/9b": "$0.006/MP",
-      "fal-ai/flux-2/klein/9b/base/lora": "$0.02/MP",
-      "fal-ai/flux-2/klein/4b": "$0.004/MP",
-      "fal-ai/fast-sdxl": "$0.003/MP",
-    };
 
     for (const m of json.items || []) {
       if (m.deprecated) continue;
 
-      // Extract price from pricingInfoOverride markdown
-      // Patterns: "**$0.08** per image", "**$0.03** for the first megapixel"
+      // Get pricing — prefer structured API data, fall back to markdown parsing
       let priceStr = "";
-      if (m.pricingInfoOverride) {
+      const pricing = pricingMap[m.id];
+      if (pricing) {
+        const unitLabel = pricing.unit === "megapixels" || pricing.unit === "processed megapixels"
+          ? "MP"
+          : pricing.unit === "images" ? "img"
+          : pricing.unit === "seconds" ? "sec"
+          : pricing.unit || "req";
+        priceStr = `$${pricing.unit_price}/${unitLabel}`;
+      } else if (m.pricingInfoOverride) {
+        // Fallback: parse from markdown when API pricing unavailable
         const perMatch = m.pricingInfoOverride.match(/\*\*\$([0-9.]+)\*\*\s+per\s+(\w+)/i);
         const forMatch = m.pricingInfoOverride.match(/\*\*\$([0-9.]+)\*\*\s+for\s+the\s+first\s+(\w+)/i);
         const costMatch = m.pricingInfoOverride.match(/cost\s+\*\*\$([0-9.]+)\*\*/i);
         if (perMatch) {
           const unit = perMatch[2].toLowerCase();
-          const unitLabel = unit === "megapixel" ? "MP" : unit === "image" ? "img" : unit;
-          priceStr = `$${perMatch[1]}/${unitLabel}`;
+          priceStr = `$${perMatch[1]}/${unit === "megapixel" ? "MP" : unit === "image" ? "img" : unit}`;
         } else if (forMatch) {
-          const unit = forMatch[2].toLowerCase();
-          const unitLabel = unit === "megapixel" ? "MP" : unit;
-          priceStr = `$${forMatch[1]}/${unitLabel}`;
+          priceStr = `$${forMatch[1]}/${forMatch[2].toLowerCase() === "megapixel" ? "MP" : forMatch[2]}`;
         } else if (costMatch) {
           priceStr = `$${costMatch[1]}/img`;
         }
-      }
-
-      // Override with structured pricing from platform API if available
-      const pricing = pricingMap[m.id];
-      if (pricing) {
-        const unitPrice = pricing.price_per_unit ?? pricing.base_price ?? pricing.price;
-        if (unitPrice !== undefined) {
-          priceStr = `$${unitPrice}/MP`;
-        }
-      }
-
-      // Fall back to known prices
-      if (!priceStr && knownPrices[m.id]) {
-        priceStr = knownPrices[m.id];
       }
 
       allModels.push({
