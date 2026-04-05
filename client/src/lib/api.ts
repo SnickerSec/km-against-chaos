@@ -500,6 +500,49 @@ export async function resetPromptTemplates(): Promise<void> {
   if (!res.ok) throw new Error("Failed to reset prompt templates");
 }
 
+export interface ImageModelSettings {
+  endpoint: string;
+  loraEndpoint: string;
+  numInferenceSteps: number;
+  loraNumInferenceSteps: number;
+  guidanceScale: number;
+}
+
+export interface FalModelInfo {
+  id: string;
+  name: string;
+  price: string;
+  speed: string;
+  loraSupport?: boolean;
+  stepsDefault: number;
+  notes: string;
+}
+
+export interface ImageModelResponse {
+  settings: ImageModelSettings;
+  defaults: ImageModelSettings;
+  models: FalModelInfo[];
+  loraModels: FalModelInfo[];
+  falKeyConfigured: boolean;
+}
+
+export async function fetchImageModel(): Promise<ImageModelResponse> {
+  const res = await fetch(`${API_URL}/api/admin/image-model`, {
+    headers: { ...getAuthHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to fetch image model settings");
+  return res.json();
+}
+
+export async function updateImageModel(settings: Partial<ImageModelSettings>): Promise<void> {
+  const res = await fetch(`${API_URL}/api/admin/image-model`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) throw new Error("Failed to update image model settings");
+}
+
 export async function toggleFavorite(deckId: string): Promise<{ favorited: boolean }> {
   const res = await fetch(`${API_URL}/api/decks/${deckId}/favorite`, {
     method: "POST",

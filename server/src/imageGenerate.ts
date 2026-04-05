@@ -116,6 +116,47 @@ async function callProvider(settings: AiSettings, prompt: string): Promise<strin
   }
 }
 
+// ── Image model settings ──
+
+export interface ImageModelSettings {
+  endpoint: string;
+  loraEndpoint: string;
+  numInferenceSteps: number;
+  loraNumInferenceSteps: number;
+  guidanceScale: number;
+}
+
+export const IMAGE_MODEL_DEFAULTS: ImageModelSettings = {
+  endpoint: "fal-ai/flux/schnell",
+  loraEndpoint: "fal-ai/flux-2/klein/9b/base/lora",
+  numInferenceSteps: 4,
+  loraNumInferenceSteps: 28,
+  guidanceScale: 5.0,
+};
+
+export async function getImageModelSettings(): Promise<ImageModelSettings> {
+  try {
+    const { rows } = await pool.query("SELECT value FROM settings WHERE key = 'image_model'");
+    if (rows.length > 0) {
+      return { ...IMAGE_MODEL_DEFAULTS, ...rows[0].value };
+    }
+  } catch {}
+  return IMAGE_MODEL_DEFAULTS;
+}
+
+// Available fal.ai models for the admin UI
+export const FAL_MODELS = [
+  { id: "fal-ai/flux/schnell", name: "FLUX.1 Schnell", price: "$0.003/MP", speed: "~0.4s", loraSupport: false, stepsDefault: 4, notes: "Fastest, 12B params" },
+  { id: "fal-ai/flux/dev", name: "FLUX.1 Dev", price: "$0.025/MP", speed: "~3s", loraSupport: false, stepsDefault: 28, notes: "Higher quality, 12B params" },
+  { id: "fal-ai/flux-2/klein/9b", name: "FLUX.2 Klein 9B", price: "$0.006/MP", speed: "~1s", loraSupport: false, stepsDefault: 4, notes: "Lightweight 9B, supports negative prompts" },
+  { id: "fal-ai/flux-2-pro", name: "FLUX.2 Pro", price: "$0.03/MP", speed: "~5s", loraSupport: false, stepsDefault: 0, notes: "Best quality, zero-config (no steps/guidance)" },
+] as const;
+
+export const FAL_LORA_MODELS = [
+  { id: "fal-ai/flux-2/klein/9b/base/lora", name: "FLUX.2 Klein 9B + LoRA", price: "$0.02/MP", speed: "~3s", stepsDefault: 28, notes: "9B with up to 3 LoRAs" },
+  { id: "fal-ai/flux/dev/lora", name: "FLUX.1 Dev + LoRA", price: "$0.025/MP", speed: "~5s", stepsDefault: 28, notes: "12B with LoRA support" },
+] as const;
+
 // ── Art style registry ──
 
 interface ArtStyleConfig {
@@ -279,6 +320,8 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
     return null;
   }
 
+  const settings = await getImageModelSettings();
+
   const imageSize = style.aspectRatio === "4:3"
     ? { width: 512, height: 384 }
     : style.aspectRatio === "5:7"
@@ -286,9 +329,8 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
     : { width: 384, height: 512 };
 
   try {
-    // Use Flux.2 Klein 9B with LoRA when configured, otherwise Flux Schnell
     const hasLoras = style.loras && style.loras.length > 0;
-    const endpoint = hasLoras ? "fal-ai/flux-2/klein/9b/base/lora" : "fal-ai/flux/schnell";
+    const endpoint = hasLoras ? settings.loraEndpoint : settings.endpoint;
 
     const input: any = {
       prompt,
@@ -298,11 +340,11 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
 
     if (hasLoras) {
       input.loras = style.loras;
-      input.num_inference_steps = 28;
-      input.guidance_scale = 5.0;
+      if (settings.loraNumInferenceSteps > 0) input.num_inference_steps = settings.loraNumInferenceSteps;
+      input.guidance_scale = settings.guidanceScale;
       if (style.negativePrompt) input.negative_prompt = style.negativePrompt;
     } else {
-      input.num_inference_steps = 4;
+      if (settings.numInferenceSteps > 0) input.num_inference_steps = settings.numInferenceSteps;
     }
 
     const result = await fal.subscribe(endpoint, { input }) as any;

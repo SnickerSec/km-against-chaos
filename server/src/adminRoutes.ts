@@ -1,7 +1,7 @@
 import { Router } from "express";
 import pool from "./db.js";
 import { requireAuth, requireAdmin } from "./auth.js";
-import { DEFAULT_ART_STYLES, DEFAULT_IMAGE_SUFFIX } from "./imageGenerate.js";
+import { DEFAULT_ART_STYLES, DEFAULT_IMAGE_SUFFIX, FAL_MODELS, FAL_LORA_MODELS, IMAGE_MODEL_DEFAULTS } from "./imageGenerate.js";
 import { GAME_TYPE_KEYS, MATURITY_KEYS, getDefaultEngineRules, getDefaultMaturityRules } from "./aiGenerate.js";
 
 // Cache OpenRouter models for 1 hour
@@ -441,6 +441,50 @@ router.put("/prompt-templates", async (req, res) => {
 router.delete("/prompt-templates", async (_req, res) => {
   try {
     await pool.query("DELETE FROM settings WHERE key = 'prompt_templates'");
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get image model settings + available models
+router.get("/image-model", async (_req, res) => {
+  try {
+    const { rows } = await pool.query("SELECT value FROM settings WHERE key = 'image_model'");
+    const settings = rows.length > 0 ? { ...IMAGE_MODEL_DEFAULTS, ...rows[0].value } : IMAGE_MODEL_DEFAULTS;
+    res.json({
+      settings,
+      defaults: IMAGE_MODEL_DEFAULTS,
+      models: FAL_MODELS,
+      loraModels: FAL_LORA_MODELS,
+      falKeyConfigured: !!process.env.FAL_KEY,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update image model settings
+router.put("/image-model", async (req, res) => {
+  const body = (req as any).body;
+  if (!body || typeof body !== "object") {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+
+  try {
+    const settings: any = {};
+    if (body.endpoint) settings.endpoint = body.endpoint;
+    if (body.loraEndpoint) settings.loraEndpoint = body.loraEndpoint;
+    if (body.numInferenceSteps !== undefined) settings.numInferenceSteps = Number(body.numInferenceSteps);
+    if (body.loraNumInferenceSteps !== undefined) settings.loraNumInferenceSteps = Number(body.loraNumInferenceSteps);
+    if (body.guidanceScale !== undefined) settings.guidanceScale = Number(body.guidanceScale);
+
+    await pool.query(
+      `INSERT INTO settings (key, value, updated_at) VALUES ('image_model', $1, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+      [JSON.stringify(settings)]
+    );
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
