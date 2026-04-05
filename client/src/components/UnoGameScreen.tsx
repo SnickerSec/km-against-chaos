@@ -39,56 +39,32 @@ export default function UnoGameScreen() {
   const socket = getSocket();
   const myId = socket.id;
 
-  if (!unoTurn) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-400 text-lg">Starting Uno game...</p>
-      </div>
-    );
-  }
-
-  const isMyTurn = unoTurn.currentPlayerId === myId;
-  const currentPlayerName = lobby?.players.find(p => p.id === unoTurn.currentPlayerId)?.name || "???";
-  const isRoundOver = unoTurn.phase === "round_over" || !!unoRoundWinner;
-
-  const handleCardClick = (cardId: string) => {
-    if (!isMyTurn || isRoundOver) return;
-
-    const card = unoHand.find(c => c.id === cardId);
-    if (!card) return;
-
-    // If it's a wild card, show color picker
-    if (card.type === "wild" || card.type === "wild_draw_four") {
-      useGameStore.setState({ selectedUnoCard: cardId, choosingColor: true });
-      return;
-    }
-
-    playUnoCard(cardId);
-  };
-
-  const handleColorPick = (color: UnoColor) => {
-    if (selectedUnoCard) {
-      playUnoCard(selectedUnoCard, color);
-    }
-  };
-
-  const handleCancelColor = () => {
-    useGameStore.setState({ selectedUnoCard: null, choosingColor: false });
-  };
-
-  // Drag-to-play state
+  // All hooks must be called before any early return
   const [dragCardId, setDragCardId] = useState<string | null>(null);
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [overDrop, setOverDrop] = useState(false);
   const discardRef = useRef<HTMLDivElement>(null);
   const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  const isMyTurn = unoTurn ? unoTurn.currentPlayerId === myId : false;
+  const isRoundOver = unoTurn ? unoTurn.phase === "round_over" || !!unoRoundWinner : false;
+
   const isOverDiscard = useCallback((px: number, py: number) => {
     if (!discardRef.current) return false;
     const r = discardRef.current.getBoundingClientRect();
-    // Generous hit zone (expanded by 24px)
     return px >= r.left - 24 && px <= r.right + 24 && py >= r.top - 24 && py <= r.bottom + 24;
   }, []);
+
+  const handleCardClick = useCallback((cardId: string) => {
+    if (!isMyTurn || isRoundOver) return;
+    const card = unoHand.find(c => c.id === cardId);
+    if (!card) return;
+    if (card.type === "wild" || card.type === "wild_draw_four") {
+      useGameStore.setState({ selectedUnoCard: cardId, choosingColor: true });
+      return;
+    }
+    playUnoCard(cardId);
+  }, [isMyTurn, isRoundOver, unoHand, playUnoCard]);
 
   const onDragStart = useCallback((cardId: string, e: React.PointerEvent) => {
     if (!isMyTurn || isRoundOver || !playableCardIds.includes(cardId)) return;
@@ -118,7 +94,27 @@ export default function UnoGameScreen() {
     setDragCardId(null);
     setDragPos(null);
     setOverDrop(false);
-  }, [dragCardId, dragPos, isOverDiscard]);
+  }, [dragCardId, dragPos, isOverDiscard, handleCardClick]);
+
+  if (!unoTurn) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-gray-400 text-lg">Starting Uno game...</p>
+      </div>
+    );
+  }
+
+  const currentPlayerName = lobby?.players.find(p => p.id === unoTurn.currentPlayerId)?.name || "???";
+
+  const handleColorPick = (color: UnoColor) => {
+    if (selectedUnoCard) {
+      playUnoCard(selectedUnoCard, color);
+    }
+  };
+
+  const handleCancelColor = () => {
+    useGameStore.setState({ selectedUnoCard: null, choosingColor: false });
+  };
 
   const dragCard = dragCardId ? unoHand.find(c => c.id === dragCardId) : null;
 

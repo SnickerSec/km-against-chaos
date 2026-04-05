@@ -22,10 +22,10 @@ import CodenamesGameScreen from "./CodenamesGameScreen";
 export default function GameScreen() {
   const { round, hasSubmitted, winnerInfo, lobby, roundNumber, maxRounds, handBlurred, iconsRandomized, gameType } =
     useGameStore();
+  const { nextRound, leaveLobby, czarSetup } = useSocket();
 
   if (gameType === "codenames") return <CodenamesGameScreen />;
   if (gameType === "uno") return <UnoGameScreen />;
-  const { nextRound, leaveLobby, czarSetup } = useSocket();
   const socket = getSocket();
   const isCzar = round?.czarId === socket.id;
   const isSpectator = lobby?.players.find(p => p.id === socket.id)?.isSpectator;
