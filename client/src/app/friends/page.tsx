@@ -505,7 +505,7 @@ export default function FriendsPage() {
               {/* Suggestions */}
               {suggestions.length > 0 && (
                 <div className="mb-6">
-                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">People You've Played With</h2>
+                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">People You&apos;ve Played With</h2>
                   <div className="space-y-2">
                     {suggestions.map((s) => (
                       <div key={s.id} className="flex items-center justify-between bg-gray-800 px-4 py-3 rounded-lg">
