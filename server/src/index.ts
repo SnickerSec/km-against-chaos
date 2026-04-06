@@ -1,5 +1,4 @@
 import express from "express";
-import { randomBytes } from "crypto";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
@@ -8,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import { join, resolve, normalize } from "path";
 import { existsSync } from "fs";
 import type { ClientEvents, ServerEvents } from "./types.js";
-import { createLobby, joinLobby, leaveLobby, startGame, getLobbyPlayers, getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, getLobbyDeckName, getLobbyGameType, isPlayerBot, remapPlayer, disconnectPlayer, addBot, removeBot, getBotsInLobby, kickPlayer, joinAsSpectator, getActivePlayers, resetLobbyForRematch, changeLobbyDeck, voteRematch, setLobbyHouseRules, getLobbyHouseRules, setMaxPlayers } from "./lobby.js";
+import { remapPlayer, disconnectPlayer, getLobbyForSocket } from "./lobby.js";
 import deckRoutes from "./deckRoutes.js";
 import authRoutes from "./authRoutes.js";
 import adminRoutes from "./adminRoutes.js";
@@ -20,71 +19,26 @@ import friendRoutes from "./friendRoutes.js";
 import stripeRoutes from "./stripeRoutes.js";
 import soundRoutes from "./soundRoutes.js";
 import { setIO as setNotificationIO } from "./notifications.js";
-import { recordGameResult } from "./statsStore.js";
-import { verifyJwt } from "./auth.js";
-import { setOnline, setOffline, setInGame, setNotInGame, getUserIdForSocket, getSocketIdsForUser, isOnline, getPresence, remapSocket as remapPresenceSocket } from "./presence.js";
-import { createParty, joinParty, leaveParty, getPartyForUser, getPartyMembers, getPartySocketRoom, remapPartySocket } from "./party.js";
-import { getDeck, seedBuiltInDecks } from "./deckStore.js";
+import { setOffline, getUserIdForSocket, getSocketIdsForUser, remapSocket as remapPresenceSocket } from "./presence.js";
+import { remapPartySocket } from "./party.js";
+import { seedBuiltInDecks } from "./deckStore.js";
 import pool, { initDb } from "./db.js";
-import {
-  createGame,
-  startRound,
-  getPlayerView,
-  submitCards,
-  getJudgingData,
-  pickWinner,
-  getWinnerCards,
-  advanceRound,
-  getScores,
-  isGameOver,
-  endGame,
-  cleanupGame,
-  getPlayerIds,
-  remapGamePlayer,
-  addPlayerToGame,
-  removePlayerFromGame,
-  resetPlayerHand,
-  resolveMetaTargets,
-  botSubmitCards,
-  botPickWinner,
-  getCzarId,
-  forceSubmitForMissing,
-  getPhaseDeadline,
-  czarSetup,
-  botCzarSetup,
-  forceCzarSetup,
-  getGameType,
-  getCurrentPhase,
-} from "./game.js";
-import {
-  createUnoGame,
-  getUnoPlayerView,
-  playCard as unoPlayCard,
-  drawCard as unoDrawCard,
-  callUno,
-  challengeUno,
-  advanceUnoRound,
-  botPlayUnoTurn,
-  handleUnoTurnTimeout,
-  getUnoPlayerIds,
-  getUnoCurrentPlayer,
-  isUnoGame,
-  cleanupUnoGame,
-  remapUnoGamePlayer,
-  getUnoScores,
-  isUnoGameOver,
-  getUnoPhase,
-} from "./unoGame.js";
-import type { UnoDeckTemplate, UnoColor } from "./types.js";
-import { createCodenamesGame, isCodenamesGame, getCodenamesPlayerView, joinTeam, startCodenamesRound, giveClue, guessWord, passTurn, cleanupCodenamesGame, getCodenamesScores } from "./codenamesGame.js";
-import {
-  registerSession,
-  getSessionId,
-  cancelDisconnectTimer,
-} from "./sessions.js";
+import { getPlayerView } from "./game.js";
+import { isUnoGame, remapUnoGamePlayer, getUnoPlayerView } from "./unoGame.js";
+import { remapGamePlayer } from "./game.js";
+import { isCodenamesGame, getCodenamesPlayerView } from "./codenamesGame.js";
+import { registerSession, getSessionId, cancelDisconnectTimer } from "./sessions.js";
+import { removeFromVoice, getChatHistory } from "./socketHelpers.js";
+import { registerLobbyHandlers, handleLeave } from "./handlers/lobbyHandlers.js";
+import { registerCahHandlers } from "./handlers/cahHandlers.js";
+import { registerUnoHandlers } from "./handlers/unoHandlers.js";
+import { registerCodenamesHandlers } from "./handlers/codenamesHandlers.js";
+import { registerSocialHandlers } from "./handlers/socialHandlers.js";
+
+// ── Express Setup ────────────────────────────────────────────────────────────
 
 const app = express();
-app.set("trust proxy", 1); // trust Railway's proxy for correct client IP in rate limiting
+app.set("trust proxy", 1);
 app.use(helmet({
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
@@ -97,8 +51,6 @@ app.use(
   })
 );
 
-// Set CSP header before Railway's CDN can inject a restrictive one.
-// Next.js static export requires 'unsafe-inline' for hydration scripts.
 app.use((_req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
@@ -115,82 +67,48 @@ app.use((_req, res, next) => {
   next();
 });
 
+// ── HTTP Server + Socket.IO ──────────────────────────────────────────────────
+
 const httpServer = createServer(app);
 const io = new Server<ClientEvents, ServerEvents>(httpServer, {
   cors: {
     origin: process.env.CLIENT_URL || "http://localhost:3000",
     methods: ["GET", "POST"],
   },
-  // Frequent pings keep the WebSocket alive through Railway's proxy
   pingInterval: 10_000,
   pingTimeout: 5_000,
 });
 
 setNotificationIO(io);
 
-const healthLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// ── Rate Limiters ────────────────────────────────────────────────────────────
+
+const healthLimiter = rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false });
+const apiLimiter = rateLimit({ windowMs: 60_000, max: 200, standardHeaders: true, legacyHeaders: false, message: { error: "Too many requests, please try again later" } });
+const authLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: "Too many auth attempts, please try again later" } });
+const staticLimiter = rateLimit({ windowMs: 60_000, max: 200, standardHeaders: true, legacyHeaders: false, message: { error: "Too many requests, please try again later" } });
+
+// ── Health Endpoint ──────────────────────────────────────────────────────────
 
 app.get("/health", healthLimiter, async (_req, res) => {
   const checks: Record<string, string> = {};
   let healthy = true;
-
-  // Check database connectivity
   if (process.env.DATABASE_URL) {
-    try {
-      await pool.query("SELECT 1");
-      checks.database = "ok";
-    } catch {
-      checks.database = "unreachable";
-      healthy = false;
-    }
+    try { await pool.query("SELECT 1"); checks.database = "ok"; }
+    catch { checks.database = "unreachable"; healthy = false; }
   } else {
     checks.database = "not configured";
   }
-
   checks.uptime = `${Math.floor(process.uptime())}s`;
-
-  res.status(healthy ? 200 : 503).json({
-    status: healthy ? "ok" : "degraded",
-    checks,
-  });
+  res.status(healthy ? 200 : 503).json({ status: healthy ? "ok" : "degraded", checks });
 });
 
-// Rate limiting for API routes
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests, please try again later" },
-});
-const authLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many auth attempts, please try again later" },
-});
-const staticLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 200,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests, please try again later" },
-});
+// ── Route Mounting ───────────────────────────────────────────────────────────
 
-// Raw body capture for Stripe webhooks
 app.use("/api/stripe/webhook", (req: any, _res, next) => {
   let chunks: Buffer[] = [];
   req.on("data", (chunk: Buffer) => chunks.push(chunk));
-  req.on("end", () => {
-    req.rawBody = Buffer.concat(chunks);
-    next();
-  });
+  req.on("end", () => { req.rawBody = Buffer.concat(chunks); next(); });
 });
 
 app.use("/api/auth", authLimiter, authRoutes);
@@ -204,422 +122,55 @@ app.use(apiLimiter, statsRoutes);
 app.use(apiLimiter, friendRoutes);
 app.use(apiLimiter, stripeRoutes);
 
-// Serve static Next.js export in production
+// ── Static File Serving ──────────────────────────────────────────────────────
+
 const possibleClientDirs = [
   join(process.cwd(), "client", "out"),
   join(process.cwd(), "..", "client", "out"),
 ];
-const clientDir = possibleClientDirs.find((d) => existsSync(d)) || "";
+const clientDir = possibleClientDirs.find(d => existsSync(d)) || "";
 if (clientDir) {
-  // Cache hashed assets (JS/CSS chunks) long-term, but never cache HTML
   app.use(express.static(clientDir, {
     setHeaders: (res, path) => {
-      if (path.endsWith(".html")) {
-        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      }
+      if (path.endsWith(".html")) res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     },
   }));
-  // Serve Next.js static export pages, then fall back to index.html
   app.get("*", staticLimiter, (req, res, next) => {
-    if (req.path.startsWith("/api/") || req.path === "/health" || req.path.startsWith("/socket.io")) {
-      return next();
-    }
+    if (req.path.startsWith("/api/") || req.path === "/health" || req.path.startsWith("/socket.io")) return next();
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    // Strip trailing slash for file lookup (e.g. /decks/ -> /decks)
     const cleanPath = req.path.length > 1 && req.path.endsWith("/") ? req.path.slice(0, -1) : req.path;
-    // Sanitize path to prevent directory traversal
     const safePath = normalize(cleanPath).replace(/^(\.\.[\/\\])+/, "");
     const resolvedBase = resolve(clientDir);
-    // Try exact path as .html (e.g. /decks -> /decks.html, /decks/edit -> /decks/edit.html)
     const htmlFile = resolve(clientDir, "." + safePath + ".html");
-    if (htmlFile.startsWith(resolvedBase) && existsSync(htmlFile)) {
-      return res.sendFile(htmlFile);
-    }
-    // Try as directory index (e.g. /decks/ -> /decks/index.html)
+    if (htmlFile.startsWith(resolvedBase) && existsSync(htmlFile)) return res.sendFile(htmlFile);
     const indexFile = resolve(clientDir, "." + safePath, "index.html");
-    if (indexFile.startsWith(resolvedBase) && existsSync(indexFile)) {
-      return res.sendFile(indexFile);
-    }
-    // SPA fallback
+    if (indexFile.startsWith(resolvedBase) && existsSync(indexFile)) return res.sendFile(indexFile);
     res.sendFile(join(clientDir, "index.html"));
   });
 }
 
-// Voice chat participants per lobby: lobbyCode → Set<socketId>
-const voiceUsers = new Map<string, Set<string>>();
-
-function getVoiceUsers(code: string): Set<string> {
-  if (!voiceUsers.has(code)) voiceUsers.set(code, new Set());
-  return voiceUsers.get(code)!;
-}
-
-function removeFromVoice(socketId: string) {
-  for (const [code, users] of voiceUsers) {
-    if (users.has(socketId)) {
-      users.delete(socketId);
-      io.to(code).emit("voice:user-left", socketId);
-      if (users.size === 0) voiceUsers.delete(code);
-      break;
-    }
-  }
-}
-
-// Chat history per lobby (capped at 100 messages)
-const chatHistory = new Map<string, { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }[]>();
-
-function addChatMessage(code: string, msg: { id: string; playerName: string; text: string; gifUrl?: string; timestamp: number }) {
-  let history = chatHistory.get(code);
-  if (!history) {
-    history = [];
-    chatHistory.set(code, history);
-  }
-  history.push(msg);
-  if (history.length > 100) {
-    history.shift();
-  }
-}
-
-function getChatHistory(code: string) {
-  return chatHistory.get(code) || [];
-}
-
-function clearChatHistory(code: string) {
-  chatHistory.delete(code);
-}
-
-function sendRoundToPlayers(code: string) {
-  const playerIds = getPlayerIds(code);
-  for (const pid of playerIds) {
-    const view = getPlayerView(code, pid);
-    if (view) {
-      io.to(pid).emit("game:round-start", view);
-    }
-  }
-}
-
-// Unified bot action trigger: handles czar_setup (JH) then submissions
-function triggerBotActions(code: string) {
-  const gt = getGameType(code);
-  const phase = getCurrentPhase(code);
-  if (gt === "joking_hazard" && phase === "czar_setup") {
-    // Regular JH round — czar needs to play setup card first
-    const czarId = getCzarId(code);
-    if (czarId?.startsWith("bot-")) {
-      setTimeout(() => {
-        const result = botCzarSetup(code, czarId);
-        if (result.success && result.czarSetupCard) {
-          sendRoundToPlayers(code);
-          scheduleRoundTimer(code);
-          triggerBotSubmissions(code);
-        }
-      }, 1500 + Math.random() * 1500);
-      return;
-    }
-    return; // Human czar — wait for their setup
-  }
-  // CAH or JH bonus round (already in submitting phase) — go straight to bot submissions
-  triggerBotSubmissions(code);
-}
-
-// Bot auto-play: bots submit cards and pick winners with small delays
-function triggerBotSubmissions(code: string) {
-  const botIds = getBotsInLobby(code);
-  const czarId = getCzarId(code);
-
-  let delay = 1500; // stagger bot submissions
-  for (const botId of botIds) {
-    if (botId === czarId) continue;
-    setTimeout(() => {
-      const result = botSubmitCards(code, botId);
-      if (result.success) {
-        // Notify human players this bot submitted
-        io.to(code).emit("game:player-submitted", botId);
-
-        if (result.allSubmitted) {
-          const judgingData = getJudgingData(code);
-          if (judgingData) {
-            io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
-            // If czar is a bot, auto-pick winner
-            triggerBotCzarPick(code);
-          }
-        }
-      }
-    }, delay);
-    delay += 800 + Math.random() * 1200; // 0.8-2s between bots
-  }
-}
-
-function triggerBotCzarPick(code: string) {
-  const czarId = getCzarId(code);
-  if (!czarId?.startsWith("bot-")) return;
-
-  setTimeout(() => {
-    const result = botPickWinner(code, czarId);
-    if (!result.winnerId) return;
-
-    const scores = getScores(code);
-    const winnerCards = getWinnerCards(code);
-    const winnerName = getPlayerNameInLobby(code, result.winnerId);
-
-    io.to(code).emit(
-      "game:round-winner",
-      result.winnerId,
-      winnerName || "Unknown",
-      winnerCards || [],
-      scores || {}
-    );
-
-    // Handle meta effects (same as human czar path)
-    if (result.metaEffect) {
-      const { effect, winnerId: wId, czarId: cId, playerIds } = result.metaEffect;
-      const targets = resolveMetaTargets(effect.target, wId, cId, playerIds);
-
-      if (effect.type === "hand_reset") {
-        for (const pid of targets) {
-          const newHand = resetPlayerHand(code, pid);
-          io.to(pid).emit("game:hand-updated", newHand);
-        }
-      }
-
-      const affectedNames = targets.map((pid: string) => getPlayerNameInLobby(code, pid) || "???");
-      let description = "";
-      switch (effect.type) {
-        case "score_add":
-          description = `+${effect.value} point${effect.value !== 1 ? "s" : ""} for ${affectedNames.join(", ")}`;
-          break;
-        case "score_subtract":
-          description = `-${effect.value} point${effect.value !== 1 ? "s" : ""} from ${affectedNames.join(", ")}`;
-          break;
-        case "hide_cards":
-          description = `${affectedNames.join(", ")}'s cards are hidden for ${Math.round((effect.durationMs || 20000) / 1000)}s`;
-          break;
-        case "randomize_icons":
-          description = `Icons randomized for ${affectedNames.join(", ")} for ${Math.round((effect.durationMs || 15000) / 1000)}s`;
-          break;
-        case "hand_reset":
-          description = `${affectedNames.join(", ")} drew a fresh hand`;
-          break;
-      }
-
-      io.to(code).emit("game:meta-effect", {
-        effectType: effect.type,
-        value: effect.value,
-        affectedPlayerIds: targets,
-        description,
-      });
-    }
-  }, 8000 + Math.random() * 4000); // 8-12s delay for czar pick so players can read submissions
-}
-
-// ── Round Timer ──
-// Tracks active timers per lobby so we can cancel on phase change
-const roundTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-function scheduleRoundTimer(code: string) {
-  // Clear any existing timer
-  clearRoundTimer(code);
-
-  const deadline = getPhaseDeadline(code);
-  if (!deadline) return;
-
-  const delay = Math.max(0, deadline - Date.now());
-  roundTimers.set(code, setTimeout(() => {
-    roundTimers.delete(code);
-    handleTimerExpiry(code);
-  }, delay));
-}
-
-function clearRoundTimer(code: string) {
-  const existing = roundTimers.get(code);
-  if (existing) {
-    clearTimeout(existing);
-    roundTimers.delete(code);
-  }
-}
-
-function handleTimerExpiry(code: string) {
-  const czarId = getCzarId(code);
-
-  // If in czar_setup phase (Joking Hazard), auto-play a random card
-  const gt = getGameType(code);
-  if (gt === "joking_hazard") {
-    const setupCard = forceCzarSetup(code);
-    if (setupCard) {
-      sendRoundToPlayers(code);
-      scheduleRoundTimer(code);
-      triggerBotSubmissions(code);
-      return;
-    }
-  }
-
-  // If still in submitting phase, force-submit for missing players
-  const forced = forceSubmitForMissing(code);
-  if (forced.length > 0) {
-    // Notify which players were auto-submitted
-    for (const pid of forced) {
-      io.to(code).emit("game:player-submitted", pid);
-    }
-    const judgingData = getJudgingData(code);
-    if (judgingData) {
-      io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
-      // Schedule judge timer
-      scheduleRoundTimer(code);
-      triggerBotCzarPick(code);
-    }
-    return;
-  }
-
-  // If in judging phase and czar hasn't picked, auto-pick random winner
-  if (czarId) {
-    const result = botPickWinner(code, czarId);
-    if (result.winnerId) {
-      const scores = getScores(code);
-      const winnerCards = getWinnerCards(code);
-      const winnerName = getPlayerNameInLobby(code, result.winnerId);
-
-      io.to(code).emit(
-        "game:round-winner",
-        result.winnerId,
-        winnerName || "Unknown",
-        winnerCards || [],
-        scores || {}
-      );
-
-      if (result.metaEffect) {
-        const { effect, winnerId: wId, czarId: cId, playerIds } = result.metaEffect;
-        const targets = resolveMetaTargets(effect.target, wId, cId, playerIds);
-        if (effect.type === "hand_reset") {
-          for (const pid of targets) {
-            const newHand = resetPlayerHand(code, pid);
-            io.to(pid).emit("game:hand-updated", newHand);
-          }
-        }
-        const affectedNames = targets.map((pid: string) => getPlayerNameInLobby(code, pid) || "???");
-        let description = "";
-        switch (effect.type) {
-          case "score_add": description = `+${effect.value} point${effect.value !== 1 ? "s" : ""} for ${affectedNames.join(", ")}`; break;
-          case "score_subtract": description = `-${effect.value} point${effect.value !== 1 ? "s" : ""} from ${affectedNames.join(", ")}`; break;
-          case "hide_cards": description = `${affectedNames.join(", ")}'s cards are hidden for ${Math.round((effect.durationMs || 20000) / 1000)}s`; break;
-          case "randomize_icons": description = `Icons randomized for ${affectedNames.join(", ")} for ${Math.round((effect.durationMs || 15000) / 1000)}s`; break;
-          case "hand_reset": description = `${affectedNames.join(", ")} drew a fresh hand`; break;
-        }
-        io.to(code).emit("game:meta-effect", { effectType: effect.type, value: effect.value, affectedPlayerIds: targets, description });
-      }
-    }
-  }
-}
-
-// ── Uno Helpers ──
-
-function sendUnoTurnToPlayers(code: string) {
-  const playerIds = getUnoPlayerIds(code);
-  for (const pid of playerIds) {
-    const view = getUnoPlayerView(code, pid);
-    if (view) io.to(pid).emit("uno:turn-update", view);
-  }
-}
-
-function sendCodenamesUpdate(code: string) {
-  const players = getLobbyPlayers(code);
-  if (!players) return;
-  for (const pid of players) {
-    const view = getCodenamesPlayerView(code, pid);
-    if (view) {
-      const playerSocket = io.sockets.sockets.get(pid);
-      if (playerSocket) {
-        playerSocket.emit("codenames:update" as any, view);
-      }
-    }
-  }
-}
-
-const unoTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-function scheduleUnoTurnTimer(code: string) {
-  clearUnoTurnTimer(code);
-  unoTurnTimers.set(code, setTimeout(() => {
-    unoTurnTimers.delete(code);
-    handleUnoTurnTimeout(code);
-    sendUnoTurnToPlayers(code);
-    triggerUnoBotTurn(code);
-    scheduleUnoTurnTimer(code);
-  }, TURN_TIMER_MS));
-}
-
-function clearUnoTurnTimer(code: string) {
-  const t = unoTurnTimers.get(code);
-  if (t) { clearTimeout(t); unoTurnTimers.delete(code); }
-}
-
-const TURN_TIMER_MS = 30_000;
-
-function triggerUnoBotTurn(code: string) {
-  const currentPid = getUnoCurrentPlayer(code);
-  if (!currentPid?.startsWith("bot-")) return;
-  const phase = getUnoPhase(code);
-  if (phase !== "playing") return;
-
-  setTimeout(() => {
-    if (!isUnoGame(code)) return;
-    const currentNow = getUnoCurrentPlayer(code);
-    if (currentNow !== currentPid) return; // turn already advanced
-
-    const result = botPlayUnoTurn(code, currentPid);
-    if (!result.success) return;
-
-    const playerName = getPlayerNameInLobby(code, currentPid) || currentPid;
-
-    if ("roundOver" in result && result.roundOver) {
-      const scores = getUnoScores(code);
-      io.to(code).emit("uno:round-over", result.winnerId!, playerName, scores, result.roundPoints || 0);
-      clearUnoTurnTimer(code);
-      if (result.gameOver) {
-        io.to(code).emit("uno:game-over", scores);
-        recordUnoGameResult(code, scores);
-      }
-    }
-
-    sendUnoTurnToPlayers(code);
-
-    if (!("roundOver" in result && result.roundOver)) {
-      clearUnoTurnTimer(code);
-      scheduleUnoTurnTimer(code);
-      triggerUnoBotTurn(code);
-    }
-  }, 1500 + Math.random() * 2000);
-}
+// ── Socket.IO Connection Handler ─────────────────────────────────────────────
 
 io.on("connection", (socket) => {
   const sessionId: string = socket.handshake.auth?.sessionId || socket.id;
   const { isReconnect, oldSocketId } = registerSession(sessionId, socket.id);
 
   if (isReconnect && oldSocketId) {
-    // Cancel any legacy disconnect timer
     cancelDisconnectTimer(sessionId);
-
-    // Remap presence mapping
     remapPresenceSocket(oldSocketId, socket.id);
 
-    // Remap player in lobby and game state
     const lobbyResult = remapPlayer(oldSocketId, socket.id);
-
     if (lobbyResult) {
       const { code, lobby } = lobbyResult;
       socket.join(code);
 
-      // Remap in game state too
-      if (isUnoGame(code)) {
-        remapUnoGamePlayer(code, oldSocketId, socket.id);
-      } else {
-        remapGamePlayer(code, oldSocketId, socket.id);
-      }
+      if (isUnoGame(code)) remapUnoGamePlayer(code, oldSocketId, socket.id);
+      else remapGamePlayer(code, oldSocketId, socket.id);
 
-      // Get current game view if game is in progress
       const gameView = lobby.status === "playing"
         ? (isUnoGame(code) ? null : getPlayerView(code, socket.id))
         : null;
 
-      // Send full state to the reconnected player
       socket.emit("session:reconnected", {
         lobby,
         gameView,
@@ -627,22 +178,17 @@ io.on("connection", (socket) => {
         screen: lobby.status === "playing" ? "game" : "lobby",
       });
 
-      // For Uno, also send the Uno-specific view
       if (isUnoGame(code) && lobby.status === "playing") {
         const unoView = getUnoPlayerView(code, socket.id);
         if (unoView) socket.emit("uno:turn-update", unoView);
       }
-
-      // For Codenames, send the Codenames-specific view
       if (isCodenamesGame(code) && lobby.status === "playing") {
         const cnView = getCodenamesPlayerView(code, socket.id);
         if (cnView) socket.emit("codenames:update" as any, cnView);
       }
 
-      // Notify others the player is back
       socket.to(code).emit("lobby:player-reconnected", socket.id);
       io.to(code).emit("lobby:updated", lobby);
-
       console.log(`Player reconnected: ${socket.id} (session ${sessionId})`);
     } else {
       console.log(`Player connected: ${socket.id}`);
@@ -651,984 +197,17 @@ io.on("connection", (socket) => {
     console.log(`Player connected: ${socket.id}`);
   }
 
-  // ── Auth-Socket Bridge ──
-
-  socket.on("auth:identify" as any, async (token: string, callback?: (res: any) => void) => {
-    try {
-      const user = verifyJwt(token);
-      setOnline(user.id, socket.id);
-
-      // Notify online friends that this user came online
-      const friends = await pool.query(
-        `SELECT CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END as friend_id
-         FROM friendships f WHERE (f.user_id = $1 OR f.friend_id = $1) AND f.status = 'accepted'`,
-        [user.id]
-      );
-      for (const row of friends.rows) {
-        const friendSockets = getSocketIdsForUser(row.friend_id);
-        for (const sid of friendSockets) {
-          io.to(sid).emit("friend:online" as any, { userId: user.id, name: user.name });
-        }
-      }
-
-      callback?.({ success: true });
-    } catch {
-      callback?.({ success: false, error: "Invalid token" });
-    }
-  });
-
-  // ── Friends Real-time Events ──
-
-  // Game invite
-  socket.on("invite:send" as any, async (targetUserId: string, callback?: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
-    if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
-
-    // Verify friendship
-    const friendship = await pool.query(
-      "SELECT 1 FROM friendships WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)) AND status = 'accepted' LIMIT 1",
-      [userId, targetUserId]
-    );
-    if (friendship.rows.length === 0) { callback?.({ success: false, error: "Not friends" }); return; }
-
-    const code = getLobbyForSocket(socket.id);
-    if (!code) { callback?.({ success: false, error: "Not in a lobby" }); return; }
-
-    const deckName = getLobbyDeckName(code) || "Unknown";
-    const gameType = getLobbyGameType(code) || "cah";
-    const senderName = getPlayerNameInLobby(code, socket.id) || "Someone";
-
-    const targetSockets = getSocketIdsForUser(targetUserId);
-    for (const sid of targetSockets) {
-      io.to(sid).emit("invite:received" as any, {
-        fromUserId: userId,
-        fromName: senderName,
-        lobbyCode: code,
-        deckName,
-        gameType,
-      });
-    }
-
-    // Persist notification
-    const { createNotification } = await import("./notifications.js");
-    await createNotification(targetUserId, "game_invite", { fromName: senderName, fromUserId: userId, deckName, lobbyCode: code });
-
-    callback?.({ success: true });
-  });
-
-  // Direct message (real-time delivery)
-  socket.on("dm:send" as any, async (targetUserId: string, content: string, callback?: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
-    if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
-    if (!content?.trim()) { callback?.({ success: false, error: "Empty message" }); return; }
-
-    // Verify friendship
-    const friendship = await pool.query(
-      "SELECT 1 FROM friendships WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)) AND status = 'accepted' LIMIT 1",
-      [userId, targetUserId]
-    );
-    if (friendship.rows.length === 0) { callback?.({ success: false, error: "Not friends" }); return; }
-
-    try {
-      const trimmed = content.trim().slice(0, 2000);
-      const id = randomBytes(8).toString("hex");
-      await pool.query(
-        "INSERT INTO direct_messages (id, sender_id, receiver_id, content) VALUES ($1, $2, $3, $4)",
-        [id, userId, targetUserId, trimmed]
-      );
-
-      // Look up sender name
-      const senderRow = await pool.query("SELECT name FROM users WHERE id = $1", [userId]);
-      const senderName = senderRow.rows[0]?.name || "Someone";
-
-      const msg = { id, sender_id: userId, senderName, receiver_id: targetUserId, content: trimmed, created_at: new Date().toISOString(), read_at: null };
-      const targetSockets = getSocketIdsForUser(targetUserId);
-      for (const sid of targetSockets) {
-        io.to(sid).emit("dm:received" as any, msg);
-      }
-      callback?.({ success: true, message: msg });
-    } catch (e: any) {
-      callback?.({ success: false, error: e.message });
-    }
-  });
-
-  // Typing indicator
-  socket.on("dm:typing" as any, (targetUserId: string) => {
-    const userId = getUserIdForSocket(socket.id);
-    if (!userId) return;
-    const targetSockets = getSocketIdsForUser(targetUserId);
-    for (const sid of targetSockets) {
-      io.to(sid).emit("dm:typing" as any, { userId });
-    }
-  });
-
-  // ── Party Events ──
-
-  socket.on("party:create" as any, async (callback: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
-    if (!userId) { callback({ success: false, error: "Not authenticated" }); return; }
-
-    const userRow = await pool.query("SELECT name, picture FROM users WHERE id = $1", [userId]);
-    const { name, picture } = userRow.rows[0] || { name: "Player", picture: "" };
-
-    const result = createParty(userId, socket.id, name, picture);
-    if ("error" in result) { callback({ success: false, error: result.error }); return; }
-
-    socket.join(getPartySocketRoom(result.id));
-    callback({ success: true, party: result });
-  });
-
-  socket.on("party:invite" as any, (targetUserId: string, callback?: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
-    if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
-
-    const party = getPartyForUser(userId);
-    if (!party) { callback?.({ success: false, error: "Not in a party" }); return; }
-    if (party.leaderId !== userId) { callback?.({ success: false, error: "Only the leader can invite" }); return; }
-
-    const leaderName = party.members.find(m => m.userId === userId)?.name || "Someone";
-    const targetSockets = getSocketIdsForUser(targetUserId);
-    for (const sid of targetSockets) {
-      io.to(sid).emit("party:invite" as any, { partyId: party.id, fromName: leaderName, fromUserId: userId });
-    }
-    callback?.({ success: true });
-  });
-
-  socket.on("party:join" as any, async (partyId: string, callback: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
-    if (!userId) { callback({ success: false, error: "Not authenticated" }); return; }
-
-    const userRow = await pool.query("SELECT name, picture FROM users WHERE id = $1", [userId]);
-    const { name, picture } = userRow.rows[0] || { name: "Player", picture: "" };
-
-    const result = joinParty(partyId, userId, socket.id, name, picture);
-    if ("error" in result) { callback({ success: false, error: result.error }); return; }
-
-    const room = getPartySocketRoom(partyId);
-    socket.join(room);
-    io.to(room).emit("party:updated" as any, result);
-    callback({ success: true, party: result });
-  });
-
-  socket.on("party:leave" as any, (callback?: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
-    if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
-
-    const result = leaveParty(userId);
-    if ("error" in result) { callback?.({ success: false, error: result.error }); return; }
-
-    const room = getPartySocketRoom(result.partyId);
-    socket.leave(room);
-    if (result.disbanded) {
-      io.to(room).emit("party:disbanded" as any);
-    } else if (result.party) {
-      io.to(room).emit("party:updated" as any, result.party);
-    }
-    callback?.({ success: true });
-  });
-
-  socket.on("party:start-game" as any, async (deckId: string, callback: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
-    if (!userId) { callback({ success: false, error: "Not authenticated" }); return; }
-
-    const party = getPartyForUser(userId);
-    if (!party) { callback({ success: false, error: "Not in a party" }); return; }
-    if (party.leaderId !== userId) { callback({ success: false, error: "Only the leader can start" }); return; }
-
-    const deck = await getDeck(deckId);
-    if (!deck) { callback({ success: false, error: "Deck not found" }); return; }
-
-    // Leader creates the lobby
-    const leaderName = party.members.find(m => m.userId === userId)?.name || "Player";
-    const lobbyResult = createLobby(socket.id, leaderName, deckId, deck.name, deck.gameType, deck.winCondition);
-    if ("error" in lobbyResult) { callback({ success: false, error: lobbyResult.error }); return; }
-
-    const lobbyCode = lobbyResult.lobby.code;
-    socket.join(lobbyCode);
-    if (userId) setInGame(userId, lobbyCode, deck.name);
-
-    // Notify party members to join
-    const room = getPartySocketRoom(party.id);
-    io.to(room).emit("party:game-starting" as any, { lobbyCode, deckName: deck.name });
-
-    callback({ success: true, lobby: lobbyResult.lobby });
-  });
-
-  // ── Lobby Events ──
-
-  socket.on("lobby:create", async (playerName, deckId, callback) => {
-    try {
-      const safeName = (typeof playerName === "string" ? playerName : "Player").trim().slice(0, 30) || "Player";
-      playerName = safeName;
-      const deck = await getDeck(deckId);
-      if (!deck) {
-        callback({ success: false, error: "Deck not found" });
-        return;
-      }
-
-      const result = createLobby(socket.id, playerName, deckId, deck.name, deck.gameType, deck.winCondition);
-
-      if ("error" in result) {
-        callback({ success: false, error: result.error });
-        return;
-      }
-
-      socket.join(result.lobby.code);
-      callback({ success: true, lobby: result.lobby });
-
-      // Track in-game presence
-      const creatorUserId = getUserIdForSocket(socket.id);
-      if (creatorUserId) setInGame(creatorUserId, result.lobby.code, deck.name);
-
-      console.log(`Lobby ${result.lobby.code} created by ${playerName} with deck "${deck.name}"`);
-    } catch (e: any) {
-      callback({ success: false, error: "Server error" });
-    }
-  });
-
-  socket.on("lobby:join", (code, playerName, callback) => {
-    playerName = (typeof playerName === "string" ? playerName : "Player").trim().slice(0, 30) || "Player";
-    const result = joinLobby(socket.id, code, playerName);
-
-    if ("error" in result) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-
-    socket.join(result.lobby.code);
-
-    // If game is in progress, add the player to the active game
-    if (result.lobby.status === "playing") {
-      addPlayerToGame(result.lobby.code, socket.id);
-      const gameView = getPlayerView(result.lobby.code, socket.id);
-      callback({ success: true, lobby: result.lobby });
-
-      socket.to(result.lobby.code).emit("lobby:player-joined", result.player);
-      io.to(result.lobby.code).emit("lobby:updated", result.lobby);
-
-      // Send them straight into the game
-      if (gameView) {
-        socket.emit("game:round-start", gameView);
-        socket.emit("lobby:started");
-      }
-    } else {
-      callback({ success: true, lobby: result.lobby });
-      socket.to(result.lobby.code).emit("lobby:player-joined", result.player);
-      socket.to(result.lobby.code).emit("lobby:updated", result.lobby);
-    }
-
-    // Track in-game presence
-    const joinerUserId = getUserIdForSocket(socket.id);
-    if (joinerUserId) setInGame(joinerUserId, result.lobby.code, result.lobby.deckName);
-
-    console.log(`${playerName} joined lobby ${code}`);
-  });
-
-  socket.on("lobby:spectate" as any, (code: string, playerName: string, callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
-    const result = joinAsSpectator(socket.id, code, playerName);
-    if ("error" in result) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-
-    socket.join(result.lobby.code);
-    callback({ success: true, lobby: result.lobby });
-    socket.to(result.lobby.code).emit("lobby:player-joined", result.player);
-    io.to(result.lobby.code).emit("lobby:updated", result.lobby);
-
-    // If game in progress, send them a spectator view
-    if (result.lobby.status === "playing") {
-      // Spectators see round info but no hand
-      const spectatorView = getPlayerView(result.lobby.code, socket.id);
-      if (spectatorView) {
-        socket.emit("game:round-start", { ...spectatorView, hand: [] });
-        socket.emit("lobby:started");
-      }
-    }
-
-    console.log(`${playerName} joined lobby ${code} as spectator`);
-  });
-
-  socket.on("lobby:leave", () => {
-    handleLeave(socket.id);
-  });
-
-  socket.on("lobby:change-deck" as any, async (deckId: string, callback: (res: any) => void) => {
-    try {
-      const deck = await getDeck(deckId);
-      if (!deck) { callback({ success: false, error: "Deck not found" }); return; }
-
-      const result = changeLobbyDeck(socket.id, deckId, deck.name, deck.gameType || "cah", deck.winCondition);
-      if ("error" in result) { callback({ success: false, error: result.error }); return; }
-
-      callback({ success: true, lobby: result.lobby });
-      io.to(result.code).emit("lobby:updated", result.lobby);
-      console.log(`Deck changed to "${deck.name}" in lobby ${result.code}`);
-    } catch (e: any) {
-      callback({ success: false, error: e.message });
-    }
-  });
-
-  socket.on("lobby:set-house-rules" as any, (houseRules: { unoStacking?: boolean }, callback: (res: any) => void) => {
-    const result = setLobbyHouseRules(socket.id, houseRules);
-    if ("error" in result) { callback({ success: false, error: result.error }); return; }
-    callback({ success: true });
-    io.to(result.code).emit("lobby:updated", result.lobby);
-  });
-
-  socket.on("lobby:set-max-players" as any, (maxPlayers: number, callback: (res: any) => void) => {
-    const result = setMaxPlayers(socket.id, maxPlayers);
-    if ("error" in result) { callback({ success: false, error: result.error }); return; }
-    callback({ success: true });
-    io.to(result.code).emit("lobby:updated", result.lobby);
-  });
-
-  socket.on("lobby:start", async (callback) => {
-    try {
-      const result = startGame(socket.id);
-
-      if ("error" in result) {
-        callback({ success: false, error: result.error });
-        return;
-      }
-
-      const playerIds = getActivePlayers(result.code);
-      if (!playerIds || playerIds.length < 2) {
-        callback({ success: false, error: "Not enough players" });
-        return;
-      }
-
-      // Load deck from lobby
-      const deckId = getLobbyDeckId(result.code);
-      let customChaos = undefined;
-      let customKnowledge = undefined;
-      let winCondition = undefined;
-      let gameType: "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames" | undefined = undefined;
-      let unoTemplate: UnoDeckTemplate | undefined = undefined;
-      if (deckId) {
-        const deck = await getDeck(deckId);
-        if (deck) {
-          customChaos = deck.chaosCards;
-          customKnowledge = deck.knowledgeCards;
-          winCondition = deck.winCondition;
-          gameType = deck.gameType as typeof gameType;
-          // For Uno, extract template from chaosCards[0].text (JSON string)
-          if (gameType === "uno" && deck.chaosCards?.length > 0) {
-            try {
-              const raw = deck.chaosCards[0] as any;
-              if (raw.colorNames) {
-                // Already parsed object
-                unoTemplate = raw as UnoDeckTemplate;
-              } else if (raw.text) {
-                // Template stored as JSON string in text field
-                const parsed = JSON.parse(raw.text);
-                if (parsed.colorNames) unoTemplate = parsed as UnoDeckTemplate;
-              }
-            } catch {}
-          }
-        }
-      }
-
-      callback({ success: true });
-
-      // Increment deck play count
-      if (deckId) {
-        pool.query("UPDATE decks SET play_count = COALESCE(play_count, 0) + 1 WHERE id = $1", [deckId]).catch(() => {});
-      }
-
-      // 3-2-1 countdown before game starts
-      const code = result.code;
-      io.to(code).emit("lobby:countdown" as any, 3);
-      setTimeout(() => io.to(code).emit("lobby:countdown" as any, 2), 1000);
-      setTimeout(() => io.to(code).emit("lobby:countdown" as any, 1), 2000);
-      setTimeout(() => {
-        io.to(code).emit("lobby:countdown" as any, 0);
-
-        if (gameType === "codenames") {
-          // Extract word pool from knowledge cards
-          const wordPool = (customKnowledge || []).map(c => c.text).filter(t => t.trim());
-          if (wordPool.length < 25) {
-            // Fallback: use a default word list
-            const defaults = ["Apple","Bank","Bark","Bear","Berlin","Board","Bond","Boot","Bowl","Bug","Canada","Card","Castle","Cat","Cell","Chair","Change","Chest","China","Clip","Cloud","Club","Code","Cold","Comet","Compound","Copper","Crane","Crash","Cricket","Cross","Crown","Cycle","Day","Death","Diamond","Dice","Doctor","Dog","Draft","Dragon","Dress","Drill","Drop","Duck","Dwarf","Eagle","Egypt","Engine","Eye","Fair","Fan","Field","File","Film","Fire","Fish","Fly","Force","Forest","Fork","France","Game","Gas","Ghost","Giant","Glass","Glove","Gold","Grass","Green","Ham","Hand","Hawk","Head","Heart","Himalayas","Hit","Hole","Hook","Horn","Horse","Hospital","Hotel","Ice","Iron","Ivory","Jack","Jam","Jet","Jupiter","Kangaroo","Ketchup","Key","Kid","King","Kite","Knight","Lab","Lap","Laser","Lead","Lemon","Life","Light","Limousine","Line","Link","Lion","Lock","Log","London","Luck","Mail","Mammoth","Maple","March","Mass","Match","Mercury","Mexico","Microscope","Milk","Mine","Model","Mole","Moon","Moscow","Mount","Mouse","Mud","Mug","Nail","Net","Night","Ninja","Note","Novel","Nurse","Nut","Octopus","Oil","Olive","Olympus","Opera","Orange","Organ","Palm","Pan","Pants","Paper","Park","Pass","Paste","Penguin","Phoenix","Piano","Pie","Pilot","Pin","Pipe","Pirate","Pistol","Pit","Plate","Play","Plot","Point","Poison","Pole","Pool","Port","Post","Press","Princess","Pumpkin","Pupil","Queen","Rabbit","Race","Radio","Rain","Ranch","Ray","Revolution","Ring","Robin","Robot","Rock","Rome","Root","Rose","Round","Row","Ruler","Russia","Sail","Sand","Saturn","Scale","School","Scientist","Screen","Seal","Server","Shadow","Shakespeare","Shark","Ship","Shoe","Shop","Shot","Silk","Singer","Sink","Slip","Slug","Smuggler","Snow","Soldier","Soul","Space","Spell","Spider","Spike","Spot","Spring","Spy","Square","Staff","Star","State","Steam","Steel","Stick","Stock","Storm","Stream","Strike","String","Sub","Sugar","Suit","Super","Swan","Switch","Table","Tail","Tap","Teacher","Temple","Texas","Theater","Thief","Thumb","Tick","Tie","Tiger","Time","Tokyo","Tooth","Tower","Track","Train","Triangle","Trip","Trunk","Tube","Turkey","Undertaker","Unicorn","Vacuum","Van","Vet","Violet","Virus","Wall","War","Wash","Washington","Watch","Water","Wave","Web","Well","Whale","Whip","Wind","Witch","Worm","Yard"];
-            wordPool.push(...defaults);
-          }
-          createCodenamesGame(code, playerIds, wordPool);
-          io.to(code).emit("lobby:started");
-          // Send initial view to all players (team pick phase)
-          for (const pid of playerIds) {
-            const view = getCodenamesPlayerView(code, pid);
-            if (view) {
-              const playerSocket = io.sockets.sockets.get(pid);
-              if (playerSocket) {
-                playerSocket.emit("codenames:update" as any, view);
-              }
-            }
-          }
-        } else if (gameType === "uno") {
-          const template = unoTemplate || { colorNames: { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" } };
-          const houseRules = getLobbyHouseRules(code);
-          createUnoGame(code, playerIds, template, winCondition, houseRules);
-          io.to(code).emit("lobby:started");
-          sendUnoTurnToPlayers(code);
-          triggerUnoBotTurn(code);
-          scheduleUnoTurnTimer(code);
-        } else {
-          createGame(code, playerIds, customChaos, customKnowledge, winCondition, gameType);
-          const round = startRound(code);
-
-          if (round) {
-            io.to(code).emit("lobby:started");
-            sendRoundToPlayers(code);
-            triggerBotActions(code);
-            scheduleRoundTimer(code);
-          } else {
-            // Failed to start round (e.g. not enough cards) — end the game
-            const scores = getScores(code) || {};
-            endGame(code);
-            io.to(code).emit("game:over", scores);
-          }
-        }
-
-        console.log(`Game started in lobby ${code}`);
-      }, 3000);
-    } catch (e: any) {
-      callback({ success: false, error: "Server error" });
-    }
-  });
-
-  socket.on("lobby:add-bot" as any, (callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
-    const result = addBot(socket.id);
-    if ("error" in result) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-    callback({ success: true, lobby: result.lobby });
-    io.to(result.lobby.code).emit("lobby:updated", result.lobby);
-    console.log(`Bot added to lobby ${result.lobby.code}`);
-  });
-
-  socket.on("lobby:remove-bot" as any, (botId: string, callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
-    const result = removeBot(socket.id, botId);
-    if ("error" in result) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-    io.to(result.lobby.code).emit("lobby:updated", result.lobby);
-    callback({ success: true, lobby: result.lobby });
-    console.log(`Bot ${botId} removed from lobby`);
-  });
-
-  socket.on("lobby:kick" as any, (targetId: string, callback: (response: { success: boolean; error?: string }) => void) => {
-    const result = kickPlayer(socket.id, targetId);
-    if ("error" in result) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-    // Tell the kicked player
-    io.to(targetId).emit("lobby:kicked" as any);
-    // Make them leave the socket room
-    const targetSocket = io.sockets.sockets.get(targetId);
-    if (targetSocket) targetSocket.leave(result.code);
-    // Update everyone else
-    io.to(result.code).emit("lobby:updated", result.lobby);
-    callback({ success: true });
-    console.log(`Player ${targetId} kicked from lobby ${result.code}`);
-  });
-
-  // ── Game Events ──
-
-  socket.on("game:czar-setup", (cardId, callback) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code) {
-      callback({ success: false, error: "Not in a game" });
-      return;
-    }
-
-    clearRoundTimer(code);
-    const result = czarSetup(code, socket.id, cardId);
-    if (!result.success) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-
-    callback({ success: true });
-
-    // Broadcast updated round state (now in submitting phase with czarSetupCard)
-    sendRoundToPlayers(code);
-    triggerBotSubmissions(code);
-    scheduleRoundTimer(code);
-  });
-
-  socket.on("game:submit", (cardIds, callback) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code) {
-      callback({ success: false, error: "Not in a game" });
-      return;
-    }
-
-    const result = submitCards(code, socket.id, cardIds);
-    if (!result.success) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-
-    callback({ success: true });
-
-    // Notify others that this player submitted
-    socket.to(code).emit("game:player-submitted", socket.id);
-
-    // If all submitted, send judging data to everyone
-    if (result.allSubmitted) {
-      const judgingData = getJudgingData(code);
-      if (judgingData) {
-        io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
-        scheduleRoundTimer(code);
-        // If czar is a bot, auto-pick winner
-        triggerBotCzarPick(code);
-      }
-    }
-  });
-
-  socket.on("game:pick-winner", (winnerId, callback) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code) {
-      callback({ success: false, error: "Not in a game" });
-      return;
-    }
-
-    clearRoundTimer(code);
-    const result = pickWinner(code, socket.id, winnerId);
-    if (!result.success) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-
-    callback({ success: true });
-
-    // Get winner info
-    const scores = getScores(code);
-    const winnerCards = getWinnerCards(code);
-    const winnerName = getPlayerName(code, winnerId);
-
-    io.to(code).emit(
-      "game:round-winner",
-      winnerId,
-      winnerName || "Unknown",
-      winnerCards || [],
-      scores || {}
-    );
-
-    // Apply meta card effects if the chaos card had one
-    if (result.metaEffect) {
-      const { effect, winnerId: wId, czarId, playerIds } = result.metaEffect;
-      const targets = resolveMetaTargets(effect.target, wId, czarId, playerIds);
-
-      // Hand reset: clear hands and re-deal
-      if (effect.type === "hand_reset") {
-        for (const pid of targets) {
-          const newHand = resetPlayerHand(code, pid);
-          io.to(pid).emit("game:hand-updated", newHand);
-        }
-      }
-
-      // Build human-readable description
-      const affectedNames = targets.map((pid) => getPlayerName(code, pid) || "???");
-      let description = "";
-      switch (effect.type) {
-        case "score_add":
-          description = `+${effect.value} point${effect.value !== 1 ? "s" : ""} for ${affectedNames.join(", ")}`;
-          break;
-        case "score_subtract":
-          description = `-${effect.value} point${effect.value !== 1 ? "s" : ""} from ${affectedNames.join(", ")}`;
-          break;
-        case "hide_cards":
-          description = `${affectedNames.join(", ")}'s cards are hidden for ${Math.round((effect.durationMs || 20000) / 1000)}s`;
-          break;
-        case "randomize_icons":
-          description = `Icons randomized for ${affectedNames.join(", ")} for ${Math.round((effect.durationMs || 15000) / 1000)}s`;
-          break;
-        case "hand_reset":
-          description = `${affectedNames.join(", ")} drew a fresh hand`;
-          break;
-      }
-
-      // Broadcast to all players — clients use affectedPlayerIds to know if they're hit
-      io.to(code).emit("game:meta-effect", {
-        effectType: effect.type,
-        value: effect.value,
-        affectedPlayerIds: targets,
-        description,
-      });
-    }
-  });
-
-  socket.on("game:next-round", () => {
-    const code = findPlayerLobby(socket.id);
-    if (!code) return;
-
-    advanceRound(code);
-
-    if (isGameOver(code)) {
-      const scores = getScores(code);
-      endGame(code);
-      io.to(code).emit("game:over", scores || {});
-      recordCahGameResult(code, scores || {});
-      return;
-    }
-
-    const round = startRound(code);
-    if (round) {
-      sendRoundToPlayers(code);
-      triggerBotActions(code);
-      scheduleRoundTimer(code);
-    } else {
-      // No more rounds
-      const scores = getScores(code);
-      endGame(code);
-      io.to(code).emit("game:over", scores || {});
-      recordCahGameResult(code, scores || {});
-    }
-  });
-
-  socket.on("lobby:vote-rematch" as any, (callback: (response: any) => void) => {
-    const result = voteRematch(socket.id);
-    if ("error" in result) { callback({ success: false, error: result.error }); return; }
-    callback({ success: true, voteCount: result.voteCount, totalPlayers: result.totalPlayers });
-    io.to(result.code).emit("lobby:updated", result.lobby);
-    io.to(result.code).emit("lobby:rematch-vote" as any, {
-      voterId: socket.id,
-      voterName: getPlayerNameInLobby(result.code, socket.id),
-      voteCount: result.voteCount,
-      totalPlayers: result.totalPlayers,
-    });
-  });
-
-  socket.on("game:rematch" as any, (callback: (response: { success: boolean; error?: string }) => void) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code) {
-      callback({ success: false, error: "Not in a lobby" });
-      return;
-    }
-
-    clearRoundTimer(code);
-    clearUnoTurnTimer(code);
-    cleanupGame(code);
-    cleanupUnoGame(code);
-    cleanupCodenamesGame(code);
-
-    const result = resetLobbyForRematch(socket.id);
-    if ("error" in result) {
-      callback({ success: false, error: result.error });
-      return;
-    }
-
-    callback({ success: true });
-    io.to(result.code).emit("lobby:updated", result.lobby);
-    io.to(result.code).emit("game:rematch" as any);
-    console.log(`Rematch started in lobby ${result.code}`);
-  });
-
-  // ── Uno Events ──
-
-  socket.on("uno:play-card", (cardId, chosenColor, callback) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
-
-    const result = unoPlayCard(code, socket.id, cardId, chosenColor || undefined);
-    if (!result.success) { callback({ success: false, error: result.error }); return; }
-
-    callback({ success: true });
-
-    const playerName = getPlayerNameInLobby(code, socket.id) || "???";
-
-    if (result.roundOver) {
-      const scores = getUnoScores(code);
-      io.to(code).emit("uno:round-over", result.winnerId!, playerName, scores, result.roundPoints || 0);
-      clearUnoTurnTimer(code);
-      if (result.gameOver) {
-        io.to(code).emit("uno:game-over", scores);
-        recordUnoGameResult(code, scores);
-      }
-    } else {
-      clearUnoTurnTimer(code);
-      scheduleUnoTurnTimer(code);
-    }
-
-    sendUnoTurnToPlayers(code);
-    if (!result.roundOver) triggerUnoBotTurn(code);
-  });
-
-  socket.on("uno:draw-card", (callback) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
-
-    const result = unoDrawCard(code, socket.id);
-    if (!result.success) { callback({ success: false, error: result.error }); return; }
-
-    callback({ success: true, drawnCard: result.drawnCard });
-
-    clearUnoTurnTimer(code);
-    scheduleUnoTurnTimer(code);
-    sendUnoTurnToPlayers(code);
-    triggerUnoBotTurn(code);
-  });
-
-  socket.on("uno:call-uno", (callback) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
-
-    const ok = callUno(code, socket.id);
-    if (!ok) { callback({ success: false, error: "Can't call Uno right now" }); return; }
-
-    callback({ success: true });
-    const playerName = getPlayerNameInLobby(code, socket.id) || "???";
-    io.to(code).emit("uno:uno-called", socket.id, playerName);
-    sendUnoTurnToPlayers(code);
-  });
-
-  socket.on("uno:challenge-uno", (targetId, callback) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
-
-    const result = challengeUno(code, socket.id, targetId);
-    if (!result.success) { callback({ success: false, error: "Can't challenge" }); return; }
-
-    callback({ success: true, penalized: result.penalized });
-    if (result.penalized) {
-      const targetName = getPlayerNameInLobby(code, targetId) || "???";
-      io.to(code).emit("uno:uno-penalty", targetId, targetName);
-    }
-    sendUnoTurnToPlayers(code);
-  });
-
-  socket.on("uno:next-round", () => {
-    const code = findPlayerLobby(socket.id);
-    if (!code || !isUnoGame(code)) return;
-
-    const result = advanceUnoRound(code);
-    if (result.gameOver) {
-      const scores = getUnoScores(code);
-      io.to(code).emit("uno:game-over", scores);
-      recordUnoGameResult(code, scores);
-      return;
-    }
-    if (result.started) {
-      sendUnoTurnToPlayers(code);
-      triggerUnoBotTurn(code);
-      scheduleUnoTurnTimer(code);
-    }
-  });
-
-  // ── Codenames Events ──
-
-  socket.on("codenames:join-team" as any, (team: string, asSpymaster: boolean, callback: (res: any) => void) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code || !isCodenamesGame(code)) { callback({ success: false, error: "Not in a Codenames game" }); return; }
-
-    const result = joinTeam(code, socket.id, team as any, asSpymaster);
-    if (!result.success) { callback({ success: false, error: result.error }); return; }
-
-    callback({ success: true });
-    sendCodenamesUpdate(code);
-  });
-
-  socket.on("codenames:start-round" as any, (callback: (res: any) => void) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code || !isCodenamesGame(code)) { callback({ success: false, error: "Not in a Codenames game" }); return; }
-
-    const result = startCodenamesRound(code);
-    if (!result.success) { callback({ success: false, error: result.error }); return; }
-
-    callback({ success: true });
-    sendCodenamesUpdate(code);
-  });
-
-  socket.on("codenames:give-clue" as any, (word: string, count: number, callback: (res: any) => void) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code || !isCodenamesGame(code)) { callback({ success: false, error: "Not in a Codenames game" }); return; }
-
-    const result = giveClue(code, socket.id, word, count);
-    if (!result.success) { callback({ success: false, error: result.error }); return; }
-
-    callback({ success: true });
-    sendCodenamesUpdate(code);
-  });
-
-  socket.on("codenames:guess" as any, (wordIndex: number, callback: (res: any) => void) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code || !isCodenamesGame(code)) { callback({ success: false, error: "Not in a Codenames game" }); return; }
-
-    const result = guessWord(code, socket.id, wordIndex);
-    if (!result.success) { callback({ success: false, error: result.error }); return; }
-
-    callback({ success: true, color: result.color, gameOver: result.gameOver, turnOver: result.turnOver });
-    sendCodenamesUpdate(code);
-
-    if (result.gameOver) {
-      const scores = getCodenamesScores(code);
-      if (scores) {
-        io.to(code).emit("game:over", scores);
-      }
-    }
-  });
-
-  socket.on("codenames:pass" as any, (callback: (res: any) => void) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code || !isCodenamesGame(code)) { callback({ success: false, error: "Not in a Codenames game" }); return; }
-
-    const result = passTurn(code, socket.id);
-    if (!result.success) { callback({ success: false, error: result.error }); return; }
-
-    callback({ success: true });
-    sendCodenamesUpdate(code);
-  });
-
-  // ── Voice Chat Signaling ──
-
-  socket.on("voice:join", (callback) => {
-    const code = getLobbyForSocket(socket.id);
-    if (!code) return;
-
-    const users = getVoiceUsers(code);
-    users.add(socket.id);
-
-    // Tell everyone else a new voice user joined
-    const name = getPlayerName(code, socket.id) || "???";
-    socket.to(code).emit("voice:user-joined", { id: socket.id, name });
-
-    // Return the current list of other voice participants to the joiner
-    const existing = Array.from(users)
-      .filter((id) => id !== socket.id)
-      .map((id) => ({ id, name: getPlayerName(code, id) || "???" }));
-    callback({ voiceUsers: existing });
-  });
-
-  socket.on("voice:leave", () => {
-    removeFromVoice(socket.id);
-  });
-
-  // Pure relay — validate both sender and target are in the same lobby
-  socket.on("voice:offer", (targetId, sdp) => {
-    const senderCode = getLobbyForSocket(socket.id);
-    const targetCode = getLobbyForSocket(targetId);
-    if (!senderCode || senderCode !== targetCode) return;
-    io.to(targetId).emit("voice:offer", socket.id, sdp);
-  });
-
-  socket.on("voice:answer", (targetId, sdp) => {
-    const senderCode = getLobbyForSocket(socket.id);
-    const targetCode = getLobbyForSocket(targetId);
-    if (!senderCode || senderCode !== targetCode) return;
-    io.to(targetId).emit("voice:answer", socket.id, sdp);
-  });
-
-  socket.on("voice:ice-candidate", (targetId, candidate) => {
-    const senderCode = getLobbyForSocket(socket.id);
-    const targetCode = getLobbyForSocket(targetId);
-    if (!senderCode || senderCode !== targetCode) return;
-    io.to(targetId).emit("voice:ice-candidate", socket.id, candidate);
-  });
-
-  // ── Reactions ──
-
-  const reactionCooldowns = new Map<string, number>();
-
-  socket.on("reaction:send", (emoji) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code) return;
-
-    // Rate limit: 1 reaction per 500ms per player
-    const now = Date.now();
-    const last = reactionCooldowns.get(socket.id) || 0;
-    if (now - last < 500) return;
-    reactionCooldowns.set(socket.id, now);
-
-    // Validate emoji (only allow common emojis, max 2 chars)
-    if (!emoji || emoji.length > 2) return;
-
-    const playerName = getPlayerName(code, socket.id) || "???";
-    io.to(code).emit("reaction:broadcast", emoji, playerName);
-  });
-
-  // ── Chat ──
-
-  const chatCooldowns = new Map<string, number>();
-
-  socket.on("chat:send", (message) => {
-    const code = findPlayerLobby(socket.id);
-    if (!code) return;
-
-    // Rate limit: 1 message per 300ms
-    const now = Date.now();
-    const last = chatCooldowns.get(socket.id) || 0;
-    if (now - last < 300) return;
-    chatCooldowns.set(socket.id, now);
-
-    // Validate
-    if (!message || typeof message !== "string") return;
-    const text = message.trim().slice(0, 200);
-    if (text.length === 0) return;
-
-    const playerName = getPlayerName(code, socket.id) || "???";
-    const msg = { id: `${socket.id}-${now}`, playerName, text, timestamp: now };
-    addChatMessage(code, msg);
-    io.to(code).emit("chat:message", msg);
-  });
-
-  const ALLOWED_MEDIA_HOSTS = ["media.giphy.com", "media0.giphy.com", "media1.giphy.com", "media2.giphy.com", "media3.giphy.com", "media4.giphy.com", "media.tenor.com", "c.tenor.com", "static.klipy.com"];
-
-  function isAllowedMediaUrl(url: string): boolean {
-    try {
-      const parsed = new URL(url);
-      return (parsed.protocol === "https:" || parsed.protocol === "http:") &&
-        ALLOWED_MEDIA_HOSTS.some((h) => parsed.hostname === h);
-    } catch {
-      return false;
-    }
-  }
-
-  let lastGifTime = 0;
-  socket.on("chat:gif", (gifUrl: string) => {
-    const now = Date.now();
-    if (now - lastGifTime < 1000) return;
-    lastGifTime = now;
-    if (typeof gifUrl !== "string" || !isAllowedMediaUrl(gifUrl)) return;
-    const code = getLobbyForSocket(socket.id);
-    const playerName = getPlayerNameInLobby(code || "", socket.id);
-    if (!code || !playerName) return;
-    const msg = { id: `${Date.now()}-${Math.random()}`, playerName, text: "", gifUrl, timestamp: Date.now() };
-    addChatMessage(code, msg);
-    io.to(code).emit("chat:message", msg);
-  });
-
-  let lastStickerTime = 0;
-  socket.on("media:sticker", (url: string) => {
-    const now = Date.now();
-    if (now - lastStickerTime < 2000) return;
-    lastStickerTime = now;
-    if (typeof url !== "string" || !isAllowedMediaUrl(url)) return;
-    const code = getLobbyForSocket(socket.id);
-    const playerName = getPlayerNameInLobby(code || "", socket.id);
-    if (!code || !playerName) return;
-    io.to(code).emit("media:sticker", url, playerName);
-  });
-
-  let lastSoundTime = 0;
-  socket.on("sound:play" as any, ({ mp3, title }: { mp3: string; title: string }) => {
-    const now = Date.now();
-    if (now - lastSoundTime < 3000) return;
-    lastSoundTime = now;
-    if (typeof mp3 !== "string" || (!mp3.startsWith("https://www.myinstants.com/") && !mp3.startsWith("/api/sounds/file/"))) return;
-    const code = getLobbyForSocket(socket.id);
-    const playerName = getPlayerNameInLobby(code || "", socket.id);
-    if (!code || !playerName) return;
-    io.to(code).emit("sound:received" as any, { mp3, title, playerName });
-  });
-
+  // Register all handler groups
+  registerSocialHandlers(io, socket);
+  registerLobbyHandlers(io, socket);
+  registerCahHandlers(io, socket);
+  registerUnoHandlers(io, socket);
+  registerCodenamesHandlers(io, socket);
+
+  // ── Disconnect ──
   socket.on("disconnect", async () => {
-    removeFromVoice(socket.id);
+    removeFromVoice(io, socket.id);
 
-    // Handle presence: notify friends if user went fully offline
     const userId = getUserIdForSocket(socket.id);
     if (userId) {
       const fullyOffline = setOffline(userId, socket.id);
@@ -1641,16 +220,12 @@ io.on("connection", (socket) => {
           );
           for (const row of friends.rows) {
             const friendSockets = getSocketIdsForUser(row.friend_id);
-            for (const sid of friendSockets) {
-              io.to(sid).emit("friend:offline" as any, { userId });
-            }
+            for (const sid of friendSockets) io.to(sid).emit("friend:offline" as any, { userId });
           }
         } catch {}
       }
     }
 
-    // Mark player as disconnected but keep them in the lobby.
-    // The lobby persists until players explicitly leave.
     const result = disconnectPlayer(socket.id);
     if (result) {
       io.to(result.code).emit("lobby:updated", result.lobby);
@@ -1662,99 +237,7 @@ io.on("connection", (socket) => {
   });
 });
 
-function handleLeave(socketId: string) {
-  removeFromVoice(socketId);
-
-  // Clear in-game presence
-  const leaverUserId = getUserIdForSocket(socketId);
-  if (leaverUserId) setNotInGame(leaverUserId);
-
-  const code = getLobbyForSocket(socketId);
-
-  const result = leaveLobby(socketId);
-  if (!result) return;
-
-  // Remove from active game so it doesn't block on their submissions
-  if (code) {
-    removePlayerFromGame(code, socketId);
-  }
-
-  // The socket may already be disconnected (timer-based cleanup),
-  // so use io.to() for broadcasting instead of socket methods.
-  if (result.lobby) {
-    io.to(result.code).emit("lobby:updated", result.lobby);
-    io.to(result.code).emit("lobby:player-left", socketId);
-
-    if (result.newHostId) {
-      io.to(result.code).emit("lobby:host-changed", result.newHostId);
-    }
-  } else {
-    // Lobby was deleted (last player left) — clean up game and chat
-    cleanupGame(result.code);
-    cleanupCodenamesGame(result.code);
-    clearChatHistory(result.code);
-  }
-}
-
-// Helper: find which lobby a socket belongs to
-function findPlayerLobby(socketId: string): string | undefined {
-  return getLobbyForSocket(socketId);
-}
-
-// Helper: get a player's display name from lobby
-function getPlayerName(code: string, playerId: string): string | undefined {
-  return getPlayerNameInLobby(code, playerId);
-}
-
-// Helper: record CAH/JH/A2A game result
-function recordCahGameResult(code: string, scores: Record<string, number>) {
-  try {
-    const playerIds = getActivePlayers(code) || [];
-    const topEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
-    const winnerId = topEntry?.[0];
-    const players = playerIds.map(pid => ({
-      userId: getUserIdForSocket(pid) || null,
-      name: getPlayerNameInLobby(code, pid) || pid,
-      score: scores[pid] || 0,
-      isWinner: pid === winnerId,
-      isBot: isPlayerBot(code, pid),
-    }));
-    recordGameResult({
-      lobbyCode: code,
-      deckId: getLobbyDeckId(code) || null,
-      deckName: getLobbyDeckName(code) || "Unknown",
-      gameType: getLobbyGameType(code) || "cah",
-      playerCount: players.filter(p => !p.isBot).length,
-      roundsPlayed: 0,
-      players,
-    }).catch(e => console.error("Failed to record game:", e));
-  } catch {}
-}
-
-// Helper: record Uno game result
-function recordUnoGameResult(code: string, scores: Record<string, number>) {
-  try {
-    const playerIds = getActivePlayers(code) || [];
-    const topEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
-    const winnerId = topEntry?.[0];
-    const players = playerIds.map(pid => ({
-      userId: getUserIdForSocket(pid) || null,
-      name: getPlayerNameInLobby(code, pid) || pid,
-      score: scores[pid] || 0,
-      isWinner: pid === winnerId,
-      isBot: isPlayerBot(code, pid),
-    }));
-    recordGameResult({
-      lobbyCode: code,
-      deckId: getLobbyDeckId(code) || null,
-      deckName: getLobbyDeckName(code) || "Unknown",
-      gameType: getLobbyGameType(code) || "uno",
-      playerCount: players.filter(p => !p.isBot).length,
-      roundsPlayed: 0,
-      players,
-    }).catch(e => console.error("Failed to record Uno game:", e));
-  } catch {}
-}
+// ── Server Start + Graceful Shutdown ─────────────────────────────────────────
 
 const PORT = process.env.PORT || 3001;
 
@@ -1769,25 +252,13 @@ async function start() {
   } else {
     console.warn("No DATABASE_URL set — database features disabled");
   }
-
-  httpServer.listen(PORT, () => {
-    console.log(`Decked server running on port ${PORT}`);
-  });
+  httpServer.listen(PORT, () => console.log(`Decked server running on port ${PORT}`));
 }
 
-// Graceful shutdown — warn players, close connections, then exit
 function gracefulShutdown(signal: string) {
   console.log(`${signal} received — starting graceful shutdown`);
-
-  // Notify all connected clients the server is restarting
   io.emit("server_restart", { message: "Server is restarting — you will be reconnected shortly." });
-
-  // Stop accepting new connections
-  httpServer.close(() => {
-    console.log("HTTP server closed");
-  });
-
-  // Give clients a moment to receive the restart notice, then tear down
+  httpServer.close(() => console.log("HTTP server closed"));
   setTimeout(async () => {
     try {
       io.disconnectSockets(true);
@@ -1798,18 +269,10 @@ function gracefulShutdown(signal: string) {
     }
     process.exit(0);
   }, 2000);
-
-  // Hard exit after 10s if something hangs
-  setTimeout(() => {
-    console.error("Shutdown timed out — forcing exit");
-    process.exit(1);
-  }, 10000).unref();
+  setTimeout(() => { console.error("Shutdown timed out — forcing exit"); process.exit(1); }, 10000).unref();
 }
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-start().catch((err) => {
-  console.error("Failed to start:", err);
-  process.exit(1);
-});
+start().catch((err) => { console.error("Failed to start:", err); process.exit(1); });
