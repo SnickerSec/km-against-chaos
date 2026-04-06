@@ -2,7 +2,10 @@ import { Router } from "express";
 
 const router = Router();
 
-// Proxy to myinstants API to avoid CORS issues on the client
+const MYINSTANTS = "https://www.myinstants.com";
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36";
+
+// Scrape myinstants.com search and return first MP3 URL
 router.get("/search", async (req, res) => {
   const { q } = req.query;
   if (!q || typeof q !== "string") {
@@ -11,19 +14,22 @@ router.get("/search", async (req, res) => {
   }
   try {
     const r = await fetch(
-      `https://myinstants-api.vercel.app/search?q=${encodeURIComponent(q)}`
+      `${MYINSTANTS}/en/search/?name=${encodeURIComponent(q)}`,
+      { headers: { "User-Agent": UA } }
     );
     if (!r.ok) {
       res.status(404).json({ error: "No sound found" });
       return;
     }
-    const data = (await r.json()) as any;
-    const first = data?.data?.[0];
-    if (!first?.mp3) {
+    const html = await r.text();
+    // Extract first play('...') path from the page
+    const match = html.match(/play\('([^']+\.mp3)'/);
+    if (!match) {
       res.status(404).json({ error: "No sound found" });
       return;
     }
-    res.json({ mp3: first.mp3, title: first.title });
+    const mp3 = `${MYINSTANTS}${match[1]}`;
+    res.json({ mp3 });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
