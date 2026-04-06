@@ -52,7 +52,7 @@ router.get("/search", async (req, res) => {
     let m;
     while ((m = playRegex.exec(html)) !== null) mp3s.push(m[1]);
     // Grab instant titles from the page
-    const titleRegex = /class="instant-link"[^>]*>([^<]+)<\/a>/g;
+    const titleRegex = /class="instant-link[^"]*"[^>]*>([^<]+)<\/a>/g;
     while ((m = titleRegex.exec(html)) !== null) titles.push(m[1].trim());
     for (let i = 0; i < Math.min(mp3s.length, 10); i++) {
       results.push({
