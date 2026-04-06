@@ -1,23 +1,22 @@
-import { API_URL } from "./api";
+const BASE = "https://www.myinstants.com/media/sounds";
 
 export type SoundKey =
   | "win" | "lose" | "meta" | "stolen" | "reset"
   | "victory" | "defeat" | "uno" | "draw4" | "skip";
 
-const QUERIES: Record<SoundKey, string> = {
-  win:     "airhorn",
-  lose:    "sad trombone",
-  meta:    "dun dun dun",
-  stolen:  "oh no",
-  reset:   "noooo",
-  victory: "winner winner chicken dinner",
-  defeat:  "wah wah wah",
-  uno:     "uno",
-  draw4:   "evil laugh",
-  skip:    "buzzer",
+const URLS: Record<SoundKey, string> = {
+  win:     `${BASE}/dj-airhorn-sound-effect-kingbeatz_1.mp3`,
+  lose:    `${BASE}/sad-trombone-sound-effect-wah-wah-wah-fail-sound-fail-horns.mp3`,
+  meta:    `${BASE}/dun-dun-dun-sound-effect-brass_8nFBccR.mp3`,
+  stolen:  `${BASE}/the-price-is-right-losing-horn.mp3`,
+  reset:   `${BASE}/nooo.swf.mp3`,
+  victory: `${BASE}/final-fantasy-vii-victory-fanfare-1.mp3`,
+  defeat:  `${BASE}/dark-souls-you-died-sound-effect_hm5sYFG.mp3`,
+  uno:     `${BASE}/uno-reverse-biaatch.mp3`,
+  draw4:   `${BASE}/evillaugh.swf.mp3`,
+  skip:    `${BASE}/wrong-answer-buzzer.mp3`,
 };
 
-const cache = new Map<SoundKey, string>(); // key → mp3 url
 let muted = false;
 let currentAudio: HTMLAudioElement | null = null;
 
@@ -31,43 +30,25 @@ export function toggleMute(): boolean {
   muted = !muted;
   if (typeof window !== "undefined") {
     localStorage.setItem("decked_sounds_muted", String(muted));
-    if (muted && currentAudio) {
-      currentAudio.pause();
-    }
+    if (muted && currentAudio) currentAudio.pause();
   }
   return muted;
 }
 
-async function fetchMp3(key: SoundKey): Promise<string | null> {
-  if (cache.has(key)) return cache.get(key)!;
-  try {
-    const res = await fetch(
-      `${API_URL}/api/sounds/search?q=${encodeURIComponent(QUERIES[key])}`
-    );
-    if (!res.ok) return null;
-    const { mp3 } = await res.json();
-    if (mp3) { cache.set(key, mp3); return mp3; }
-  } catch {}
-  return null;
-}
-
-export async function preloadSounds() {
-  // Fire off all fetches in parallel; errors are silently ignored
-  await Promise.allSettled(
-    (Object.keys(QUERIES) as SoundKey[]).map(fetchMp3)
-  );
+// Preload by creating Audio objects (browser caches them)
+export function preloadSounds() {
+  if (typeof window === "undefined") return;
+  Object.values(URLS).forEach((url) => { new Audio(url); });
 }
 
 export async function playSound(key: SoundKey) {
   if (muted || typeof window === "undefined") return;
-  const url = await fetchMp3(key);
-  if (!url) return;
   try {
     if (currentAudio) {
       currentAudio.pause();
       currentAudio.currentTime = 0;
     }
-    currentAudio = new Audio(url);
+    currentAudio = new Audio(URLS[key]);
     currentAudio.volume = 0.7;
     await currentAudio.play();
   } catch {}

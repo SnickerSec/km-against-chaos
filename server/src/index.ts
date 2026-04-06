@@ -18,7 +18,6 @@ import tgcRoutes from "./tgcRoutes.js";
 import statsRoutes from "./statsRoutes.js";
 import friendRoutes from "./friendRoutes.js";
 import stripeRoutes from "./stripeRoutes.js";
-import soundRoutes from "./soundRoutes.js";
 import { setIO as setNotificationIO } from "./notifications.js";
 import { recordGameResult } from "./statsStore.js";
 import { verifyJwt } from "./auth.js";
@@ -195,7 +194,6 @@ app.use("/api/print/tgc", apiLimiter, tgcRoutes);
 app.use(apiLimiter, statsRoutes);
 app.use(apiLimiter, friendRoutes);
 app.use(apiLimiter, stripeRoutes);
-app.use("/api/sounds", apiLimiter, soundRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [
