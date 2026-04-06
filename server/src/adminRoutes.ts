@@ -1,6 +1,9 @@
 import { Router } from "express";
 import pool from "./db.js";
 import { requireAuth, requireAdmin } from "./auth.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("admin");
 import { DEFAULT_ART_STYLES, DEFAULT_IMAGE_SUFFIX, FAL_MODELS, FAL_LORA_MODELS, IMAGE_MODEL_DEFAULTS } from "./imageGenerate.js";
 import { GAME_TYPE_KEYS, MATURITY_KEYS, getDefaultEngineRules, getDefaultMaturityRules } from "./aiGenerate.js";
 
@@ -535,7 +538,7 @@ async function fetchFalModels(): Promise<any[]> {
 
     falModelsCache = { data: allModels, fetchedAt: Date.now() };
   } catch (err) {
-    console.error("[ADMIN] Failed to fetch fal.ai models:", err);
+    log.error("failed to fetch fal.ai models", { error: String(err) });
     // Fall back to hardcoded lists
     for (const m of FAL_MODELS) {
       allModels.push({ ...m, loraSupport: false, description: m.notes, tags: [] });

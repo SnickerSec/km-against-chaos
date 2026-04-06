@@ -2,6 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import pool from "./db.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("ai");
 
 interface GeneratedCards {
   name?: string;
@@ -500,7 +503,7 @@ function extractJson<T>(text: string, validate: (obj: any) => boolean): T {
 
   const parsed = JSON.parse(jsonStr) as T;
   if (!validate(parsed)) {
-    console.error("AI response failed validation:", JSON.stringify(parsed).slice(0, 500));
+    log.error("AI response failed validation", { response: JSON.stringify(parsed).slice(0, 500) });
     throw new Error("Invalid response structure");
   }
   return parsed;

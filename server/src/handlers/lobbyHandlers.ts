@@ -18,8 +18,11 @@ import {
   sendRoundToPlayers, sendUnoTurnToPlayers, sendCodenamesUpdate,
   clearRoundTimer, clearUnoTurnTimer, scheduleRoundTimer, scheduleUnoTurnTimer,
 } from "../socketHelpers.js";
+import { createLogger } from "../logger.js";
 import { triggerBotActions, createCahTimerCallback } from "./cahHandlers.js";
 import { triggerUnoBotTurn, createUnoTimerCallback } from "./unoHandlers.js";
+
+const log = createLogger("lobby");
 
 export function handleLeave(io: Server<ClientEvents, ServerEvents>, socketId: string) {
   const leaverUserId = getUserIdForSocket(socketId);
@@ -64,7 +67,7 @@ export function registerLobbyHandlers(
       const creatorUserId = getUserIdForSocket(socket.id);
       if (creatorUserId) setInGame(creatorUserId, result.lobby.code, deck.name);
 
-      console.log(`Lobby ${result.lobby.code} created by ${playerName} with deck "${deck.name}"`);
+      log.info("created", { code: result.lobby.code, host: playerName, deck: deck.name });
     } catch {
       callback({ success: false, error: "Server error" });
     }
@@ -95,7 +98,7 @@ export function registerLobbyHandlers(
 
     const joinerUserId = getUserIdForSocket(socket.id);
     if (joinerUserId) setInGame(joinerUserId, result.lobby.code, result.lobby.deckName);
-    console.log(`${playerName} joined lobby ${code}`);
+    log.info("player joined", { code, player: playerName });
   });
 
   socket.on("lobby:spectate" as any, (code: string, playerName: string, callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
@@ -114,7 +117,7 @@ export function registerLobbyHandlers(
         socket.emit("lobby:started");
       }
     }
-    console.log(`${playerName} joined lobby ${code} as spectator`);
+    log.info("spectator joined", { code, player: playerName });
   });
 
   socket.on("lobby:leave", () => handleLeave(io, socket.id));
@@ -129,7 +132,7 @@ export function registerLobbyHandlers(
 
       callback({ success: true, lobby: result.lobby });
       io.to(result.code).emit("lobby:updated", result.lobby);
-      console.log(`Deck changed to "${deck.name}" in lobby ${result.code}`);
+      log.info("deck changed", { code: result.code, deck: deck.name });
     } catch (e: any) {
       callback({ success: false, error: e.message });
     }
@@ -234,7 +237,7 @@ export function registerLobbyHandlers(
           }
         }
 
-        console.log(`Game started in lobby ${code}`);
+        log.info("game started", { code, gameType: gameType || "cah" });
       }, 3000);
     } catch {
       callback({ success: false, error: "Server error" });
@@ -246,7 +249,7 @@ export function registerLobbyHandlers(
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     callback({ success: true, lobby: result.lobby });
     io.to(result.lobby.code).emit("lobby:updated", result.lobby);
-    console.log(`Bot added to lobby ${result.lobby.code}`);
+    log.info("bot added", { code: result.lobby.code });
   });
 
   socket.on("lobby:remove-bot" as any, (botId: string, callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
@@ -254,7 +257,7 @@ export function registerLobbyHandlers(
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     io.to(result.lobby.code).emit("lobby:updated", result.lobby);
     callback({ success: true, lobby: result.lobby });
-    console.log(`Bot ${botId} removed from lobby`);
+    log.info("bot removed", { botId });
   });
 
   socket.on("lobby:kick" as any, (targetId: string, callback: (response: { success: boolean; error?: string }) => void) => {
@@ -265,7 +268,7 @@ export function registerLobbyHandlers(
     if (targetSocket) targetSocket.leave(result.code);
     io.to(result.code).emit("lobby:updated", result.lobby);
     callback({ success: true });
-    console.log(`Player ${targetId} kicked from lobby ${result.code}`);
+    log.info("player kicked", { code: result.code, targetId });
   });
 
   socket.on("lobby:vote-rematch" as any, (callback: (response: any) => void) => {
@@ -297,6 +300,6 @@ export function registerLobbyHandlers(
     callback({ success: true });
     io.to(result.code).emit("lobby:updated", result.lobby);
     io.to(result.code).emit("game:rematch" as any);
-    console.log(`Rematch started in lobby ${result.code}`);
+    log.info("rematch started", { code: result.code });
   });
 }

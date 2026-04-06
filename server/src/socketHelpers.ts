@@ -6,6 +6,9 @@ import { getCodenamesPlayerView } from "./codenamesGame.js";
 import { getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, getLobbyDeckName, getLobbyGameType, isPlayerBot, getActivePlayers, getLobbyPlayers } from "./lobby.js";
 import { getUserIdForSocket } from "./presence.js";
 import { recordGameResult } from "./statsStore.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("game");
 
 // ── Voice Chat State ────────────────────────────────────────────────────────
 
@@ -160,7 +163,7 @@ export function recordCahGameResult(code: string, scores: Record<string, number>
       playerCount: players.filter(p => !p.isBot).length,
       roundsPlayed: 0,
       players,
-    }).catch(e => console.error("Failed to record game:", e));
+    }).catch(e => log.error("failed to record game", { error: String(e) }));
   } catch {}
 }
 
@@ -184,7 +187,7 @@ export function recordUnoGameResult(code: string, scores: Record<string, number>
       playerCount: players.filter(p => !p.isBot).length,
       roundsPlayed: 0,
       players,
-    }).catch(e => console.error("Failed to record Uno game:", e));
+    }).catch(e => log.error("failed to record Uno game", { error: String(e) }));
   } catch {}
 }
 

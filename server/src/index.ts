@@ -29,7 +29,10 @@ import { remapGamePlayer } from "./game.js";
 import { isCodenamesGame, getCodenamesPlayerView } from "./codenamesGame.js";
 import { registerSession, getSessionId, cancelDisconnectTimer } from "./sessions.js";
 import { removeFromVoice, getChatHistory } from "./socketHelpers.js";
+import { createLogger } from "./logger.js";
 import { registerLobbyHandlers, handleLeave } from "./handlers/lobbyHandlers.js";
+
+const log = createLogger("server");
 import { registerCahHandlers } from "./handlers/cahHandlers.js";
 import { registerUnoHandlers } from "./handlers/unoHandlers.js";
 import { registerCodenamesHandlers } from "./handlers/codenamesHandlers.js";
@@ -189,12 +192,12 @@ io.on("connection", (socket) => {
 
       socket.to(code).emit("lobby:player-reconnected", socket.id);
       io.to(code).emit("lobby:updated", lobby);
-      console.log(`Player reconnected: ${socket.id} (session ${sessionId})`);
+      log.info("player reconnected", { socketId: socket.id, sessionId });
     } else {
-      console.log(`Player connected: ${socket.id}`);
+      log.info("player connected", { socketId: socket.id });
     }
   } else {
-    console.log(`Player connected: ${socket.id}`);
+    log.info("player connected", { socketId: socket.id });
   }
 
   // Register all handler groups
@@ -230,9 +233,9 @@ io.on("connection", (socket) => {
     if (result) {
       io.to(result.code).emit("lobby:updated", result.lobby);
       io.to(result.code).emit("lobby:player-disconnecting", socket.id);
-      console.log(`Player disconnected (kept in lobby): ${socket.id}`);
+      log.info("player disconnected, kept in lobby", { socketId: socket.id });
     } else {
-      console.log(`Player disconnected: ${socket.id}`);
+      log.info("player disconnected", { socketId: socket.id });
     }
   });
 });
@@ -247,32 +250,32 @@ async function start() {
       await initDb();
       await seedBuiltInDecks();
     } catch (err) {
-      console.error("Database initialization failed — continuing without DB:", err);
+      log.error("database init failed, continuing without DB", { error: String(err) });
     }
   } else {
-    console.warn("No DATABASE_URL set — database features disabled");
+    log.warn("no DATABASE_URL set, database features disabled");
   }
-  httpServer.listen(PORT, () => console.log(`Decked server running on port ${PORT}`));
+  httpServer.listen(PORT, () => log.info("server started", { port: PORT }));
 }
 
 function gracefulShutdown(signal: string) {
-  console.log(`${signal} received — starting graceful shutdown`);
+  log.info("graceful shutdown started", { signal });
   io.emit("server_restart", { message: "Server is restarting — you will be reconnected shortly." });
-  httpServer.close(() => console.log("HTTP server closed"));
+  httpServer.close(() => log.info("HTTP server closed"));
   setTimeout(async () => {
     try {
       io.disconnectSockets(true);
       await pool.end();
-      console.log("Database pool closed");
+      log.info("database pool closed");
     } catch (err) {
-      console.error("Error during shutdown:", err);
+      log.error("shutdown error", { error: String(err) });
     }
     process.exit(0);
   }, 2000);
-  setTimeout(() => { console.error("Shutdown timed out — forcing exit"); process.exit(1); }, 10000).unref();
+  setTimeout(() => { log.error("shutdown timed out, forcing exit"); process.exit(1); }, 10000).unref();
 }
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-start().catch((err) => { console.error("Failed to start:", err); process.exit(1); });
+start().catch((err) => { log.error("failed to start", { error: String(err) }); process.exit(1); });

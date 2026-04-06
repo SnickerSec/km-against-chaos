@@ -3,6 +3,9 @@ import { randomBytes } from "crypto";
 import sharp from "sharp";
 import { getDeck } from "./deckStore.js";
 import { requireAuth } from "./auth.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("tgc");
 
 const router = Router();
 const TGC_API = "https://www.thegamecrafter.com/api";
@@ -248,7 +251,7 @@ router.get("/callback", async (req, res) => {
     const clientUrl = process.env.CLIENT_URL || "https://www.decked.gg";
     res.redirect(`${clientUrl}/decks/print?token=${token}`);
   } catch (err: any) {
-    console.error("TGC SSO error:", err.message || err);
+    log.error("SSO error", { error: String(err.message || err) });
     const clientUrl = process.env.CLIENT_URL || "https://www.decked.gg";
     res.redirect(`${clientUrl}/decks`);
   }
@@ -437,7 +440,7 @@ router.get("/create", async (req, res) => {
     sendDone(`https://www.thegamecrafter.com/cart/${cartId}`);
   } catch (err: any) {
     clearInterval(keepalive);
-    console.error("TGC create error:", err.message || err);
+    log.error("create error", { error: String(err.message || err) });
     sendError(err.message || "Failed to create order");
   }
 });

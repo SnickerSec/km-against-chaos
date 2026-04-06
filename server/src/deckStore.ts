@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import type { ChaosCard, KnowledgeCard, GameType } from "./types.js";
 import pool from "./db.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("deck");
 
 const MIN_CHAOS_CARDS = 5;
 const MIN_KNOWLEDGE_CARDS = 15;
@@ -202,7 +205,7 @@ export async function listDecks(options?: { search?: string; gameType?: string; 
       avgRating: parseFloat(r.avg_rating) || 0,
     }));
   } catch (err) {
-    console.error("Database query failed in listDecks, returning built-in decks:", err);
+    log.error("listDecks query failed, returning built-in decks", { error: String(err) });
     return builtInDeckSummaries();
   }
 }
@@ -213,7 +216,7 @@ export async function getDeck(id: string): Promise<CustomDeck | null> {
     if (rows.length === 0) return null;
     return rowToDeck(rows[0]);
   } catch (err) {
-    console.error("Database query failed in getDeck, checking built-in decks:", err);
+    log.error("getDeck query failed, checking built-in decks", { error: String(err) });
     return BUILT_IN_DECKS.find((d) => d.id === id) || null;
   }
 }

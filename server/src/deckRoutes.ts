@@ -16,7 +16,9 @@ import {
 import { generateCards, generateDeck } from "./aiGenerate.js";
 import { requireAuth, requireModeratorOrAdmin } from "./auth.js";
 import pool from "./db.js";
+import { createLogger } from "./logger.js";
 
+const log = createLogger("deck-api");
 const router = Router();
 
 const BODY_SIZE_LIMIT = 100 * 1024; // 100 KB
@@ -322,7 +324,7 @@ router.post("/generate", requireAuth, requireAiRateLimit, async (req, res) => {
     });
     res.json(cards);
   } catch (e: any) {
-    console.error("AI generation error:", e.message);
+    log.error("AI generation error", { error: e.message });
     res.status(500).json({
       error: e.message?.includes("API") || e.message?.includes("key")
         ? "AI service unavailable. Check your API key."
@@ -397,7 +399,7 @@ router.post("/generate-deck", requireAuth, requireAiRateLimit, async (req, res) 
 
     res.json({ ...generated, id: savedDraft.id });
   } catch (e: any) {
-    console.error("AI deck generation error:", e.message);
+    log.error("AI deck generation error", { error: e.message });
     res.status(500).json({
       error: e.message?.includes("API") || e.message?.includes("key")
         ? "AI service unavailable. Check your API key."

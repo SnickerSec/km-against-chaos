@@ -3,6 +3,9 @@ import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("art");
 import pool from "./db.js";
 import path from "path";
 import fs from "fs";
@@ -15,7 +18,7 @@ if (fs.existsSync(fontsDir)) {
   fs.writeFileSync(path.join(fcDir, "fonts.conf"), `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig><dir>${fontsDir}</dir></fontconfig>`);
-  console.log("[ART] Registered custom fonts from", fontsDir);
+  log.info("registered custom fonts", { fontsDir });
 }
 
 // Configure fal.ai
@@ -279,7 +282,7 @@ Respond ONLY with valid JSON — an object mapping card IDs to image prompts:
         }
       }
     } catch (err) {
-      console.error(`Failed to generate image prompts for batch ${i}:`, err);
+      log.error("failed to generate image prompts for batch", { batch: i, error: String(err) });
     }
   }
 
@@ -299,7 +302,7 @@ Respond with ONLY the visual description, nothing else.`;
     const description = await callProvider(settings, prompt);
     return description.trim().replace(/^["']|["']$/g, "");
   } catch (err) {
-    console.error("[ART] Failed to convert card text to visual prompt, using fallback:", err);
+    log.error("failed to convert card text to visual prompt, using fallback", { error: String(err) });
     // Fallback: strip quoted speech and just describe the action
     return cardText
       .replace(/["'].*?["']/g, "")
@@ -341,7 +344,7 @@ async function buildImagePrompt(
 // Generate a single card image via fal.ai Flux
 async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise<string | null> {
   if (!process.env.FAL_KEY) {
-    console.error("FAL_KEY not configured");
+    log.error("FAL_KEY not configured");
     return null;
   }
 
@@ -376,7 +379,7 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
 
     return result?.images?.[0]?.url || null;
   } catch (err) {
-    console.error("fal.ai image generation failed:", err);
+    log.error("fal.ai image generation failed", { error: String(err) });
     return null;
   }
 }
@@ -474,7 +477,7 @@ async function addSpeechBubble(imageUrl: string, text: string): Promise<string> 
 
     return `data:image/jpeg;base64,${result.toString("base64")}`;
   } catch (err) {
-    console.error("[ART] Speech bubble compositing failed, using plain image:", err);
+    log.error("speech bubble compositing failed, using plain image", { error: String(err) });
     return imageUrl;
   }
 }
@@ -540,7 +543,7 @@ export async function generateDeckArt(deckId: string): Promise<void> {
     }
 
     // Generate images directly from card text — art style provides the visual direction
-    console.log(`[ART] Generating images for ${allCards.length} cards in deck ${deckId}`);
+    log.info("generating images", { deckId, cardCount: allCards.length });
 
     // Generate images in parallel batches
     const CONCURRENCY = 5;
@@ -565,12 +568,12 @@ export async function generateDeckArt(deckId: string): Promise<void> {
       // Log failures
       for (let j = 0; j < results.length; j++) {
         if (results[j].status === "rejected") {
-          console.error(`[ART] Failed to generate image for card ${batch[j].id}:`, (results[j] as PromiseRejectedResult).reason);
+          log.error("failed to generate image for card", { cardId: batch[j].id, error: String((results[j] as PromiseRejectedResult).reason) });
         }
       }
     }
 
-    console.log(`[ART] Generated ${cardImageMap.size}/${allCards.length} images for deck ${deckId}`);
+    log.info("image generation batch complete", { deckId, generated: cardImageMap.size, total: allCards.length });
 
     // Update cards with image URLs
     const updatedChaos = chaosCards.map((c: any) => ({
@@ -588,9 +591,9 @@ export async function generateDeckArt(deckId: string): Promise<void> {
       [JSON.stringify(updatedChaos), JSON.stringify(updatedKnowledge), deckId]
     );
 
-    console.log("[ART] Deck %s art generation complete", deckId);
+    log.info("deck art generation complete", { deckId });
   } catch (err) {
-    console.error("[ART] Deck art generation failed for %s:", deckId, err);
+    log.error("deck art generation failed", { deckId, error: String(err) });
     await pool.query(
       "UPDATE decks SET art_generation_status = 'failed' WHERE id = $1",
       [deckId]

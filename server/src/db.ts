@@ -1,4 +1,7 @@
 import pg from "pg";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("db");
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
@@ -243,7 +246,7 @@ export async function initDb() {
   await pool.query(`ALTER TABLE user_sounds ADD COLUMN IF NOT EXISTS sound_id TEXT REFERENCES sounds(id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sounds_user ON user_sounds(user_id)`);
 
-  console.log("Database initialized");
+  log.info("initialized");
 }
 
 export default pool;

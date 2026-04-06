@@ -3,6 +3,9 @@ import Stripe from "stripe";
 import { requireAuth, isAdmin } from "./auth.js";
 import pool from "./db.js";
 import { generateDeckArt, generatePreviewImage } from "./imageGenerate.js";
+import { createLogger } from "./logger.js";
+
+const log = createLogger("stripe");
 
 const router = Router();
 
@@ -101,7 +104,7 @@ router.post("/api/stripe/create-checkout", requireAuth, async (req: any, res) =>
 
     res.json({ sessionUrl: session.url });
   } catch (err: any) {
-    console.error("Stripe checkout creation failed:", err);
+    log.error("checkout creation failed", { error: String(err) });
     res.status(500).json({ error: "Failed to create checkout session" });
   }
 });
@@ -127,7 +130,7 @@ router.post("/api/stripe/webhook", async (req: any, res) => {
     // req.rawBody is set by the raw body middleware in index.ts
     event = stripe.webhooks.constructEvent(req.rawBody, sig, webhookSecret);
   } catch (err: any) {
-    console.error("Webhook signature verification failed:", err.message);
+    log.error("webhook signature verification failed", { error: err.message });
     res.status(400).json({ error: "Invalid signature" });
     return;
   }
@@ -137,7 +140,7 @@ router.post("/api/stripe/webhook", async (req: any, res) => {
     const deckId = session.metadata?.deckId;
 
     if (deckId) {
-      console.log(`[STRIPE] Payment completed for deck ${deckId}`);
+      log.info("payment completed", { deckId });
 
       // Update deck tier and kick off generation
       await pool.query(
@@ -147,7 +150,7 @@ router.post("/api/stripe/webhook", async (req: any, res) => {
 
       // Fire-and-forget art generation
       generateDeckArt(deckId).catch((err) => {
-        console.error(`[STRIPE] Art generation failed for deck ${deckId}:`, err);
+        log.error("art generation failed after payment", { deckId, error: String(err) });
       });
     }
   }
@@ -220,7 +223,7 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
     // Clean up after 5 minutes
     setTimeout(() => previewJobs.delete(jobId), 5 * 60 * 1000);
   }).catch((err) => {
-    console.error("Preview generation failed:", err);
+    log.error("preview generation failed", { error: String(err) });
     previewJobs.set(jobId, { status: "error", error: "Failed to generate preview" });
     setTimeout(() => previewJobs.delete(jobId), 5 * 60 * 1000);
   });
@@ -291,7 +294,7 @@ router.post("/api/art/generate", requireAuth, async (req: any, res) => {
   );
 
   generateDeckArt(deckId).catch((err) => {
-    console.error("[ART] Admin art generation failed for deck %s:", deckId, err);
+    log.error("admin art generation failed", { deckId, error: String(err) });
   });
 
   res.json({ success: true, message: `Art generation started for "${rows[0].name}"` });
