@@ -8,7 +8,9 @@
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "build": "npm --prefix client run build && npm --prefix server run build",
-    "start": "node server/dist/index.js"
+    "start": "node server/dist/index.js",
+    "test": "npm --prefix server run test && npm --prefix client run test",
+    "test:coverage": "npm --prefix server run test -- --coverage && npm --prefix client run test -- --coverage"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"
