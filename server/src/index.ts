@@ -192,10 +192,10 @@ app.use("/api/decks", apiLimiter, deckRoutes);
 app.use("/api/packs", apiLimiter, packRoutes);
 app.use("/api/gifs", staticLimiter, mediaRoutes);
 app.use("/api/print/tgc", apiLimiter, tgcRoutes);
+app.use("/api/sounds", apiLimiter, soundRoutes);
 app.use(apiLimiter, statsRoutes);
 app.use(apiLimiter, friendRoutes);
 app.use(apiLimiter, stripeRoutes);
-app.use("/api/sounds", apiLimiter, soundRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [
