@@ -291,7 +291,7 @@ router.post("/api/art/generate", requireAuth, async (req: any, res) => {
   );
 
   generateDeckArt(deckId).catch((err) => {
-    console.error(`[ART] Admin art generation failed for deck ${deckId}:`, err);
+    console.error("[ART] Admin art generation failed for deck %s:", deckId, err);
   });
 
   res.json({ success: true, message: `Art generation started for "${rows[0].name}"` });

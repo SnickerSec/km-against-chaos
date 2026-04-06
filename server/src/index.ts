@@ -128,7 +128,14 @@ const io = new Server<ClientEvents, ServerEvents>(httpServer, {
 
 setNotificationIO(io);
 
-app.get("/health", async (_req, res) => {
+const healthLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.get("/health", healthLimiter, async (_req, res) => {
   const checks: Record<string, string> = {};
   let healthy = true;
 

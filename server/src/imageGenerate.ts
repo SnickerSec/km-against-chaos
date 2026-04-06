@@ -588,9 +588,9 @@ export async function generateDeckArt(deckId: string): Promise<void> {
       [JSON.stringify(updatedChaos), JSON.stringify(updatedKnowledge), deckId]
     );
 
-    console.log(`[ART] Deck ${deckId} art generation complete`);
+    console.log("[ART] Deck %s art generation complete", deckId);
   } catch (err) {
-    console.error(`[ART] Deck art generation failed for ${deckId}:`, err);
+    console.error("[ART] Deck art generation failed for %s:", deckId, err);
     await pool.query(
       "UPDATE decks SET art_generation_status = 'failed' WHERE id = $1",
       [deckId]

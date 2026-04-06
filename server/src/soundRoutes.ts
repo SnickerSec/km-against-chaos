@@ -31,11 +31,19 @@ router.use((req, res, next) => {
 
 // Download a MyInstants URL once and upsert into the shared sounds cache.
 // Returns the sound id.
+const ALLOWED_SOUND_HOST = "www.myinstants.com";
+
 async function getOrCreateSound(mp3Url: string, title: string): Promise<string> {
+  // Guard against SSRF — only fetch from myinstants.com
+  const parsed = new URL(mp3Url);
+  if (parsed.protocol !== "https:" || parsed.hostname !== ALLOWED_SOUND_HOST) {
+    throw new Error("Only myinstants.com URLs are allowed");
+  }
+
   const existing = await pool.query("SELECT id FROM sounds WHERE mp3_url = $1", [mp3Url]);
   if (existing.rows.length > 0) return existing.rows[0].id;
 
-  const r = await fetch(mp3Url, { headers: { "User-Agent": UA } });
+  const r = await fetch(parsed.href, { headers: { "User-Agent": UA } });
   if (!r.ok) throw new Error("Failed to download sound from MyInstants");
   const buffer = Buffer.from(await r.arrayBuffer());
   if (buffer.length > MAX_FILE_BYTES) throw new Error("Sound file too large (max 5MB)");

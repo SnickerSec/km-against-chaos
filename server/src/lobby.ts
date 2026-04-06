@@ -4,13 +4,19 @@ import type { Lobby, Player, LobbyState, PlayerInfo } from "./types.js";
 const lobbies = new Map<string, Lobby>();
 const playerLobby = new Map<string, string>(); // socketId -> lobbyCode
 
+/** Return a uniform random index in [0, max) using rejection sampling. */
+function uniformRandom(max: number): number {
+  const limit = 256 - (256 % max); // largest multiple of max that fits in a byte
+  let b: number;
+  do { b = randomBytes(1)[0]; } while (b >= limit);
+  return b % max;
+}
+
 function generateCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I or O to avoid confusion
   let code: string;
   do {
-    code = Array.from({ length: 4 }, () =>
-      chars[randomBytes(1)[0] % chars.length]
-    ).join("");
+    code = Array.from({ length: 4 }, () => chars[uniformRandom(chars.length)]).join("");
   } while (lobbies.has(code));
   return code;
 }

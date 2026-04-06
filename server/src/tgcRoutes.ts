@@ -139,9 +139,18 @@ async function renderBackPng(): Promise<Buffer> {
 
 // ── TGC API helpers ──
 
+function safeTgcUrl(path: string, query?: string): string {
+  // Prevent SSRF — ensure the constructed URL stays on thegamecrafter.com
+  const url = new URL(`${TGC_API}${path}${query ? `?${query}` : ""}`);
+  if (url.origin !== new URL(TGC_API).origin) {
+    throw new Error("TGC API path produced an off-origin URL");
+  }
+  return url.href;
+}
+
 async function tgcPost(path: string, params: Record<string, string>): Promise<any> {
   const form = new URLSearchParams({ ...params, api_key_id: getApiKeyId() });
-  const res = await fetch(`${TGC_API}${path}`, { method: "POST", body: form });
+  const res = await fetch(safeTgcUrl(path), { method: "POST", body: form });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
   return data.result || data;
@@ -149,7 +158,7 @@ async function tgcPost(path: string, params: Record<string, string>): Promise<an
 
 async function tgcGet(path: string, params: Record<string, string> = {}): Promise<any> {
   const qs = new URLSearchParams({ ...params, api_key_id: getApiKeyId() }).toString();
-  const res = await fetch(`${TGC_API}${path}?${qs}`);
+  const res = await fetch(safeTgcUrl(path, qs));
   const data = await res.json();
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
   return data.result || data;
