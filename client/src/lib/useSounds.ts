@@ -27,7 +27,7 @@ export function useSounds() {
   // CAH/JH/A2A: round winner revealed
   useEffect(() => {
     if (!prevWinnerInfo.current && winnerInfo) {
-      const myId = getSocket().id;
+      const myId = getSocket().id ?? "";
       playSound(winnerInfo.winnerId === myId ? "win" : "lose");
     }
     prevWinnerInfo.current = winnerInfo;
@@ -36,7 +36,7 @@ export function useSounds() {
   // Meta card triggered
   useEffect(() => {
     if (!prevMetaEffect.current && activeMetaEffect) {
-      const myId = getSocket().id;
+      const myId = getSocket().id ?? "";
       const affectsMe = activeMetaEffect.affectedPlayerIds.includes(myId);
       if (affectsMe && activeMetaEffect.effectType === "hand_reset") {
         playSound("reset");
@@ -52,7 +52,7 @@ export function useSounds() {
   // Game over
   useEffect(() => {
     if (prevScreen.current === "game" && screen === "gameover") {
-      const myId = getSocket().id;
+      const myId = getSocket().id ?? "";
       const vals = Object.values(scores);
       const myScore = scores[myId] ?? 0;
       const maxScore = vals.length ? Math.max(...vals) : 0;
@@ -64,7 +64,7 @@ export function useSounds() {
   // Uno: round winner
   useEffect(() => {
     if (!prevUnoWinner.current && unoRoundWinner) {
-      const myId = getSocket().id;
+      const myId = getSocket().id ?? "";
       playSound(unoRoundWinner.winnerId === myId ? "win" : "lose");
     }
     prevUnoWinner.current = unoRoundWinner;
