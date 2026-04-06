@@ -217,6 +217,18 @@ export async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_sub_user ON push_subscriptions(user_id)`);
 
+  // User saved sounds
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_sounds (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      mp3 TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sounds_user ON user_sounds(user_id)`);
+
   console.log("Database initialized");
 }
 

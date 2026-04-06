@@ -18,6 +18,7 @@ import tgcRoutes from "./tgcRoutes.js";
 import statsRoutes from "./statsRoutes.js";
 import friendRoutes from "./friendRoutes.js";
 import stripeRoutes from "./stripeRoutes.js";
+import soundRoutes from "./soundRoutes.js";
 import { setIO as setNotificationIO } from "./notifications.js";
 import { recordGameResult } from "./statsStore.js";
 import { verifyJwt } from "./auth.js";
@@ -194,6 +195,7 @@ app.use("/api/print/tgc", apiLimiter, tgcRoutes);
 app.use(apiLimiter, statsRoutes);
 app.use(apiLimiter, friendRoutes);
 app.use(apiLimiter, stripeRoutes);
+app.use("/api/sounds", apiLimiter, soundRoutes);
 
 // Serve static Next.js export in production
 const possibleClientDirs = [
@@ -1602,6 +1604,18 @@ io.on("connection", (socket) => {
     const playerName = getPlayerNameInLobby(code || "", socket.id);
     if (!code || !playerName) return;
     io.to(code).emit("media:sticker", url, playerName);
+  });
+
+  let lastSoundTime = 0;
+  socket.on("sound:play" as any, ({ mp3, title }: { mp3: string; title: string }) => {
+    const now = Date.now();
+    if (now - lastSoundTime < 3000) return;
+    lastSoundTime = now;
+    if (typeof mp3 !== "string" || !mp3.startsWith("https://www.myinstants.com/")) return;
+    const code = getLobbyForSocket(socket.id);
+    const playerName = getPlayerNameInLobby(code || "", socket.id);
+    if (!code || !playerName) return;
+    io.to(code).emit("sound:received" as any, { mp3, title, playerName });
   });
 
   socket.on("disconnect", async () => {

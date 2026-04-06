@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { Icon } from "@iconify/react";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
@@ -10,6 +12,7 @@ import ComicPanel from "./ComicPanel";
 import ScoreBar from "./ScoreBar";
 import ReactionBar from "./ReactionBar";
 import { useSounds } from "@/lib/useSounds";
+import SoundPicker from "./SoundPicker";
 import ReactionOverlay from "./ReactionOverlay";
 import StickerOverlay from "./StickerOverlay";
 import GifOverlay from "./GifOverlay";
@@ -23,8 +26,9 @@ import CodenamesGameScreen from "./CodenamesGameScreen";
 export default function GameScreen() {
   const { round, hasSubmitted, winnerInfo, lobby, roundNumber, maxRounds, handBlurred, iconsRandomized, gameType } =
     useGameStore();
-  const { nextRound, leaveLobby, czarSetup } = useSocket();
+  const { nextRound, leaveLobby, czarSetup, playLobbySound } = useSocket();
   useSounds();
+  const [soundPickerOpen, setSoundPickerOpen] = useState(false);
 
   if (gameType === "codenames") return <CodenamesGameScreen />;
   if (gameType === "uno") return <UnoGameScreen />;
@@ -64,6 +68,13 @@ export default function GameScreen() {
         <div className="flex items-center gap-3 min-w-0 overflow-hidden">
           <ScoreBar />
           <button
+            onClick={() => setSoundPickerOpen(true)}
+            className="text-gray-500 hover:text-purple-400 transition-colors"
+            title="Play a sound"
+          >
+            <Icon icon="mdi:music-note" className="text-base" />
+          </button>
+          <button
             onClick={() => { if (confirm("Leave the game?")) leaveLobby(); }}
             className="text-gray-500 hover:text-red-400 text-xs transition-colors"
           >
@@ -71,6 +82,12 @@ export default function GameScreen() {
           </button>
         </div>
       </div>
+      {soundPickerOpen && (
+        <SoundPicker
+          onPlay={(mp3, title) => playLobbySound(mp3, title)}
+          onClose={() => setSoundPickerOpen(false)}
+        />
+      )}
 
       {/* Card display — comic strip for JH, single card for CAH */}
       <div className="px-4 pt-6 pb-4">

@@ -233,6 +233,11 @@ export function useSocket() {
     socket.on("party:invite" as any, (invite: any) => {
       usePartyStore.getState().addInvite({ ...invite, timestamp: Date.now() });
     });
+    socket.on("sound:received" as any, ({ mp3, title: _title, playerName: _playerName }: { mp3: string; title: string; playerName: string }) => {
+      if (typeof window === "undefined") return;
+      try { new Audio(mp3).play(); } catch {}
+    });
+
     socket.on("party:game-starting" as any, ({ lobbyCode }: { lobbyCode: string }) => {
       // Auto-join the lobby when party leader starts a game
       const partyState = usePartyStore.getState().party;
@@ -653,6 +658,12 @@ export function useSocket() {
     socket.emit("dm:typing" as any, targetUserId);
   };
 
+  const playLobbySound = (mp3: string, title: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("sound:play" as any, { mp3, title });
+  };
+
   return {
     socket: socketRef.current,
     createLobby,
@@ -692,5 +703,6 @@ export function useSocket() {
     codenamesGiveClue,
     codenamesGuess,
     codenamesPass,
+    playLobbySound,
   };
 }

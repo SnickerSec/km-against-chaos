@@ -17,6 +17,7 @@ import GifOverlay from "./GifOverlay";
 import VoiceChat from "./VoiceChat";
 import Chat from "./Chat";
 import { useSounds } from "@/lib/useSounds";
+import SoundPicker from "./SoundPicker";
 
 const ACTIVE_COLOR_STYLE: Record<string, string> = {
   red: "bg-red-600",
@@ -36,8 +37,9 @@ export default function UnoGameScreen() {
     unoDeckTemplate, unoRoundWinner, lobby, roundNumber, maxRounds, scores,
     unoWinMode, unoTargetPoints, unoStackingEnabled,
   } = useGameStore();
-  const { playUnoCard, drawUnoCard, callUno, challengeUno, unoNextRound, leaveLobby } = useSocket();
+  const { playUnoCard, drawUnoCard, callUno, challengeUno, unoNextRound, leaveLobby, playLobbySound } = useSocket();
   useSounds();
+  const [soundPickerOpen, setSoundPickerOpen] = useState(false);
   const socket = getSocket();
   const myId = socket.id;
 
@@ -148,6 +150,13 @@ export default function UnoGameScreen() {
         <div className="flex items-center gap-3">
           <ScoreBar />
           <button
+            onClick={() => setSoundPickerOpen(true)}
+            className="text-gray-500 hover:text-purple-400 transition-colors"
+            title="Play a sound"
+          >
+            <Icon icon="mdi:music-note" className="text-base" />
+          </button>
+          <button
             onClick={() => { if (confirm("Leave the game?")) leaveLobby(); }}
             className="text-gray-500 hover:text-red-400 text-xs transition-colors"
           >
@@ -155,6 +164,12 @@ export default function UnoGameScreen() {
           </button>
         </div>
       </div>
+      {soundPickerOpen && (
+        <SoundPicker
+          onPlay={(mp3, title) => playLobbySound(mp3, title)}
+          onClose={() => setSoundPickerOpen(false)}
+        />
+      )}
 
       {/* Game Table */}
       <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4 py-6">

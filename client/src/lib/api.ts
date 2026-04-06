@@ -624,6 +624,48 @@ export async function checkArtStatus(deckId: string): Promise<{ artTier: string;
   return res.json();
 }
 
+// Sounds API
+
+export interface SavedSound {
+  id: string;
+  title: string;
+  mp3: string;
+  created_at: string;
+}
+
+export async function searchSounds(q: string): Promise<{ results: { title: string; mp3: string }[] }> {
+  const res = await fetch(`${API_URL}/api/sounds/search?q=${encodeURIComponent(q)}`);
+  if (!res.ok) throw new Error("Search failed");
+  return res.json();
+}
+
+export async function fetchSavedSounds(): Promise<SavedSound[]> {
+  const res = await fetch(`${API_URL}/api/sounds/saved`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch saved sounds");
+  return res.json();
+}
+
+export async function saveSound(title: string, mp3: string): Promise<SavedSound> {
+  const res = await fetch(`${API_URL}/api/sounds/saved`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ title, mp3 }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error || "Failed to save sound");
+  }
+  return res.json();
+}
+
+export async function deleteSound(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/sounds/saved/${id}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to delete sound");
+}
+
 export async function adminGenerateArt(deckId: string): Promise<{ success: boolean; message: string }> {
   const res = await fetch(`${API_URL}/api/art/generate`, {
     method: "POST",
