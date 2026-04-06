@@ -629,7 +629,8 @@ export async function checkArtStatus(deckId: string): Promise<{ artTier: string;
 export interface SavedSound {
   id: string;
   title: string;
-  mp3: string;
+  mp3: string;          // local /api/sounds/file/:id URL
+  source_mp3: string;   // original myinstants URL, used for dedup
   created_at: string;
 }
 

@@ -1611,7 +1611,7 @@ io.on("connection", (socket) => {
     const now = Date.now();
     if (now - lastSoundTime < 3000) return;
     lastSoundTime = now;
-    if (typeof mp3 !== "string" || !mp3.startsWith("https://www.myinstants.com/")) return;
+    if (typeof mp3 !== "string" || (!mp3.startsWith("https://www.myinstants.com/") && !mp3.startsWith("/api/sounds/file/"))) return;
     const code = getLobbyForSocket(socket.id);
     const playerName = getPlayerNameInLobby(code || "", socket.id);
     if (!code || !playerName) return;

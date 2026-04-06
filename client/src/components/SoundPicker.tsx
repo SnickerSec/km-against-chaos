@@ -86,7 +86,7 @@ export default function SoundPicker({ onPlay, onClose }: Props) {
     onClose();
   }
 
-  const savedMp3s = new Set(saved.map((s) => s.mp3));
+  const savedMp3s = new Set(saved.map((s) => s.source_mp3));
 
   return (
     <div

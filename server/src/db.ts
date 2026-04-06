@@ -217,16 +217,30 @@ export async function initDb() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_sub_user ON push_subscriptions(user_id)`);
 
-  // User saved sounds
+  // Shared sound cache — one row per unique MyInstants URL
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sounds (
+      id TEXT PRIMARY KEY,
+      mp3_url TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      data BYTEA NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_sounds_mp3_url ON sounds(mp3_url)`);
+
+  // User saved sounds — points to shared cache
   await pool.query(`
     CREATE TABLE IF NOT EXISTS user_sounds (
       id TEXT PRIMARY KEY,
       user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      sound_id TEXT REFERENCES sounds(id),
       title TEXT NOT NULL,
       mp3 TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE user_sounds ADD COLUMN IF NOT EXISTS sound_id TEXT REFERENCES sounds(id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sounds_user ON user_sounds(user_id)`);
 
   console.log("Database initialized");
