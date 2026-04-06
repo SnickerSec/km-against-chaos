@@ -135,7 +135,7 @@ export default function HomeScreen() {
             {/* D on front card */}
             <text x="31" y="34" textAnchor="middle" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="24" fill="#a855f7">D</text>
             {/* "ecked" text */}
-            <text x="58" y="42" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="42" fill="#c084fc" letterSpacing="2">ecked</text>
+            <text x="58" y="42" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="42" fill="rgb(168, 85, 247)" letterSpacing="2">ecked</text>
           </svg>
           </h1>
           <div className="flex items-center gap-3">
