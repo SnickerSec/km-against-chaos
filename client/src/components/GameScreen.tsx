@@ -9,6 +9,7 @@ import RoundWinner from "./RoundWinner";
 import ComicPanel from "./ComicPanel";
 import ScoreBar from "./ScoreBar";
 import ReactionBar from "./ReactionBar";
+import { useSounds } from "@/lib/useSounds";
 import ReactionOverlay from "./ReactionOverlay";
 import StickerOverlay from "./StickerOverlay";
 import GifOverlay from "./GifOverlay";
@@ -23,6 +24,7 @@ export default function GameScreen() {
   const { round, hasSubmitted, winnerInfo, lobby, roundNumber, maxRounds, handBlurred, iconsRandomized, gameType } =
     useGameStore();
   const { nextRound, leaveLobby, czarSetup } = useSocket();
+  useSounds();
 
   if (gameType === "codenames") return <CodenamesGameScreen />;
   if (gameType === "uno") return <UnoGameScreen />;

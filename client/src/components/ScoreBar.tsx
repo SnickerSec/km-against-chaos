@@ -4,10 +4,12 @@ import { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
 import { useGameStore } from "@/lib/store";
 import PlayerAvatar from "./PlayerAvatar";
+import { isMuted, toggleMute } from "@/lib/sounds";
 
 export default function ScoreBar() {
   const { scores, lobby } = useGameStore();
   const [open, setOpen] = useState(false);
+  const [muted, setMuted] = useState(() => (typeof window !== "undefined" ? isMuted() : false));
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, right: 0 });
@@ -44,6 +46,14 @@ export default function ScoreBar() {
 
   return (
     <>
+      <button
+        onClick={() => setMuted(toggleMute())}
+        className="text-gray-500 hover:text-gray-300 transition-colors"
+        aria-label={muted ? "Unmute sounds" : "Mute sounds"}
+        title={muted ? "Unmute sounds" : "Mute sounds"}
+      >
+        <Icon icon={muted ? "mdi:volume-off" : "mdi:volume-high"} className="text-base" />
+      </button>
       <button
         ref={btnRef}
         onClick={() => open ? setOpen(false) : openDropdown()}

@@ -16,6 +16,7 @@ import StickerOverlay from "./StickerOverlay";
 import GifOverlay from "./GifOverlay";
 import VoiceChat from "./VoiceChat";
 import Chat from "./Chat";
+import { useSounds } from "@/lib/useSounds";
 
 const ACTIVE_COLOR_STYLE: Record<string, string> = {
   red: "bg-red-600",
@@ -36,6 +37,7 @@ export default function UnoGameScreen() {
     unoWinMode, unoTargetPoints, unoStackingEnabled,
   } = useGameStore();
   const { playUnoCard, drawUnoCard, callUno, challengeUno, unoNextRound, leaveLobby } = useSocket();
+  useSounds();
   const socket = getSocket();
   const myId = socket.id;
 
