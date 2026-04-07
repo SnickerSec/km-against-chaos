@@ -7,7 +7,7 @@ import { playSound, preloadSounds } from "./sounds";
 
 export function useSounds() {
   const {
-    screen, scores,
+    screen, scores, round,
     winnerInfo, activeMetaEffect,
     unoTurn, unoRoundWinner,
   } = useGameStore();
@@ -24,14 +24,17 @@ export function useSounds() {
     if (screen === "game") preloadSounds();
   }, [screen]);
 
-  // CAH/JH/A2A: round winner revealed
+  // CAH/JH/A2A: round winner revealed (czar doesn't get win/lose — they picked)
   useEffect(() => {
     if (!prevWinnerInfo.current && winnerInfo) {
       const myId = getSocket().id ?? "";
-      playSound(winnerInfo.winnerId === myId ? "win" : "lose");
+      const isCzar = round?.czarId === myId;
+      if (!isCzar) {
+        playSound(winnerInfo.winnerId === myId ? "win" : "lose");
+      }
     }
     prevWinnerInfo.current = winnerInfo;
-  }, [winnerInfo]);
+  }, [winnerInfo, round?.czarId]);
 
   // Meta card triggered
   useEffect(() => {
