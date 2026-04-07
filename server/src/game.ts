@@ -339,12 +339,14 @@ export function submitCards(
     return { success: false, allSubmitted: false, error: "Already submitted" };
   }
 
-  if (cardIds.length !== round.chaosCard.pick) {
-    return { success: false, allSubmitted: false, error: `Must submit exactly ${round.chaosCard.pick} card(s)` };
-  }
-
   const hand = game.hands.get(playerId);
   if (!hand) return { success: false, allSubmitted: false, error: "Player not in game" };
+
+  // Allow submitting fewer cards if hand is depleted (deck exhausted)
+  const requiredCards = Math.min(round.chaosCard.pick, hand.length);
+  if (cardIds.length !== requiredCards) {
+    return { success: false, allSubmitted: false, error: `Must submit exactly ${requiredCards} card(s)` };
+  }
 
   // Remove cards from hand
   const playedCards: KnowledgeCard[] = [];
