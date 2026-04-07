@@ -665,7 +665,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
                   {winMode === "points" ? "Points to win:" : "Point limit:"}
                 </label>
                 <input
-                  type="number"
+                  type="text" inputMode="numeric" pattern="[0-9]*"
                   min={50}
                   max={1000}
                   step={50}
@@ -714,7 +714,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
                 {winMode === "rounds" ? "Number of rounds:" : "Points to win:"}
               </label>
               <input
-                type="number"
+                type="text" inputMode="numeric" pattern="[0-9]*"
                 min={1}
                 max={winMode === "rounds" ? 50 : 25}
                 value={winValue}
@@ -1526,7 +1526,7 @@ function AIGenerationPanel({
             <div>
               <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">Cards to Generate</label>
               <input
-                type="number"
+                type="text" inputMode="numeric" pattern="[0-9]*"
                 value={knowledgeCount}
                 onChange={(e) => setKnowledgeCount(Math.max(20, Math.min(80, parseInt(e.target.value) || 40)))}
                 min={20}
@@ -1542,7 +1542,7 @@ function AIGenerationPanel({
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{gameType === "superfight" ? "Character cards" : "Prompt cards"}</label>
                   <input
-                    type="number"
+                    type="text" inputMode="numeric" pattern="[0-9]*"
                     value={chaosCount}
                     onChange={(e) => setChaosCount(parseInt(e.target.value) || 10)}
                     min={5}
@@ -1553,7 +1553,7 @@ function AIGenerationPanel({
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">{gameType === "superfight" ? "Attribute cards" : "Answer cards"}</label>
                   <input
-                    type="number"
+                    type="text" inputMode="numeric" pattern="[0-9]*"
                     value={knowledgeCount}
                     onChange={(e) => setKnowledgeCount(parseInt(e.target.value) || 25)}
                     min={chaosCount + 1}
@@ -1798,7 +1798,7 @@ function AIGenerate({
           <label className="flex items-center gap-2 text-xs text-gray-400">
             <span>{gameType === "joking-hazard" ? "Scenes" : gameType === "superfight" ? "Characters" : "Prompts"}</span>
             <input
-              type="number"
+              type="text" inputMode="numeric" pattern="[0-9]*"
               min={1}
               max={30}
               value={promptCount}
@@ -1810,7 +1810,7 @@ function AIGenerate({
         <label className="flex items-center gap-2 text-xs text-gray-400">
           <span>{gameType === "joking-hazard" ? "Panels" : gameType === "superfight" ? "Attributes" : "Answers"}</span>
           <input
-            type="number"
+            type="text" inputMode="numeric" pattern="[0-9]*"
             min={1}
             max={75}
             value={answerCount}
