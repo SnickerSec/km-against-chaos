@@ -214,7 +214,7 @@ export default function GameScreen() {
         className="fixed bottom-20 right-4 z-40 w-12 h-12 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center shadow-lg transition-colors"
         title="Soundboard"
       >
-        <img src="/soundboard-icon.svg" alt="Soundboard" className="w-6 h-6 invert" />
+        <Icon icon="entypo:sound-mix" className="text-xl" />
       </button>
       <Chat />
     </div>
