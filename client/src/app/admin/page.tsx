@@ -84,7 +84,6 @@ export default function AdminPage() {
   const [imgSaved, setImgSaved] = useState(false);
   const [imgError, setImgError] = useState<string | null>(null);
   const [imgSearch, setImgSearch] = useState("");
-  const [imgLoraSearch, setImgLoraSearch] = useState("");
 
   // Prompt templates
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplates | null>(null);
@@ -586,21 +585,13 @@ export default function AdminPage() {
                   const standardModels = imgModels.filter((m) => !m.loraSupport);
                   const loraModels = imgModels.filter((m) => m.loraSupport);
                   const sq = imgSearch.toLowerCase().trim();
-                  const lq = imgLoraSearch.toLowerCase().trim();
                   const filteredStandard = sq
                     ? standardModels.filter((m) => m.name.toLowerCase().includes(sq) || m.id.toLowerCase().includes(sq) || m.description.toLowerCase().includes(sq))
                     : standardModels;
-                  const filteredLora = lq
-                    ? loraModels.filter((m) => m.name.toLowerCase().includes(lq) || m.id.toLowerCase().includes(lq) || m.description.toLowerCase().includes(lq))
-                    : loraModels;
                   const selectedStandard = standardModels.find((m) => m.id === imgSettings.endpoint);
-                  const selectedLora = loraModels.find((m) => m.id === imgSettings.loraEndpoint);
                   const displayStandard = selectedStandard && !filteredStandard.find((m) => m.id === selectedStandard.id)
                     ? [selectedStandard, ...filteredStandard]
                     : filteredStandard;
-                  const displayLora = selectedLora && !filteredLora.find((m) => m.id === selectedLora.id)
-                    ? [selectedLora, ...filteredLora]
-                    : filteredLora;
 
                   return (
                     <div className="space-y-4">
@@ -654,40 +645,17 @@ export default function AdminPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-2">LoRA Model <span className="text-gray-500 font-normal">(when art style has LoRAs)</span></label>
-                        <input
-                          type="text"
-                          value={imgLoraSearch}
-                          onChange={(e) => setImgLoraSearch(e.target.value)}
-                          placeholder="Search LoRA models..."
-                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
-                        />
-                        <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                          {displayLora.slice(0, 20).map((m) => (
-                            <label
-                              key={m.id}
-                              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                                imgSettings.loraEndpoint === m.id
-                                  ? "border-purple-500 bg-purple-600/10"
-                                  : "border-gray-700 bg-gray-900 hover:border-gray-600"
-                              }`}
-                            >
-                              <input type="radio" name="img-lora-endpoint" value={m.id} checked={imgSettings.loraEndpoint === m.id} onChange={() => setImgSettings({ ...imgSettings, loraEndpoint: m.id })} className="mt-1 accent-purple-500" />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-sm font-medium text-white">{m.name}</span>
-                                  {m.price && <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-300">{m.price}</span>}
-                                </div>
-                                <p className="text-xs text-gray-500 mt-0.5">{m.description || m.id}</p>
-                              </div>
-                            </label>
+                        <label className="block text-sm font-medium mb-1">LoRA Model <span className="text-gray-500 font-normal">(used when art style has LoRAs, e.g. Joking Hazard)</span></label>
+                        <select
+                          value={imgSettings.loraEndpoint}
+                          onChange={(e) => setImgSettings({ ...imgSettings, loraEndpoint: e.target.value })}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                        >
+                          {loraModels.map((m) => (
+                            <option key={m.id} value={m.id}>{m.name}{m.price ? ` (${m.price})` : ""}</option>
                           ))}
-                          {displayLora.length === 0 && (
-                            <p className="text-gray-500 text-sm py-2">
-                              {lq ? `No LoRA models match "${imgLoraSearch}"` : "No LoRA models found"}
-                            </p>
-                          )}
-                        </div>
+                          {loraModels.length === 0 && <option disabled>No LoRA models available</option>}
+                        </select>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
