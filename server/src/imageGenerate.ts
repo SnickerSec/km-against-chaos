@@ -193,6 +193,11 @@ export const DEFAULT_ART_STYLES: Record<string, ArtStyleConfig> = {
     aspectRatio: "3:4",
     negativePrompt: "photo, realistic, dark, scary",
   },
+  superfight: {
+    basePrompt: "minimalist vector art character, thick bold black outlines 3-5pt, flat vibrant saturated colors, simple geometric paper-doll body construction, highly exaggerated funny facial expression, dot eyes or large expressive pupils, slightly crude and comedic, sticker-book energy, sophisticated doodle style, clean white background, single character centered, no text",
+    aspectRatio: "3:4",
+    negativePrompt: "photo, realistic, 3d render, anime, manga, epic, serious, detailed shading, gradient, complex background, text, words, letters, watermarks, logos",
+  },
   default: {
     basePrompt: "simple cartoon illustration, bold outlines, flat colors, white background",
     aspectRatio: "4:3",
