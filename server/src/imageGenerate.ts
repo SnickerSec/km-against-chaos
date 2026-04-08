@@ -194,9 +194,9 @@ export const DEFAULT_ART_STYLES: Record<string, ArtStyleConfig> = {
     negativePrompt: "photo, realistic, dark, scary",
   },
   superfight: {
-    basePrompt: "minimalist vector art character, thick bold black outlines 3-5pt, flat vibrant saturated colors, simple geometric paper-doll body construction, highly exaggerated funny facial expression, dot eyes or large expressive pupils, slightly crude and comedic, sticker-book energy, sophisticated doodle style, clean white background, single character centered, no text",
+    basePrompt: "hard-boiled noir comic illustration, heavy black ink line art, high contrast, grayscale with halftone shading, one bold pop of yellow accent color, deadpan serious dramatic pose, semi-realistic proportions with exaggerated features, thick ink outlines, graphic novel aesthetic, GTA loading screen style, clean white background, single character centered, no text",
     aspectRatio: "3:4",
-    negativePrompt: "photo, realistic, 3d render, anime, manga, epic, serious, detailed shading, gradient, complex background, text, words, letters, watermarks, logos",
+    negativePrompt: "photo, 3d render, anime, manga, cute, cartoonish, pastel colors, full color, rainbow, complex background, text, words, letters, watermarks, logos, stick figure, chibi",
   },
   default: {
     basePrompt: "simple cartoon illustration, bold outlines, flat colors, white background",
