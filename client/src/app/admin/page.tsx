@@ -93,7 +93,7 @@ export default function AdminPage() {
   const [promptsSaved, setPromptsSaved] = useState(false);
   const [promptsError, setPromptsError] = useState<string | null>(null);
   const [aiTab, setAiTab] = useState<"global" | "per-game" | "maturity">("global");
-  const [activeGameType, setActiveGameType] = useState("cards-against-humanity");
+  const [activeGameType, setActiveGameType] = useState("cah");
   const [activeMaturityRule, setActiveMaturityRule] = useState("adult");
 
   useEffect(() => {
@@ -345,7 +345,7 @@ export default function AdminPage() {
   };
 
   const GAME_TYPE_LABELS: Record<string, string> = {
-    "cards-against-humanity": "Cards Against Humanity",
+    cah: "Cards Against Humanity",
     joking_hazard: "Joking Hazard",
     apples_to_apples: "Apples to Apples",
     uno: "Uno",

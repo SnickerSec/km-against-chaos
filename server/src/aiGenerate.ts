@@ -88,7 +88,7 @@ async function getPromptTemplateOverrides(): Promise<any> {
 // ── Static prompt sections (ordered for prefix-cache efficiency) ──
 
 export const GAME_TYPE_KEYS = [
-  "cards-against-humanity",
+  "cah",
   "joking_hazard",
   "apples_to_apples",
   "uno",
@@ -99,7 +99,7 @@ export const GAME_TYPE_KEYS = [
 export const MATURITY_KEYS = ["kid-friendly", "moderate", "adult", "raunchy"] as const;
 
 export function getDefaultEngineRules(gameType: string): string {
-  if (gameType === "cards-against-humanity") {
+  if (gameType === "cah" || gameType === "cards-against-humanity") {
     return `=== GAME ENGINE RULES ===
 This is a Cards Against Humanity-style party game called "KM Against Chaos".
 - Chaos cards are fill-in-the-blank PROMPT cards. Use ___ for each blank.
