@@ -92,9 +92,8 @@ export default function AdminPage() {
   const [promptsSaving, setPromptsSaving] = useState(false);
   const [promptsSaved, setPromptsSaved] = useState(false);
   const [promptsError, setPromptsError] = useState<string | null>(null);
-  const [promptsExpanded, setPromptsExpanded] = useState<Record<string, boolean>>({});
-  const [activeArtStyle, setActiveArtStyle] = useState("joking_hazard");
-  const [activeEngineRule, setActiveEngineRule] = useState("cards-against-humanity");
+  const [aiTab, setAiTab] = useState<"global" | "per-game" | "maturity">("global");
+  const [activeGameType, setActiveGameType] = useState("cards-against-humanity");
   const [activeMaturityRule, setActiveMaturityRule] = useState("adult");
 
   useEffect(() => {
@@ -345,10 +344,6 @@ export default function AdminPage() {
     });
   };
 
-  const toggleSection = (section: string) => {
-    setPromptsExpanded((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
-
   const GAME_TYPE_LABELS: Record<string, string> = {
     "cards-against-humanity": "Cards Against Humanity",
     joking_hazard: "Joking Hazard",
@@ -392,392 +387,520 @@ export default function AdminPage() {
       </div>
 
       <div className="space-y-6">
-        {/* API Keys info */}
+        {/* AI Configuration — unified section */}
         <div className="bg-gray-900 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-2">API Keys</h2>
-          <p className="text-gray-400 text-sm mb-3">
-            API keys are managed as environment variables on Railway.
+          <h2 className="text-xl font-semibold mb-1">AI Configuration</h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Manage AI providers, image generation models, and per-game-type prompts.
           </p>
-          <div className="bg-gray-800 rounded-lg p-3 mb-4">
-            <ul className="text-sm space-y-2">
-              {PROVIDERS.map((p) => (
-                <li key={p.value} className="flex items-center gap-2">
-                  {keyStatus[p.value] ? (
-                    <span className="text-green-400 text-xs">●</span>
-                  ) : (
-                    <span className="text-gray-600 text-xs">●</span>
-                  )}
-                  <span className="text-gray-300">{p.label}</span>
-                  <code className="text-purple-300 text-xs">{p.envVar}</code>
-                  {keyStatus[p.value] ? (
-                    <span className="text-green-400 text-xs ml-auto">configured</span>
-                  ) : (
-                    <span className="text-gray-600 text-xs ml-auto">not set</span>
-                  )}
-                </li>
-              ))}
-            </ul>
+
+          {/* Top-level tabs */}
+          <div className="flex gap-1 mb-6 border-b border-gray-800 pb-3">
+            {([
+              { id: "global" as const, label: "Global Settings", icon: "mdi:cog" },
+              { id: "per-game" as const, label: "Per Game Type", icon: "mdi:cards" },
+              { id: "maturity" as const, label: "Maturity Rules", icon: "mdi:shield-check" },
+            ]).map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setAiTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  aiTab === tab.id
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                <Icon icon={tab.icon} width={16} />
+                {tab.label}
+              </button>
+            ))}
           </div>
-          <a
-            href={RAILWAY_VARS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-sm transition-colors"
-          >
-            Manage on Railway
-            <Icon icon="mdi:open-in-new" className="text-purple-300" width={16} />
-          </a>
-        </div>
 
-        {/* AI Settings */}
-        <div className="bg-gray-900 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-2">AI Card Generation</h2>
-          <p className="text-gray-400 text-sm mb-5">
-            Configure the AI provider and model used when users generate cards for new decks.
-            Prompts are built automatically based on the game type, pack type, and user theme.
-          </p>
-
-          {loading ? (
-            <p className="text-gray-400">Loading settings...</p>
-          ) : (
+          {/* ── Global Settings tab ── */}
+          {aiTab === "global" && (
             <div className="space-y-5">
-              {/* Provider */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Provider</label>
-                <select
-                  value={provider}
-                  onChange={(e) => { handleProviderChange(e.target.value as AiProvider); setTestResult(null); }}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                >
+              {/* API Keys */}
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-purple-300 mb-2">API Keys</h3>
+                <ul className="text-sm space-y-1.5 mb-3">
                   {PROVIDERS.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.label} {keyStatus[p.value] ? "●" : ""}
-                    </option>
-                  ))}
-                </select>
-                {keyStatus[provider] ? (
-                  <p className="text-green-400 text-xs mt-1">
-                    <code className="text-green-300">{currentProviderInfo?.envVar}</code> is configured
-                  </p>
-                ) : (
-                  <p className="text-yellow-400 text-xs mt-1">
-                    <code className="text-yellow-300">{currentProviderInfo?.envVar}</code> is not set —{" "}
-                    <a href={RAILWAY_VARS_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-200">
-                      add it on Railway
-                    </a>
-                  </p>
-                )}
-              </div>
-
-              {/* Model */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium">Model</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUseCustomModel(!useCustomModel);
-                      if (!useCustomModel) setCustomModel(model);
-                    }}
-                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-                  >
-                    {useCustomModel ? "Browse models" : "Enter custom model ID"}
-                  </button>
-                </div>
-                {useCustomModel ? (
-                  <input
-                    type="text"
-                    value={customModel}
-                    onChange={(e) => setCustomModel(e.target.value)}
-                    placeholder="Enter model ID, e.g. anthropic/claude-sonnet-4"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500"
-                  />
-                ) : (
-                  <>
-                    {allModels.length > 0 && (
-                      <input
-                        type="text"
-                        value={modelSearch}
-                        onChange={(e) => setModelSearch(e.target.value)}
-                        placeholder="Search models..."
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
-                      />
-                    )}
-                    <select
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      size={Math.min(filteredModels.length, 8)}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-sm focus:outline-none focus:border-purple-500"
-                    >
-                      {filteredModels.length > 0 ? (
-                        filteredModels.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name} ({m.id})
-                          </option>
-                        ))
-                      ) : (
-                        <option disabled>
-                          {allModels.length === 0 ? "Loading models..." : "No models match"}
-                        </option>
-                      )}
-                    </select>
-                    <p className="text-gray-500 text-xs mt-1">
-                      {filteredModels.length} models available from {providerPrefixes.join(", ")}
-                    </p>
-                  </>
-                )}
-              </div>
-
-              {/* Max Tokens */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Max Tokens</label>
-                <input
-                  type="number"
-                  value={maxTokens}
-                  onChange={(e) => setMaxTokens(parseInt(e.target.value) || 2048)}
-                  min={256}
-                  max={8192}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                />
-                <p className="text-gray-500 text-xs mt-1">Max response length (256–8192)</p>
-              </div>
-
-              {/* Test & Save */}
-              <div className="space-y-3">
-                {keyStatus[provider] && (
-                  <div>
-                    <button
-                      onClick={handleTest}
-                      disabled={testing || !effectiveModel}
-                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
-                    >
-                      {testing ? "Testing..." : "Test Connection"}
-                    </button>
-                    {testResult && (
-                      <span className={`text-sm ml-3 ${testResult.success ? "text-green-400" : "text-red-400"}`}>
-                        {testResult.message}
+                    <li key={p.value} className="flex items-center gap-2">
+                      <span className={`text-xs ${keyStatus[p.value] ? "text-green-400" : "text-gray-600"}`}>●</span>
+                      <span className="text-gray-300">{p.label}</span>
+                      <code className="text-purple-300 text-xs">{p.envVar}</code>
+                      <span className={`text-xs ml-auto ${keyStatus[p.value] ? "text-green-400" : "text-gray-600"}`}>
+                        {keyStatus[p.value] ? "configured" : "not set"}
                       </span>
-                    )}
+                    </li>
+                  ))}
+                </ul>
+                <a
+                  href={RAILWAY_VARS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-xs transition-colors"
+                >
+                  Manage on Railway
+                  <Icon icon="mdi:open-in-new" className="text-purple-300" width={14} />
+                </a>
+              </div>
+
+              {/* Card Generation */}
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-purple-300 mb-3">Card Generation (AI Text)</h3>
+                {loading ? (
+                  <p className="text-gray-400 text-sm">Loading settings...</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Provider</label>
+                      <select
+                        value={provider}
+                        onChange={(e) => { handleProviderChange(e.target.value as AiProvider); setTestResult(null); }}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                      >
+                        {PROVIDERS.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label} {keyStatus[p.value] ? "●" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      {keyStatus[provider] ? (
+                        <p className="text-green-400 text-xs mt-1">
+                          <code className="text-green-300">{currentProviderInfo?.envVar}</code> is configured
+                        </p>
+                      ) : (
+                        <p className="text-yellow-400 text-xs mt-1">
+                          <code className="text-yellow-300">{currentProviderInfo?.envVar}</code> is not set —{" "}
+                          <a href={RAILWAY_VARS_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-200">
+                            add it on Railway
+                          </a>
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-medium">Model</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUseCustomModel(!useCustomModel);
+                            if (!useCustomModel) setCustomModel(model);
+                          }}
+                          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                        >
+                          {useCustomModel ? "Browse models" : "Enter custom model ID"}
+                        </button>
+                      </div>
+                      {useCustomModel ? (
+                        <input
+                          type="text"
+                          value={customModel}
+                          onChange={(e) => setCustomModel(e.target.value)}
+                          placeholder="Enter model ID, e.g. anthropic/claude-sonnet-4"
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500"
+                        />
+                      ) : (
+                        <>
+                          {allModels.length > 0 && (
+                            <input
+                              type="text"
+                              value={modelSearch}
+                              onChange={(e) => setModelSearch(e.target.value)}
+                              placeholder="Search models..."
+                              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
+                            />
+                          )}
+                          <select
+                            value={model}
+                            onChange={(e) => setModel(e.target.value)}
+                            size={Math.min(filteredModels.length, 8)}
+                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-1 text-sm focus:outline-none focus:border-purple-500"
+                          >
+                            {filteredModels.length > 0 ? (
+                              filteredModels.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.name} ({m.id})
+                                </option>
+                              ))
+                            ) : (
+                              <option disabled>
+                                {allModels.length === 0 ? "Loading models..." : "No models match"}
+                              </option>
+                            )}
+                          </select>
+                          <p className="text-gray-500 text-xs mt-1">
+                            {filteredModels.length} models available from {providerPrefixes.join(", ")}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Max Tokens</label>
+                      <input
+                        type="number"
+                        value={maxTokens}
+                        onChange={(e) => setMaxTokens(parseInt(e.target.value) || 2048)}
+                        min={256}
+                        max={8192}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                      />
+                      <p className="text-gray-500 text-xs mt-1">Max response length (256–8192)</p>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {keyStatus[provider] && (
+                        <>
+                          <button
+                            onClick={handleTest}
+                            disabled={testing || !effectiveModel}
+                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
+                          >
+                            {testing ? "Testing..." : "Test Connection"}
+                          </button>
+                          {testResult && (
+                            <span className={`text-sm ${testResult.success ? "text-green-400" : "text-red-400"}`}>
+                              {testResult.message}
+                            </span>
+                          )}
+                        </>
+                      )}
+                      <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
+                      >
+                        {saving ? "Saving..." : "Save Card Settings"}
+                      </button>
+                      {saved && <span className="text-green-400 text-sm">Saved</span>}
+                      {error && <span className="text-red-400 text-sm">{error}</span>}
+                    </div>
                   </div>
                 )}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
-                  >
-                    {saving ? "Saving..." : "Save Settings"}
-                  </button>
-                  {saved && <span className="text-green-400 text-sm">Settings saved</span>}
-                  {error && <span className="text-red-400 text-sm">{error}</span>}
-                </div>
               </div>
+
+              {/* Image Generation */}
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-purple-300 mb-3">Image Generation (fal.ai)</h3>
+                {imgLoading && <p className="text-gray-400 text-sm">Loading image model settings...</p>}
+                {!imgLoading && imgSettings && (() => {
+                  const standardModels = imgModels.filter((m) => !m.loraSupport);
+                  const loraModels = imgModels.filter((m) => m.loraSupport);
+                  const sq = imgSearch.toLowerCase().trim();
+                  const lq = imgLoraSearch.toLowerCase().trim();
+                  const filteredStandard = sq
+                    ? standardModels.filter((m) => m.name.toLowerCase().includes(sq) || m.id.toLowerCase().includes(sq) || m.description.toLowerCase().includes(sq))
+                    : standardModels;
+                  const filteredLora = lq
+                    ? loraModels.filter((m) => m.name.toLowerCase().includes(lq) || m.id.toLowerCase().includes(lq) || m.description.toLowerCase().includes(lq))
+                    : loraModels;
+                  const selectedStandard = standardModels.find((m) => m.id === imgSettings.endpoint);
+                  const selectedLora = loraModels.find((m) => m.id === imgSettings.loraEndpoint);
+                  const displayStandard = selectedStandard && !filteredStandard.find((m) => m.id === selectedStandard.id)
+                    ? [selectedStandard, ...filteredStandard]
+                    : filteredStandard;
+                  const displayLora = selectedLora && !filteredLora.find((m) => m.id === selectedLora.id)
+                    ? [selectedLora, ...filteredLora]
+                    : filteredLora;
+
+                  return (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-sm">
+                        {imgFalKey ? (
+                          <>
+                            <span className="text-green-400 text-xs">●</span>
+                            <span className="text-gray-300"><code className="text-green-300">FAL_KEY</code> is configured</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-gray-600 text-xs">●</span>
+                            <span className="text-yellow-400"><code className="text-yellow-300">FAL_KEY</code> is not set — <a href={RAILWAY_VARS_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-200">add it on Railway</a></span>
+                          </>
+                        )}
+                        <span className="text-gray-600 text-xs ml-auto">{imgModels.length} models available</span>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Standard Model <span className="text-gray-500 font-normal">(no LoRA)</span></label>
+                        <input
+                          type="text"
+                          value={imgSearch}
+                          onChange={(e) => setImgSearch(e.target.value)}
+                          placeholder="Search models..."
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
+                        />
+                        <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                          {displayStandard.slice(0, 20).map((m) => (
+                            <label
+                              key={m.id}
+                              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                imgSettings.endpoint === m.id
+                                  ? "border-purple-500 bg-purple-600/10"
+                                  : "border-gray-700 bg-gray-900 hover:border-gray-600"
+                              }`}
+                            >
+                              <input type="radio" name="img-endpoint" value={m.id} checked={imgSettings.endpoint === m.id} onChange={() => setImgSettings({ ...imgSettings, endpoint: m.id })} className="mt-1 accent-purple-500" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-medium text-white">{m.name}</span>
+                                  {m.price && <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-300">{m.price}</span>}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-0.5">{m.description || m.id}</p>
+                              </div>
+                            </label>
+                          ))}
+                          {displayStandard.length === 0 && <p className="text-gray-500 text-sm py-2">No models match &quot;{imgSearch}&quot;</p>}
+                          {displayStandard.length > 20 && <p className="text-gray-600 text-xs py-1">Showing 20 of {displayStandard.length} — search to narrow</p>}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-2">LoRA Model <span className="text-gray-500 font-normal">(when art style has LoRAs)</span></label>
+                        <input
+                          type="text"
+                          value={imgLoraSearch}
+                          onChange={(e) => setImgLoraSearch(e.target.value)}
+                          placeholder="Search LoRA models..."
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
+                        />
+                        <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                          {displayLora.slice(0, 20).map((m) => (
+                            <label
+                              key={m.id}
+                              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                imgSettings.loraEndpoint === m.id
+                                  ? "border-purple-500 bg-purple-600/10"
+                                  : "border-gray-700 bg-gray-900 hover:border-gray-600"
+                              }`}
+                            >
+                              <input type="radio" name="img-lora-endpoint" value={m.id} checked={imgSettings.loraEndpoint === m.id} onChange={() => setImgSettings({ ...imgSettings, loraEndpoint: m.id })} className="mt-1 accent-purple-500" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-medium text-white">{m.name}</span>
+                                  {m.price && <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-300">{m.price}</span>}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-0.5">{m.description || m.id}</p>
+                              </div>
+                            </label>
+                          ))}
+                          {displayLora.length === 0 && (
+                            <p className="text-gray-500 text-sm py-2">
+                              {lq ? `No LoRA models match "${imgLoraSearch}"` : "No LoRA models found"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Inference Steps (standard)</label>
+                          <input type="number" value={imgSettings.numInferenceSteps} onChange={(e) => setImgSettings({ ...imgSettings, numInferenceSteps: parseInt(e.target.value) || 0 })} min={0} max={50} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500" />
+                          <p className="text-gray-600 text-xs mt-1">0 = model default</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Inference Steps (LoRA)</label>
+                          <input type="number" value={imgSettings.loraNumInferenceSteps} onChange={(e) => setImgSettings({ ...imgSettings, loraNumInferenceSteps: parseInt(e.target.value) || 0 })} min={0} max={50} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500" />
+                          <p className="text-gray-600 text-xs mt-1">0 = model default</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Guidance Scale (LoRA)</label>
+                          <input type="number" value={imgSettings.guidanceScale} onChange={(e) => setImgSettings({ ...imgSettings, guidanceScale: parseFloat(e.target.value) || 0 })} min={0} max={20} step={0.5} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500" />
+                          <p className="text-gray-600 text-xs mt-1">Higher = more prompt adherence</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button onClick={handleSaveImageModel} disabled={imgSaving} className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors">
+                          {imgSaving ? "Saving..." : "Save Image Settings"}
+                        </button>
+                        <button onClick={handleResetImageModel} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold text-sm transition-colors text-gray-300">
+                          Reset to Defaults
+                        </button>
+                        {imgSaved && <span className="text-green-400 text-sm">Saved</span>}
+                        {imgError && <span className="text-red-400 text-sm">{imgError}</span>}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Image Prompt Suffix */}
+              {promptTemplates && (
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-purple-300 mb-1">Image Prompt Suffix</h3>
+                  <p className="text-gray-500 text-xs mb-2">Appended to every image generation prompt</p>
+                  <textarea
+                    value={promptTemplates.imagePromptSuffix}
+                    onChange={(e) => setPromptTemplates({ ...promptTemplates, imagePromptSuffix: e.target.value })}
+                    rows={3}
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
+                  />
+                  <div className="flex items-center gap-3 mt-3">
+                    <button onClick={handleSavePromptTemplates} disabled={promptsSaving} className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors">
+                      {promptsSaving ? "Saving..." : "Save"}
+                    </button>
+                    {promptsSaved && <span className="text-green-400 text-sm">Saved</span>}
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </div>
-        {/* Image Generation Model */}
-        <div className="bg-gray-900 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-2">AI Image Generation</h2>
-          <p className="text-gray-400 text-sm mb-5">
-            Configure the fal.ai model used for generating card art. Models are fetched live from fal.ai.
-          </p>
 
-          {imgLoading && <p className="text-gray-400 text-sm">Loading image model settings...</p>}
-
-          {!imgLoading && imgSettings && (() => {
-            const standardModels = imgModels.filter((m) => !m.loraSupport);
-            const loraModels = imgModels.filter((m) => m.loraSupport);
-            const sq = imgSearch.toLowerCase().trim();
-            const lq = imgLoraSearch.toLowerCase().trim();
-            const filteredStandard = sq
-              ? standardModels.filter((m) => m.name.toLowerCase().includes(sq) || m.id.toLowerCase().includes(sq) || m.description.toLowerCase().includes(sq))
-              : standardModels;
-            const filteredLora = lq
-              ? loraModels.filter((m) => m.name.toLowerCase().includes(lq) || m.id.toLowerCase().includes(lq) || m.description.toLowerCase().includes(lq))
-              : loraModels;
-
-            // Ensure currently selected models appear at top even if not in search
-            const selectedStandard = standardModels.find((m) => m.id === imgSettings.endpoint);
-            const selectedLora = loraModels.find((m) => m.id === imgSettings.loraEndpoint);
-
-            const displayStandard = selectedStandard && !filteredStandard.find((m) => m.id === selectedStandard.id)
-              ? [selectedStandard, ...filteredStandard]
-              : filteredStandard;
-            const displayLora = selectedLora && !filteredLora.find((m) => m.id === selectedLora.id)
-              ? [selectedLora, ...filteredLora]
-              : filteredLora;
+          {/* ── Per Game Type tab ── */}
+          {aiTab === "per-game" && promptTemplates && (() => {
+            const allGameTypes = Array.from(new Set([
+              ...Object.keys(promptTemplates.artStyles),
+              ...Object.keys(promptTemplates.cardEngineRules),
+            ]));
+            const gt = activeGameType;
 
             return (
-              <div className="space-y-5">
-                {/* FAL_KEY status */}
-                <div className="flex items-center gap-2 text-sm">
-                  {imgFalKey ? (
-                    <>
-                      <span className="text-green-400 text-xs">●</span>
-                      <span className="text-gray-300"><code className="text-green-300">FAL_KEY</code> is configured</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-gray-600 text-xs">●</span>
-                      <span className="text-yellow-400"><code className="text-yellow-300">FAL_KEY</code> is not set — <a href={RAILWAY_VARS_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-200">add it on Railway</a></span>
-                    </>
-                  )}
-                  <span className="text-gray-600 text-xs ml-auto">{imgModels.length} models available</span>
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-1">
+                  {allGameTypes.map((g) => (
+                    <button
+                      key={g}
+                      onClick={() => setActiveGameType(g)}
+                      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                        gt === g ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      {GAME_TYPE_LABELS[g] || g}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Standard model */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Standard Model <span className="text-gray-500 font-normal">(no LoRA)</span></label>
-                  <input
-                    type="text"
-                    value={imgSearch}
-                    onChange={(e) => setImgSearch(e.target.value)}
-                    placeholder="Search models..."
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
-                  />
-                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                    {displayStandard.slice(0, 20).map((m) => (
-                      <label
-                        key={m.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                          imgSettings.endpoint === m.id
-                            ? "border-purple-500 bg-purple-600/10"
-                            : "border-gray-700 bg-gray-800 hover:border-gray-600"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="img-endpoint"
-                          value={m.id}
-                          checked={imgSettings.endpoint === m.id}
-                          onChange={() => setImgSettings({ ...imgSettings, endpoint: m.id })}
-                          className="mt-1 accent-purple-500"
+                {/* Card Engine Rules */}
+                {promptTemplates.cardEngineRules[gt] !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-purple-300 mb-1">Card Engine Rules</h3>
+                    <p className="text-gray-500 text-xs mb-2">Game-specific rules included in AI card generation prompts</p>
+                    <textarea
+                      value={promptTemplates.cardEngineRules[gt] || ""}
+                      onChange={(e) =>
+                        setPromptTemplates({
+                          ...promptTemplates,
+                          cardEngineRules: { ...promptTemplates.cardEngineRules, [gt]: e.target.value },
+                        })
+                      }
+                      rows={12}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
+                    />
+                  </div>
+                )}
+
+                {/* Art Style */}
+                {promptTemplates.artStyles[gt] && (
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-purple-300 mb-1">Art Style</h3>
+                    <p className="text-gray-500 text-xs mb-3">Image generation style for this game type</p>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Base Prompt</label>
+                        <textarea
+                          value={promptTemplates.artStyles[gt].basePrompt}
+                          onChange={(e) => updateArtStyle(gt, "basePrompt", e.target.value)}
+                          rows={4}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
                         />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-medium text-white">{m.name}</span>
-                            {m.price && <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-300">{m.price}</span>}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5">{m.description || m.id}</p>
-                        </div>
-                      </label>
-                    ))}
-                    {displayStandard.length === 0 && (
-                      <p className="text-gray-500 text-sm py-2">No models match &quot;{imgSearch}&quot;</p>
-                    )}
-                    {displayStandard.length > 20 && (
-                      <p className="text-gray-600 text-xs py-1">Showing 20 of {displayStandard.length} — search to narrow</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* LoRA model */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">LoRA Model <span className="text-gray-500 font-normal">(when art style has LoRAs)</span></label>
-                  <input
-                    type="text"
-                    value={imgLoraSearch}
-                    onChange={(e) => setImgLoraSearch(e.target.value)}
-                    placeholder="Search LoRA models..."
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:border-purple-500"
-                  />
-                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                    {displayLora.slice(0, 20).map((m) => (
-                      <label
-                        key={m.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                          imgSettings.loraEndpoint === m.id
-                            ? "border-purple-500 bg-purple-600/10"
-                            : "border-gray-700 bg-gray-800 hover:border-gray-600"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="img-lora-endpoint"
-                          value={m.id}
-                          checked={imgSettings.loraEndpoint === m.id}
-                          onChange={() => setImgSettings({ ...imgSettings, loraEndpoint: m.id })}
-                          className="mt-1 accent-purple-500"
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Negative Prompt</label>
+                        <textarea
+                          value={promptTemplates.artStyles[gt].negativePrompt}
+                          onChange={(e) => updateArtStyle(gt, "negativePrompt", e.target.value)}
+                          rows={2}
+                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
                         />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-medium text-white">{m.name}</span>
-                            {m.price && <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-300">{m.price}</span>}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5">{m.description || m.id}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Aspect Ratio</label>
+                        <input
+                          type="text"
+                          value={promptTemplates.artStyles[gt].aspectRatio}
+                          onChange={(e) => updateArtStyle(gt, "aspectRatio", e.target.value)}
+                          className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+                      {promptTemplates.artStyles[gt].loras && (
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">LoRAs (JSON)</label>
+                          <textarea
+                            value={JSON.stringify(promptTemplates.artStyles[gt].loras, null, 2)}
+                            onChange={(e) => {
+                              try {
+                                const parsed = JSON.parse(e.target.value);
+                                updateArtStyle(gt, "loras", parsed);
+                              } catch {}
+                            }}
+                            rows={4}
+                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
+                          />
                         </div>
-                      </label>
-                    ))}
-                    {displayLora.length === 0 && (
-                      <p className="text-gray-500 text-sm py-2">
-                        {lq ? `No LoRA models match "${imgLoraSearch}"` : "No LoRA models found"}
-                      </p>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-
-                {/* Parameters */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Inference Steps (standard)</label>
-                    <input
-                      type="number"
-                      value={imgSettings.numInferenceSteps}
-                      onChange={(e) => setImgSettings({ ...imgSettings, numInferenceSteps: parseInt(e.target.value) || 0 })}
-                      min={0}
-                      max={50}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                    />
-                    <p className="text-gray-600 text-xs mt-1">0 = model default</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Inference Steps (LoRA)</label>
-                    <input
-                      type="number"
-                      value={imgSettings.loraNumInferenceSteps}
-                      onChange={(e) => setImgSettings({ ...imgSettings, loraNumInferenceSteps: parseInt(e.target.value) || 0 })}
-                      min={0}
-                      max={50}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                    />
-                    <p className="text-gray-600 text-xs mt-1">0 = model default</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Guidance Scale (LoRA)</label>
-                    <input
-                      type="number"
-                      value={imgSettings.guidanceScale}
-                      onChange={(e) => setImgSettings({ ...imgSettings, guidanceScale: parseFloat(e.target.value) || 0 })}
-                      min={0}
-                      max={20}
-                      step={0.5}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                    />
-                    <p className="text-gray-600 text-xs mt-1">Higher = more prompt adherence</p>
-                  </div>
-                </div>
+                )}
 
                 {/* Save / Reset */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleSaveImageModel}
-                    disabled={imgSaving}
-                    className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
-                  >
-                    {imgSaving ? "Saving..." : "Save Settings"}
+                <div className="flex items-center gap-3 pt-2">
+                  <button onClick={handleSavePromptTemplates} disabled={promptsSaving} className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors">
+                    {promptsSaving ? "Saving..." : "Save Templates"}
                   </button>
-                  <button
-                    onClick={handleResetImageModel}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold text-sm transition-colors text-gray-300"
-                  >
+                  <button onClick={handleResetPromptTemplates} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold text-sm transition-colors text-gray-300">
                     Reset to Defaults
                   </button>
-                  {imgSaved && <span className="text-green-400 text-sm">Settings saved</span>}
-                  {imgError && <span className="text-red-400 text-sm">{imgError}</span>}
+                  {promptsSaved && <span className="text-green-400 text-sm">Templates saved</span>}
+                  {promptsError && promptTemplates && <span className="text-red-400 text-sm">{promptsError}</span>}
                 </div>
               </div>
             );
           })()}
+          {aiTab === "per-game" && promptsLoading && <p className="text-gray-400 text-sm">Loading templates...</p>}
+
+          {/* ── Maturity Rules tab ── */}
+          {aiTab === "maturity" && promptTemplates && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-1">
+                {Object.keys(promptTemplates.cardMaturityRules).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setActiveMaturityRule(m)}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                      activeMaturityRule === m ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    {MATURITY_LABELS[m] || m}
+                  </button>
+                ))}
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-purple-300 mb-1">Content Safety Rules</h3>
+                <p className="text-gray-500 text-xs mb-2">Included in AI card generation prompts for this maturity level</p>
+                <textarea
+                  value={promptTemplates.cardMaturityRules[activeMaturityRule] || ""}
+                  onChange={(e) =>
+                    setPromptTemplates({
+                      ...promptTemplates,
+                      cardMaturityRules: { ...promptTemplates.cardMaturityRules, [activeMaturityRule]: e.target.value },
+                    })
+                  }
+                  rows={8}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
+                />
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <button onClick={handleSavePromptTemplates} disabled={promptsSaving} className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors">
+                  {promptsSaving ? "Saving..." : "Save Templates"}
+                </button>
+                <button onClick={handleResetPromptTemplates} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold text-sm transition-colors text-gray-300">
+                  Reset to Defaults
+                </button>
+                {promptsSaved && <span className="text-green-400 text-sm">Templates saved</span>}
+                {promptsError && promptTemplates && <span className="text-red-400 text-sm">{promptsError}</span>}
+              </div>
+            </div>
+          )}
+          {aiTab === "maturity" && promptsLoading && <p className="text-gray-400 text-sm">Loading templates...</p>}
         </div>
 
         {/* User Roles */}
@@ -910,222 +1033,6 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* Prompt Templates */}
-        <div className="bg-gray-900 rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-2">Prompt Templates</h2>
-          <p className="text-gray-400 text-sm mb-5">
-            View and edit the prompts used for AI card generation and image generation.
-            Changes are stored as overrides — reset to restore defaults.
-          </p>
-
-          {promptsLoading && <p className="text-gray-400 text-sm">Loading templates...</p>}
-          {promptsError && !promptTemplates && <p className="text-red-400 text-sm">{promptsError}</p>}
-
-          {promptTemplates && (
-            <div className="space-y-4">
-              {/* Image Prompt Suffix */}
-              <div className="bg-gray-800 rounded-lg p-4">
-                <button
-                  onClick={() => toggleSection("imageSuffix")}
-                  className="flex items-center justify-between w-full text-left"
-                >
-                  <h3 className="text-sm font-semibold text-purple-300">Image Prompt Suffix</h3>
-                  <Icon icon={promptsExpanded.imageSuffix ? "mdi:chevron-up" : "mdi:chevron-down"} width={20} className="text-gray-500" />
-                </button>
-                <p className="text-gray-500 text-xs mt-1">Appended to every image generation prompt</p>
-                {promptsExpanded.imageSuffix && (
-                  <textarea
-                    value={promptTemplates.imagePromptSuffix}
-                    onChange={(e) => setPromptTemplates({ ...promptTemplates, imagePromptSuffix: e.target.value })}
-                    rows={3}
-                    className="w-full mt-3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
-                  />
-                )}
-              </div>
-
-              {/* Art Styles */}
-              <div className="bg-gray-800 rounded-lg p-4">
-                <button
-                  onClick={() => toggleSection("artStyles")}
-                  className="flex items-center justify-between w-full text-left"
-                >
-                  <h3 className="text-sm font-semibold text-purple-300">Image Art Styles</h3>
-                  <Icon icon={promptsExpanded.artStyles ? "mdi:chevron-up" : "mdi:chevron-down"} width={20} className="text-gray-500" />
-                </button>
-                <p className="text-gray-500 text-xs mt-1">Base prompt, negative prompt, and aspect ratio per game type</p>
-                {promptsExpanded.artStyles && (
-                  <div className="mt-3 space-y-3">
-                    <div className="flex flex-wrap gap-1">
-                      {Object.keys(promptTemplates.artStyles).map((gt) => (
-                        <button
-                          key={gt}
-                          onClick={() => setActiveArtStyle(gt)}
-                          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                            activeArtStyle === gt
-                              ? "bg-purple-600 text-white"
-                              : "bg-gray-700 text-gray-400 hover:text-white"
-                          }`}
-                        >
-                          {GAME_TYPE_LABELS[gt] || gt}
-                        </button>
-                      ))}
-                    </div>
-                    {promptTemplates.artStyles[activeArtStyle] && (
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">Base Prompt</label>
-                          <textarea
-                            value={promptTemplates.artStyles[activeArtStyle].basePrompt}
-                            onChange={(e) => updateArtStyle(activeArtStyle, "basePrompt", e.target.value)}
-                            rows={4}
-                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">Negative Prompt</label>
-                          <textarea
-                            value={promptTemplates.artStyles[activeArtStyle].negativePrompt}
-                            onChange={(e) => updateArtStyle(activeArtStyle, "negativePrompt", e.target.value)}
-                            rows={2}
-                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">Aspect Ratio</label>
-                          <input
-                            type="text"
-                            value={promptTemplates.artStyles[activeArtStyle].aspectRatio}
-                            onChange={(e) => updateArtStyle(activeArtStyle, "aspectRatio", e.target.value)}
-                            className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500"
-                          />
-                        </div>
-                        {promptTemplates.artStyles[activeArtStyle].loras && (
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">LoRAs (JSON)</label>
-                            <textarea
-                              value={JSON.stringify(promptTemplates.artStyles[activeArtStyle].loras, null, 2)}
-                              onChange={(e) => {
-                                try {
-                                  const parsed = JSON.parse(e.target.value);
-                                  updateArtStyle(activeArtStyle, "loras", parsed);
-                                } catch {}
-                              }}
-                              rows={4}
-                              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Card Engine Rules */}
-              <div className="bg-gray-800 rounded-lg p-4">
-                <button
-                  onClick={() => toggleSection("engineRules")}
-                  className="flex items-center justify-between w-full text-left"
-                >
-                  <h3 className="text-sm font-semibold text-purple-300">Card Engine Rules</h3>
-                  <Icon icon={promptsExpanded.engineRules ? "mdi:chevron-up" : "mdi:chevron-down"} width={20} className="text-gray-500" />
-                </button>
-                <p className="text-gray-500 text-xs mt-1">Game-specific rules included in card generation prompts</p>
-                {promptsExpanded.engineRules && (
-                  <div className="mt-3 space-y-3">
-                    <div className="flex flex-wrap gap-1">
-                      {Object.keys(promptTemplates.cardEngineRules).map((gt) => (
-                        <button
-                          key={gt}
-                          onClick={() => setActiveEngineRule(gt)}
-                          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                            activeEngineRule === gt
-                              ? "bg-purple-600 text-white"
-                              : "bg-gray-700 text-gray-400 hover:text-white"
-                          }`}
-                        >
-                          {GAME_TYPE_LABELS[gt] || gt}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      value={promptTemplates.cardEngineRules[activeEngineRule] || ""}
-                      onChange={(e) =>
-                        setPromptTemplates({
-                          ...promptTemplates,
-                          cardEngineRules: { ...promptTemplates.cardEngineRules, [activeEngineRule]: e.target.value },
-                        })
-                      }
-                      rows={12}
-                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Maturity Rules */}
-              <div className="bg-gray-800 rounded-lg p-4">
-                <button
-                  onClick={() => toggleSection("maturityRules")}
-                  className="flex items-center justify-between w-full text-left"
-                >
-                  <h3 className="text-sm font-semibold text-purple-300">Maturity Rules</h3>
-                  <Icon icon={promptsExpanded.maturityRules ? "mdi:chevron-up" : "mdi:chevron-down"} width={20} className="text-gray-500" />
-                </button>
-                <p className="text-gray-500 text-xs mt-1">Content safety rules per maturity level</p>
-                {promptsExpanded.maturityRules && (
-                  <div className="mt-3 space-y-3">
-                    <div className="flex flex-wrap gap-1">
-                      {Object.keys(promptTemplates.cardMaturityRules).map((m) => (
-                        <button
-                          key={m}
-                          onClick={() => setActiveMaturityRule(m)}
-                          className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                            activeMaturityRule === m
-                              ? "bg-purple-600 text-white"
-                              : "bg-gray-700 text-gray-400 hover:text-white"
-                          }`}
-                        >
-                          {MATURITY_LABELS[m] || m}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      value={promptTemplates.cardMaturityRules[activeMaturityRule] || ""}
-                      onChange={(e) =>
-                        setPromptTemplates({
-                          ...promptTemplates,
-                          cardMaturityRules: { ...promptTemplates.cardMaturityRules, [activeMaturityRule]: e.target.value },
-                        })
-                      }
-                      rows={8}
-                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Save / Reset */}
-              <div className="flex items-center gap-3 pt-2">
-                <button
-                  onClick={handleSavePromptTemplates}
-                  disabled={promptsSaving}
-                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-semibold text-sm transition-colors"
-                >
-                  {promptsSaving ? "Saving..." : "Save Templates"}
-                </button>
-                <button
-                  onClick={handleResetPromptTemplates}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold text-sm transition-colors text-gray-300"
-                >
-                  Reset to Defaults
-                </button>
-                {promptsSaved && <span className="text-green-400 text-sm">Templates saved</span>}
-                {promptsError && promptTemplates && <span className="text-red-400 text-sm">{promptsError}</span>}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
