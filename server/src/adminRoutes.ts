@@ -4,7 +4,7 @@ import { requireAuth, requireAdmin } from "./auth.js";
 import { createLogger } from "./logger.js";
 
 const log = createLogger("admin");
-import { DEFAULT_ART_STYLES, DEFAULT_IMAGE_SUFFIX, FAL_MODELS, FAL_LORA_MODELS, IMAGE_MODEL_DEFAULTS } from "./imageGenerate.js";
+import { DEFAULT_ART_STYLES, DEFAULT_IMAGE_SUFFIX, FAL_MODELS, IMAGE_MODEL_DEFAULTS } from "./imageGenerate.js";
 import { GAME_TYPE_KEYS, MATURITY_KEYS, getDefaultEngineRules, getDefaultMaturityRules } from "./aiGenerate.js";
 
 // Cache OpenRouter models for 1 hour
@@ -350,7 +350,6 @@ router.get("/prompt-templates", async (_req, res) => {
         basePrompt: overrides.artStyles?.[key]?.basePrompt ?? style.basePrompt,
         negativePrompt: overrides.artStyles?.[key]?.negativePrompt ?? style.negativePrompt,
         aspectRatio: overrides.artStyles?.[key]?.aspectRatio ?? style.aspectRatio,
-        ...(style.loras ? { loras: overrides.artStyles?.[key]?.loras ?? style.loras } : {}),
       };
     }
 
@@ -398,7 +397,6 @@ router.put("/prompt-templates", async (req, res) => {
         if (style.basePrompt !== undefined && style.basePrompt !== defaults.basePrompt) o.basePrompt = style.basePrompt;
         if (style.negativePrompt !== undefined && style.negativePrompt !== defaults.negativePrompt) o.negativePrompt = style.negativePrompt;
         if (style.aspectRatio !== undefined && style.aspectRatio !== defaults.aspectRatio) o.aspectRatio = style.aspectRatio;
-        if (style.loras !== undefined) o.loras = style.loras;
         if (Object.keys(o).length > 0) overrides.artStyles[key] = o;
       }
       if (Object.keys(overrides.artStyles).length === 0) delete overrides.artStyles;
@@ -530,7 +528,6 @@ async function fetchFalModels(): Promise<any[]> {
         name: m.title || m.id,
         description: m.shortDescription || "",
         price: priceStr,
-        loraSupport: (m.id.includes("/lora") || m.tags?.includes("lora")) ?? false,
         category: m.category || "text-to-image",
         tags: m.tags || [],
       });
@@ -541,10 +538,7 @@ async function fetchFalModels(): Promise<any[]> {
     log.error("failed to fetch fal.ai models", { error: String(err) });
     // Fall back to hardcoded lists
     for (const m of FAL_MODELS) {
-      allModels.push({ ...m, loraSupport: false, description: m.notes, tags: [] });
-    }
-    for (const m of FAL_LORA_MODELS) {
-      allModels.push({ ...m, loraSupport: true, description: m.notes, tags: ["lora"] });
+      allModels.push({ ...m, description: m.notes, tags: [] });
     }
   }
 
@@ -566,7 +560,6 @@ router.get("/image-model", async (_req, res) => {
       settings,
       defaults: IMAGE_MODEL_DEFAULTS,
       models,
-      loraModels: FAL_LORA_MODELS.map((m) => ({ id: m.id, name: m.name, price: m.price, description: m.notes })),
       falKeyConfigured: !!process.env.FAL_KEY,
     });
   } catch (e: any) {
@@ -585,9 +578,7 @@ router.put("/image-model", async (req, res) => {
   try {
     const settings: any = {};
     if (body.endpoint) settings.endpoint = body.endpoint;
-    if (body.loraEndpoint) settings.loraEndpoint = body.loraEndpoint;
     if (body.numInferenceSteps !== undefined) settings.numInferenceSteps = Number(body.numInferenceSteps);
-    if (body.loraNumInferenceSteps !== undefined) settings.loraNumInferenceSteps = Number(body.loraNumInferenceSteps);
     if (body.guidanceScale !== undefined) settings.guidanceScale = Number(body.guidanceScale);
 
     await pool.query(

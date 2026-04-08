@@ -480,7 +480,7 @@ export async function updateAdminSetting(key: string, value: any): Promise<void>
 }
 
 export interface PromptTemplates {
-  artStyles: Record<string, { basePrompt: string; negativePrompt: string; aspectRatio: string; loras?: { path: string; scale: number }[] }>;
+  artStyles: Record<string, { basePrompt: string; negativePrompt: string; aspectRatio: string }>;
   imagePromptSuffix: string;
   cardEngineRules: Record<string, string>;
   cardMaturityRules: Record<string, string>;
@@ -513,9 +513,7 @@ export async function resetPromptTemplates(): Promise<void> {
 
 export interface ImageModelSettings {
   endpoint: string;
-  loraEndpoint: string;
   numInferenceSteps: number;
-  loraNumInferenceSteps: number;
   guidanceScale: number;
 }
 
@@ -524,22 +522,13 @@ export interface FalModelInfo {
   name: string;
   description: string;
   price: string;
-  loraSupport: boolean;
   tags: string[];
-}
-
-export interface LoraModelInfo {
-  id: string;
-  name: string;
-  price: string;
-  description: string;
 }
 
 export interface ImageModelResponse {
   settings: ImageModelSettings;
   defaults: ImageModelSettings;
   models: FalModelInfo[];
-  loraModels: LoraModelInfo[];
   falKeyConfigured: boolean;
 }
 

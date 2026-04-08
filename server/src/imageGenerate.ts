@@ -123,17 +123,13 @@ async function callProvider(settings: AiSettings, prompt: string): Promise<strin
 
 export interface ImageModelSettings {
   endpoint: string;
-  loraEndpoint: string;
   numInferenceSteps: number;
-  loraNumInferenceSteps: number;
   guidanceScale: number;
 }
 
 export const IMAGE_MODEL_DEFAULTS: ImageModelSettings = {
   endpoint: "fal-ai/flux/schnell",
-  loraEndpoint: "fal-ai/flux-2/klein/9b/base/lora",
   numInferenceSteps: 4,
-  loraNumInferenceSteps: 28,
   guidanceScale: 5.0,
 };
 
@@ -149,15 +145,10 @@ export async function getImageModelSettings(): Promise<ImageModelSettings> {
 
 // Available fal.ai models for the admin UI
 export const FAL_MODELS = [
-  { id: "fal-ai/flux/schnell", name: "FLUX.1 Schnell", price: "$0.003/MP", speed: "~0.4s", loraSupport: false, stepsDefault: 4, notes: "Fastest, 12B params" },
-  { id: "fal-ai/flux/dev", name: "FLUX.1 Dev", price: "$0.025/MP", speed: "~3s", loraSupport: false, stepsDefault: 28, notes: "Higher quality, 12B params" },
-  { id: "fal-ai/flux-2/klein/9b", name: "FLUX.2 Klein 9B", price: "$0.006/MP", speed: "~1s", loraSupport: false, stepsDefault: 4, notes: "Lightweight 9B, supports negative prompts" },
-  { id: "fal-ai/flux-2-pro", name: "FLUX.2 Pro", price: "$0.03/MP", speed: "~5s", loraSupport: false, stepsDefault: 0, notes: "Best quality, zero-config (no steps/guidance)" },
-] as const;
-
-export const FAL_LORA_MODELS = [
-  { id: "fal-ai/flux-2/klein/9b/base/lora", name: "FLUX.2 Klein 9B + LoRA", price: "$0.02/MP", speed: "~3s", stepsDefault: 28, notes: "9B with up to 3 LoRAs" },
-  { id: "fal-ai/flux/dev/lora", name: "FLUX.1 Dev + LoRA", price: "$0.025/MP", speed: "~5s", stepsDefault: 28, notes: "12B with LoRA support" },
+  { id: "fal-ai/flux/schnell", name: "FLUX.1 Schnell", price: "$0.003/MP", speed: "~0.4s", stepsDefault: 4, notes: "Fastest, 12B params" },
+  { id: "fal-ai/flux/dev", name: "FLUX.1 Dev", price: "$0.025/MP", speed: "~3s", stepsDefault: 28, notes: "Higher quality, 12B params" },
+  { id: "fal-ai/flux-2/klein/9b", name: "FLUX.2 Klein 9B", price: "$0.006/MP", speed: "~1s", stepsDefault: 4, notes: "Lightweight 9B, supports negative prompts" },
+  { id: "fal-ai/flux-2-pro", name: "FLUX.2 Pro", price: "$0.03/MP", speed: "~5s", stepsDefault: 0, notes: "Best quality, zero-config (no steps/guidance)" },
 ] as const;
 
 // ── Art style registry ──
@@ -166,22 +157,15 @@ interface ArtStyleConfig {
   basePrompt: string;
   aspectRatio: string;
   negativePrompt: string;
-  loras?: { path: string; scale: number }[];
 }
 
 export const DEFAULT_IMAGE_SUFFIX = "absolutely no text, no letters, no words, no writing, no captions anywhere in the image";
 
 export const DEFAULT_ART_STYLES: Record<string, ArtStyleConfig> = {
   joking_hazard: {
-    basePrompt: "ch_visual_style, stick figure character, single panel webcomic, round heads, colored shirts, black outlines on characters only, plain white background seamless to edges, no border, no frame, no panel outline, characters large and centered filling most of the frame, close-up framing, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
+    basePrompt: "stick figure character, single panel webcomic, round heads, colored shirts, black outlines on characters only, plain white background seamless to edges, no border, no frame, no panel outline, characters large and centered filling most of the frame, close-up framing, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
     aspectRatio: "5:7",
     negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright, crowd, group, many people, busy, detailed background, text, words, letters, border, frame, panel outline, black border",
-    loras: [
-      {
-        path: "https://huggingface.co/DeverStyle/Flux.2-Klein-Loras/resolve/main/dever_cyanide_and_happiness_flux2_klein_9b.safetensors",
-        scale: 0.8,
-      },
-    ],
   },
   cah: {
     basePrompt: "dark humor editorial cartoon illustration, bold ink style, simple black and white with one accent color, minimalist",
@@ -224,7 +208,6 @@ export async function getArtStyle(gameType: string): Promise<ArtStyleConfig> {
         ...(o.basePrompt !== undefined ? { basePrompt: o.basePrompt } : {}),
         ...(o.negativePrompt !== undefined ? { negativePrompt: o.negativePrompt } : {}),
         ...(o.aspectRatio !== undefined ? { aspectRatio: o.aspectRatio } : {}),
-        ...(o.loras !== undefined ? { loras: o.loras } : {}),
       };
     }
   } catch {}
@@ -362,25 +345,17 @@ async function generateCardImage(prompt: string, style: ArtStyleConfig): Promise
     : { width: 384, height: 512 };
 
   try {
-    const hasLoras = style.loras && style.loras.length > 0;
-    const endpoint = hasLoras ? settings.loraEndpoint : settings.endpoint;
-
     const input: any = {
       prompt,
       image_size: imageSize,
       num_images: 1,
     };
 
-    if (hasLoras) {
-      input.loras = style.loras;
-      if (settings.loraNumInferenceSteps > 0) input.num_inference_steps = settings.loraNumInferenceSteps;
-      input.guidance_scale = settings.guidanceScale;
-      if (style.negativePrompt) input.negative_prompt = style.negativePrompt;
-    } else {
-      if (settings.numInferenceSteps > 0) input.num_inference_steps = settings.numInferenceSteps;
-    }
+    if (settings.numInferenceSteps > 0) input.num_inference_steps = settings.numInferenceSteps;
+    if (settings.guidanceScale > 0) input.guidance_scale = settings.guidanceScale;
+    if (style.negativePrompt) input.negative_prompt = style.negativePrompt;
 
-    const result = await fal.subscribe(endpoint, { input }) as any;
+    const result = await fal.subscribe(settings.endpoint, { input }) as any;
 
     return result?.images?.[0]?.url || null;
   } catch (err) {

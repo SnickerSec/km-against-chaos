@@ -5,7 +5,7 @@ import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore, getAuthHeaders } from "@/lib/auth";
-import { fetchAdminSettings, updateAdminSetting, fetchModels, fetchApiKeysStatus, testProvider, ModelInfo, fetchPromptTemplates, updatePromptTemplates, resetPromptTemplates, PromptTemplates, fetchImageModel, updateImageModel, ImageModelSettings, FalModelInfo, LoraModelInfo } from "@/lib/api";
+import { fetchAdminSettings, updateAdminSetting, fetchModels, fetchApiKeysStatus, testProvider, ModelInfo, fetchPromptTemplates, updatePromptTemplates, resetPromptTemplates, PromptTemplates, fetchImageModel, updateImageModel, ImageModelSettings, FalModelInfo } from "@/lib/api";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
 const API_URL =
@@ -78,7 +78,6 @@ export default function AdminPage() {
   const [imgSettings, setImgSettings] = useState<ImageModelSettings | null>(null);
   const [imgDefaults, setImgDefaults] = useState<ImageModelSettings | null>(null);
   const [imgModels, setImgModels] = useState<FalModelInfo[]>([]);
-  const [imgLoraModels, setImgLoraModels] = useState<LoraModelInfo[]>([]);
   const [imgFalKey, setImgFalKey] = useState(false);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgSaving, setImgSaving] = useState(false);
@@ -136,7 +135,6 @@ export default function AdminPage() {
         setImgSettings(data.settings);
         setImgDefaults(data.defaults);
         setImgModels(data.models);
-        setImgLoraModels(data.loraModels || []);
         setImgFalKey(data.falKeyConfigured);
         setImgLoading(false);
       })
@@ -584,7 +582,7 @@ export default function AdminPage() {
                 <h3 className="text-sm font-semibold text-purple-300 mb-3">Image Generation (fal.ai)</h3>
                 {imgLoading && <p className="text-gray-400 text-sm">Loading image model settings...</p>}
                 {!imgLoading && imgSettings && (() => {
-                  const standardModels = imgModels.filter((m) => !m.loraSupport);
+                  const standardModels = imgModels;
                   const sq = imgSearch.toLowerCase().trim();
                   const filteredStandard = sq
                     ? standardModels.filter((m) => m.name.toLowerCase().includes(sq) || m.id.toLowerCase().includes(sq) || m.description.toLowerCase().includes(sq))
@@ -612,7 +610,7 @@ export default function AdminPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-2">Standard Model <span className="text-gray-500 font-normal">(no LoRA)</span></label>
+                        <label className="block text-sm font-medium mb-2">Model</label>
                         <input
                           type="text"
                           value={imgSearch}
@@ -645,33 +643,14 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium mb-1">LoRA Model <span className="text-gray-500 font-normal">(used when art style has LoRAs, e.g. Joking Hazard)</span></label>
-                        <select
-                          value={imgSettings.loraEndpoint}
-                          onChange={(e) => setImgSettings({ ...imgSettings, loraEndpoint: e.target.value })}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-                        >
-                          {imgLoraModels.map((m) => (
-                            <option key={m.id} value={m.id}>{m.name}{m.price ? ` (${m.price})` : ""}</option>
-                          ))}
-                          {imgLoraModels.length === 0 && <option disabled>No LoRA models available</option>}
-                        </select>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Inference Steps (standard)</label>
+                          <label className="block text-xs text-gray-400 mb-1">Inference Steps</label>
                           <input type="number" value={imgSettings.numInferenceSteps} onChange={(e) => setImgSettings({ ...imgSettings, numInferenceSteps: parseInt(e.target.value) || 0 })} min={0} max={50} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500" />
                           <p className="text-gray-600 text-xs mt-1">0 = model default</p>
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-400 mb-1">Inference Steps (LoRA)</label>
-                          <input type="number" value={imgSettings.loraNumInferenceSteps} onChange={(e) => setImgSettings({ ...imgSettings, loraNumInferenceSteps: parseInt(e.target.value) || 0 })} min={0} max={50} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500" />
-                          <p className="text-gray-600 text-xs mt-1">0 = model default</p>
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">Guidance Scale (LoRA)</label>
+                          <label className="block text-xs text-gray-400 mb-1">Guidance Scale</label>
                           <input type="number" value={imgSettings.guidanceScale} onChange={(e) => setImgSettings({ ...imgSettings, guidanceScale: parseFloat(e.target.value) || 0 })} min={0} max={20} step={0.5} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500" />
                           <p className="text-gray-600 text-xs mt-1">Higher = more prompt adherence</p>
                         </div>
@@ -790,22 +769,6 @@ export default function AdminPage() {
                           className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500"
                         />
                       </div>
-                      {promptTemplates.artStyles[gt].loras && (
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">LoRAs (JSON)</label>
-                          <textarea
-                            value={JSON.stringify(promptTemplates.artStyles[gt].loras, null, 2)}
-                            onChange={(e) => {
-                              try {
-                                const parsed = JSON.parse(e.target.value);
-                                updateArtStyle(gt, "loras", parsed);
-                              } catch {}
-                            }}
-                            rows={4}
-                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"
-                          />
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
