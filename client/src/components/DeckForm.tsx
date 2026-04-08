@@ -2,8 +2,9 @@
 
 import { useState, useRef } from "react";
 import { Icon } from "@iconify/react";
-import { generateCardsAI, generateDeckAI, generateArtPreview, type GenerateContext } from "@/lib/api";
+import { generateCardsAI, generateDeckAI, generateArtPreview, artLibraryImageUrl, type GenerateContext } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
+import ArtLibraryBrowser from "./ArtLibraryBrowser";
 
 // ── 4-Pillar constants ──
 
@@ -992,6 +993,7 @@ function CardPackEditor({
               focusColor="focus:border-purple-500"
               showBonus
               packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
+              gameType={gameType}
               onUpdate={(index, field, value) => {
                 onUpdate((p) => {
                   const updated = [...p.knowledgeCards];
@@ -1029,6 +1031,7 @@ function CardPackEditor({
                 focusColor={gameType === "apples-to-apples" ? "focus:border-green-500" : gameType === "superfight" ? "focus:border-pink-500" : "focus:border-red-500"}
                 showPick={gameType !== "apples-to-apples" && gameType !== "superfight"}
                 packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
+                gameType={gameType}
                 onUpdate={(index, field, value) => updateChaos(index, field, value)}
                 onAdd={() => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, { text: "", pick: 1 }] }))}
                 onRemove={(index) =>
@@ -1056,6 +1059,7 @@ function CardPackEditor({
                   : "bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border-purple-600/50"}
                 focusColor={gameType === "apples-to-apples" ? "focus:border-red-500" : "focus:border-purple-500"}
                 packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
+                gameType={gameType}
                 onUpdate={(index, _field, value) => updateKnowledge(index, value as string)}
                 onAdd={() => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, { text: "" }] }))}
                 onRemove={(index) =>
@@ -1094,6 +1098,7 @@ function CardListEditor({
   showPick,
   showBonus,
   packBadge,
+  gameType,
   onUpdate,
   onAdd,
   onRemove,
@@ -1108,11 +1113,13 @@ function CardListEditor({
   showPick?: boolean;
   showBonus?: boolean;
   packBadge?: { name: string; type: PackType };
+  gameType?: string;
   onUpdate: (index: number, field: keyof CardInput, value: string | number | boolean) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
 }) {
   const [open, setOpen] = useState(true);
+  const [artBrowseIndex, setArtBrowseIndex] = useState<number | null>(null);
   const count = cards.filter((c) => c.text.trim()).length;
 
   const badgeClass = packBadge?.type === "themed"
@@ -1186,6 +1193,13 @@ function CardListEditor({
                         {card.bonus ? "RED" : "red"}
                       </button>
                     )}
+                    <button
+                      onClick={() => setArtBrowseIndex(i)}
+                      className="p-1 text-gray-500 hover:text-purple-400 transition-colors"
+                      title="Browse art library"
+                    >
+                      <Icon icon="mdi:image-search" width={16} />
+                    </button>
                     {cards.length > 1 && (
                       <button
                         onClick={() => onRemove(i)}
@@ -1201,6 +1215,19 @@ function CardListEditor({
           </div>
         </>
       )}
+
+      {/* Art Library Browser modal */}
+      <ArtLibraryBrowser
+        open={artBrowseIndex !== null}
+        onClose={() => setArtBrowseIndex(null)}
+        gameType={gameType}
+        onSelect={(imageUrl, _artId) => {
+          if (artBrowseIndex !== null) {
+            onUpdate(artBrowseIndex, "imageUrl" as keyof CardInput, imageUrl);
+            setArtBrowseIndex(null);
+          }
+        }}
+      />
     </div>
   );
 }

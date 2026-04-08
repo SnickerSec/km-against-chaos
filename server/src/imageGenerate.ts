@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
+import { randomBytes } from "crypto";
 import { createLogger } from "./logger.js";
 
 const log = createLogger("art");
@@ -220,6 +221,58 @@ export async function getImageSuffix(): Promise<string> {
     if (overrides.imagePromptSuffix !== undefined) return overrides.imagePromptSuffix;
   } catch {}
   return DEFAULT_IMAGE_SUFFIX;
+}
+
+// ── Art library persistence ──
+
+export async function saveToArtLibrary(opts: {
+  imageData: string; // fal.ai URL or data:image/... URI
+  prompt: string;
+  sourceCardText: string;
+  gameType: string;
+  deckName?: string;
+  width?: number;
+  height?: number;
+  hasSpeechBubble?: boolean;
+  generatedBy?: string;
+}): Promise<string | null> {
+  try {
+    let buffer: Buffer;
+    if (opts.imageData.startsWith("data:")) {
+      // base64 data URI
+      const base64 = opts.imageData.split(",")[1];
+      buffer = Buffer.from(base64, "base64");
+    } else {
+      // HTTP URL — download the image
+      const response = await fetch(opts.imageData);
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+      buffer = Buffer.from(await response.arrayBuffer());
+    }
+
+    const id = randomBytes(8).toString("hex");
+    const { rows } = await pool.query(
+      `INSERT INTO art_library (id, data, prompt, source_card_text, game_type, deck_name, width, height, has_speech_bubble, generated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT ON CONSTRAINT idx_art_library_dedup DO UPDATE SET use_count = art_library.use_count
+       RETURNING id`,
+      [
+        id,
+        buffer,
+        opts.prompt,
+        opts.sourceCardText,
+        opts.gameType,
+        opts.deckName || "",
+        opts.width || 384,
+        opts.height || 512,
+        opts.hasSpeechBubble || false,
+        opts.generatedBy || null,
+      ]
+    );
+    return rows[0].id;
+  } catch (err) {
+    log.error("failed to save to art library", { error: String(err) });
+    return null;
+  }
 }
 
 // Generate image prompts for cards using configured AI provider
@@ -470,7 +523,8 @@ export async function generatePreviewImage(
   maturity: string = "adult",
   flavorThemes?: string[],
   wildcard?: string,
-): Promise<string | null> {
+  userId?: string,
+): Promise<{ imageUrl: string; artLibraryId?: string } | null> {
   const style = await getArtStyle(gameType);
   const prompt = await buildImagePrompt(cardText, style, { theme, maturity, flavorThemes, wildcard });
   const imageUrl = await generateCardImage(prompt, style);
@@ -478,10 +532,29 @@ export async function generatePreviewImage(
 
   // For Joking Hazard, composite speech bubble with card text
   const isAction = cardText.startsWith("[") || cardText.startsWith("*");
-  if (gameType === "joking_hazard" && !isAction) {
-    return addSpeechBubble(imageUrl, cardText);
-  }
-  return imageUrl;
+  const hasSpeechBubble = gameType === "joking_hazard" && !isAction;
+  const finalImage = hasSpeechBubble ? await addSpeechBubble(imageUrl, cardText) : imageUrl;
+
+  // Persist to art library (fire-and-forget)
+  const imageSize = style.aspectRatio === "4:3"
+    ? { width: 512, height: 384 }
+    : style.aspectRatio === "5:7"
+    ? { width: 384, height: 536 }
+    : { width: 384, height: 512 };
+
+  const artId = await saveToArtLibrary({
+    imageData: finalImage,
+    prompt,
+    sourceCardText: cardText,
+    gameType,
+    deckName: theme,
+    width: imageSize.width,
+    height: imageSize.height,
+    hasSpeechBubble,
+    generatedBy: userId,
+  });
+
+  return { imageUrl: finalImage, artLibraryId: artId || undefined };
 }
 
 // Main pipeline: generate art for all cards in a deck
@@ -538,10 +611,29 @@ export async function generateDeckArt(deckId: string): Promise<void> {
           if (url) {
             // For Joking Hazard non-action cards, composite speech bubble
             const isAction = card.text.startsWith("[") || card.text.startsWith("*");
-            if (gameType === "joking_hazard" && !isAction) {
+            const hasSpeechBubble = gameType === "joking_hazard" && !isAction;
+            if (hasSpeechBubble) {
               url = await addSpeechBubble(url, card.text);
             }
             cardImageMap.set(card.id, url);
+
+            // Save to art library (fire-and-forget)
+            const imgSize = style.aspectRatio === "4:3"
+              ? { width: 512, height: 384 }
+              : style.aspectRatio === "5:7"
+              ? { width: 384, height: 536 }
+              : { width: 384, height: 512 };
+            saveToArtLibrary({
+              imageData: url,
+              prompt,
+              sourceCardText: card.text,
+              gameType,
+              deckName: theme,
+              width: imgSize.width,
+              height: imgSize.height,
+              hasSpeechBubble,
+              generatedBy: deck.owner_id || undefined,
+            }).catch((e) => log.error("art library save failed", { error: String(e) }));
           }
         })
       );

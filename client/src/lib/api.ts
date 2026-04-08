@@ -569,7 +569,7 @@ export async function getFavorites(): Promise<string[]> {
 export async function generateArtPreview(
   cardText: string, gameType: string, theme: string,
   maturity?: string, flavorThemes?: string[], wildcard?: string,
-): Promise<{ imageUrl: string; previewsRemaining?: number }> {
+): Promise<{ imageUrl: string; artLibraryId?: string; previewsRemaining?: number }> {
   // Start the job
   const startRes = await fetch(`${API_URL}/api/art/preview`, {
     method: "POST",
@@ -592,7 +592,7 @@ export async function generateArtPreview(
     }
     const result = await pollRes.json();
     if (result.status === "done") {
-      return { imageUrl: result.imageUrl, previewsRemaining: result.previewsRemaining };
+      return { imageUrl: result.imageUrl, artLibraryId: result.artLibraryId, previewsRemaining: result.previewsRemaining };
     }
     if (result.status === "error") {
       throw new Error(result.error || "Failed to generate preview");
@@ -676,4 +676,54 @@ export async function adminGenerateArt(deckId: string): Promise<{ success: boole
     throw new Error(data.error || "Failed to start art generation");
   }
   return res.json();
+}
+
+// ── Art Library ──
+
+export interface ArtLibraryEntry {
+  id: string;
+  prompt: string;
+  sourceCardText: string;
+  gameType: string;
+  deckName: string;
+  width: number;
+  height: number;
+  hasSpeechBubble: boolean;
+  useCount: number;
+  createdAt: string;
+}
+
+export interface ArtLibraryBrowseResult {
+  results: ArtLibraryEntry[];
+  total: number;
+  page: number;
+  pages: number;
+}
+
+export async function browseArtLibrary(params: {
+  q?: string;
+  gameType?: string;
+  page?: number;
+  limit?: number;
+}): Promise<ArtLibraryBrowseResult> {
+  const searchParams = new URLSearchParams();
+  if (params.q) searchParams.set("q", params.q);
+  if (params.gameType) searchParams.set("gameType", params.gameType);
+  if (params.page) searchParams.set("page", String(params.page));
+  if (params.limit) searchParams.set("limit", String(params.limit));
+  const res = await fetch(`${API_URL}/api/art-library/browse?${searchParams}`);
+  if (!res.ok) throw new Error("Failed to browse art library");
+  return res.json();
+}
+
+export function artLibraryImageUrl(id: string): string {
+  return `${API_URL}/api/art-library/image/${id}`;
+}
+
+export function artLibraryThumbUrl(id: string): string {
+  return `${API_URL}/api/art-library/thumb/${id}`;
+}
+
+export async function trackArtUse(id: string): Promise<void> {
+  await fetch(`${API_URL}/api/art-library/use/${id}`, { method: "POST" }).catch(() => {});
 }

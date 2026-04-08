@@ -173,7 +173,7 @@ function checkPreviewLimit(userId: string): { allowed: boolean; remaining: numbe
 }
 
 // Async preview jobs: start generation, return job ID, client polls for result
-const previewJobs = new Map<string, { status: "pending" | "done" | "error"; imageUrl?: string; error?: string; previewsRemaining?: number }>();
+const previewJobs = new Map<string, { status: "pending" | "done" | "error"; imageUrl?: string; artLibraryId?: string; error?: string; previewsRemaining?: number }>();
 
 let previewJobCounter = 0;
 
@@ -208,9 +208,9 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
 
   // Generate in background
   generatePreviewImage(
-    cardText, gameType, theme || "Custom Deck", maturity || "adult", flavorThemes, wildcard,
-  ).then((imageUrl) => {
-    if (!imageUrl) {
+    cardText, gameType, theme || "Custom Deck", maturity || "adult", flavorThemes, wildcard, userId,
+  ).then((result) => {
+    if (!result) {
       previewJobs.set(jobId, { status: "error", error: "Failed to generate preview" });
       return;
     }
@@ -219,7 +219,7 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
       entry.count++;
     }
     const remaining = entry ? PREVIEW_LIMIT - entry.count : undefined;
-    previewJobs.set(jobId, { status: "done", imageUrl, previewsRemaining: remaining });
+    previewJobs.set(jobId, { status: "done", imageUrl: result.imageUrl, artLibraryId: result.artLibraryId, previewsRemaining: remaining });
     // Clean up after 5 minutes
     setTimeout(() => previewJobs.delete(jobId), 5 * 60 * 1000);
   }).catch((err) => {
@@ -244,7 +244,7 @@ router.get("/api/art/preview/:jobId", (_req, res) => {
     res.status(500).json({ error: job.error });
     return;
   }
-  res.json({ status: "done", imageUrl: job.imageUrl, previewsRemaining: job.previewsRemaining });
+  res.json({ status: "done", imageUrl: job.imageUrl, artLibraryId: job.artLibraryId, previewsRemaining: job.previewsRemaining });
 });
 
 // Check art generation status
