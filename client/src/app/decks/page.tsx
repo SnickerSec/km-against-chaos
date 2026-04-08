@@ -211,7 +211,7 @@ export default function DecksPage() {
             <p className="text-gray-400 text-xs mt-1 line-clamp-2">{pack.description}</p>
           )}
           <p className="text-gray-500 text-xs mt-1">
-            {pack.chaosCount} prompts · {pack.knowledgeCount} answers
+            {pack.gameType === "joking_hazard" ? `${pack.knowledgeCount} panels` : `${pack.chaosCount} prompts · ${pack.knowledgeCount} answers`}
             {pack.deckName && ` · from "${pack.deckName}"`}
           </p>
         </div>
@@ -353,6 +353,8 @@ export default function DecksPage() {
                         <span className="text-gray-500 text-xs">
                           {deck.gameType === "uno"
                             ? "108 cards · Custom themed Uno"
+                            : deck.gameType === "joking_hazard"
+                            ? `${deck.knowledgeCount} panels`
                             : `${deck.chaosCount} prompts · ${deck.knowledgeCount} answers`}
                           {deck.builtIn && " · Built-in"}
                         </span>

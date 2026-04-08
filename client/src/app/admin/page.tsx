@@ -883,7 +883,7 @@ export default function AdminPage() {
                               {d.gameType === "joking_hazard" ? "JH" : "CAH"}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-500">{d.chaosCount} prompts · {d.knowledgeCount} answers</p>
+                          <p className="text-xs text-gray-500">{d.gameType === "joking_hazard" ? `${d.knowledgeCount} panels` : `${d.chaosCount} prompts · ${d.knowledgeCount} answers`}</p>
                         </div>
                         <div className="flex-shrink-0">
                           {featuredStatus[d.id]?.success && (

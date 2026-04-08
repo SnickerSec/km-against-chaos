@@ -395,6 +395,7 @@ export interface PackSummary {
   knowledgeCount: number;
   ownerId: string | null;
   builtIn: boolean;
+  gameType: string | null;
 }
 
 export interface PackInput {
@@ -449,7 +450,7 @@ export async function getPacksForDeck(deckId: string): Promise<{ type: string; n
 export async function listPacks(type?: string): Promise<PackSummary[]> {
   const { rows } = await pool.query(
     `SELECT p.id, p.deck_id, p.type, p.name, p.description, p.owner_id, p.built_in,
-            d.name as deck_name,
+            d.name as deck_name, d.game_type,
             jsonb_array_length(p.chaos_cards) as chaos_count,
             jsonb_array_length(p.knowledge_cards) as knowledge_count
      FROM packs p
@@ -469,6 +470,7 @@ export async function listPacks(type?: string): Promise<PackSummary[]> {
     knowledgeCount: parseInt(r.knowledge_count),
     ownerId: r.owner_id || null,
     builtIn: r.built_in,
+    gameType: r.game_type || null,
   }));
 }
 

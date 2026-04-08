@@ -735,8 +735,14 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
       {gameType !== "uno" && gameType !== "codenames" && (
         <div className="flex gap-4 text-sm">
           <span className="text-gray-400">
-            Total: <span className="text-red-400 font-semibold">{totalChaos}</span> prompts,{" "}
-            <span className="text-purple-400 font-semibold">{totalKnowledge}</span> answers
+            {gameType === "joking-hazard" ? (
+              <>Total: <span className="text-purple-400 font-semibold">{totalKnowledge}</span> panels</>
+            ) : (
+              <>
+                Total: <span className="text-red-400 font-semibold">{totalChaos}</span> {gameType === "apples-to-apples" ? "green" : "prompts"},{" "}
+                <span className="text-purple-400 font-semibold">{totalKnowledge}</span> {gameType === "apples-to-apples" ? "red" : "answers"}
+              </>
+            )}
           </span>
         </div>
       )}
@@ -909,7 +915,9 @@ function CardPackEditor({
           </button>
           <h3 className={`font-semibold ${style.color}`}>{pack.name || (pack.type === "expansion" ? "Expansion Box" : "Themed Pack")}</h3>
           <span className="text-gray-500 text-xs whitespace-nowrap">
-            {chaosCardCount} {gameType === "apples-to-apples" ? "green" : "prompts"} · {knowledgeCardCount} {gameType === "apples-to-apples" ? "red" : "answers"}
+            {gameType === "joking-hazard"
+              ? `${knowledgeCardCount} panels`
+              : `${chaosCardCount} ${gameType === "apples-to-apples" ? "green" : "prompts"} · ${knowledgeCardCount} ${gameType === "apples-to-apples" ? "red" : "answers"}`}
           </span>
         </div>
         {!isBase && (

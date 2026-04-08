@@ -75,6 +75,7 @@ export interface PackSummary {
   knowledgeCount: number;
   ownerId: string | null;
   builtIn: boolean;
+  gameType: string | null;
 }
 
 export async function fetchDecks(options?: { search?: string; gameType?: string; sort?: string; maturity?: string }): Promise<DeckSummary[]> {
