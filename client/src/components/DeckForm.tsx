@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Icon } from "@iconify/react";
 import { generateCardsAI, generateDeckAI, generateArtPreview, type GenerateContext } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth";
 
 // ── 4-Pillar constants ──
 
@@ -179,6 +180,7 @@ function makeId() {
 }
 
 export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCreated, submitLabel }: Props) {
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const [name, setName] = useState(initial?.name || "");
   const [description, setDescription] = useState(initial?.description || "");
   const [winMode, setWinMode] = useState<WinCondition["mode"]>(initial?.winCondition?.mode || "rounds");
@@ -298,7 +300,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
     if (isCodenames) {
       allChaos = [];
       allKnowledge = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
-      if (allKnowledge.length < 25) { setError("Need at least 25 words for the word pool"); return null; }
+      if (allKnowledge.length < (isAdmin ? 1 : 25)) { setError(`Need at least ${isAdmin ? 1 : 25} words for the word pool`); return null; }
     } else if (isUno) {
       const template = {
         colorNames: unoColorNames,
@@ -312,7 +314,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
       const redCards = allPanels.filter((c) => c.bonus);
       const blackCards = allPanels.filter((c) => !c.bonus);
 
-      if (allPanels.length < 20) { setError("Need at least 20 panel cards for a Joking Hazard deck"); return null; }
+      if (allPanels.length < (isAdmin ? 1 : 20)) { setError(`Need at least ${isAdmin ? 1 : 20} panel cards for a Joking Hazard deck`); return null; }
 
       const shuffledBlack = [...blackCards].sort(() => Math.random() - 0.5);
       const drawCount = Math.max(5, Math.round(blackCards.length * 0.3));
@@ -325,8 +327,10 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
       allChaos = packs.flatMap((p) => p.chaosCards).filter((c) => c.text.trim());
       allKnowledge = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
 
-      if (!isUno && allChaos.length < 5) { setError(`Need at least 5 ${gameType === "superfight" ? "character" : "prompt"} cards with text across all packs`); return null; }
-      if (!isUno && allKnowledge.length < 15) { setError(`Need at least 15 ${gameType === "superfight" ? "attribute" : "answer"} cards with text across all packs`); return null; }
+      const minChaos = isAdmin ? 1 : 5;
+      const minKnowledge = isAdmin ? 1 : 15;
+      if (!isUno && allChaos.length < minChaos) { setError(`Need at least ${minChaos} ${gameType === "superfight" ? "character" : "prompt"} cards with text across all packs`); return null; }
+      if (!isUno && allKnowledge.length < minKnowledge) { setError(`Need at least ${minKnowledge} ${gameType === "superfight" ? "attribute" : "answer"} cards with text across all packs`); return null; }
     }
 
     const packData = packs.map((p) => ({

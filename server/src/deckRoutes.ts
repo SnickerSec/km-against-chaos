@@ -14,7 +14,7 @@ import {
   type PackInput,
 } from "./deckStore.js";
 import { generateCards, generateDeck } from "./aiGenerate.js";
-import { requireAuth, requireModeratorOrAdmin } from "./auth.js";
+import { requireAuth, requireModeratorOrAdmin, isAdmin } from "./auth.js";
 import pool from "./db.js";
 import { createLogger } from "./logger.js";
 
@@ -224,7 +224,8 @@ router.post("/from-packs", requireAuth, async (req, res) => {
     return;
   }
   try {
-    const deck = await createDeckFromPacks(packIds, name.trim(), winCondition || { mode: "rounds", value: 10 }, (req as any).user.id);
+    const reqUser = (req as any).user;
+    const deck = await createDeckFromPacks(packIds, name.trim(), winCondition || { mode: "rounds", value: 10 }, reqUser.id, { isAdmin: isAdmin(reqUser.email, reqUser.role) });
     res.status(201).json(deck);
   } catch (e: any) {
     res.status(400).json({ error: e.message });
@@ -234,7 +235,9 @@ router.post("/from-packs", requireAuth, async (req, res) => {
 // Create a new deck
 router.post("/", requireAuth, async (req, res) => {
   const body = (req as any).body;
-  const error = validateDeck(body);
+  const reqUser = (req as any).user;
+  const admin = isAdmin(reqUser.email, reqUser.role);
+  const error = validateDeck(body, { isAdmin: admin });
   if (error) {
     res.status(400).json({ error });
     return;
@@ -261,7 +264,8 @@ router.post("/", requireAuth, async (req, res) => {
 // Import a deck
 router.post("/import", requireAuth, async (req, res) => {
   const body = (req as any).body;
-  const error = validateDeck(body);
+  const reqUser = (req as any).user;
+  const error = validateDeck(body, { isAdmin: isAdmin(reqUser.email, reqUser.role) });
   if (error) {
     res.status(400).json({ error });
     return;
@@ -414,7 +418,7 @@ router.put("/:id", requireAuth, async (req, res) => {
   const reqUser = (req as any).user;
 
   if (body.chaosCards && body.knowledgeCards) {
-    const error = validateDeck({ name: body.name || "placeholder", chaosCards: body.chaosCards, knowledgeCards: body.knowledgeCards });
+    const error = validateDeck({ name: body.name || "placeholder", chaosCards: body.chaosCards, knowledgeCards: body.knowledgeCards }, { isAdmin: isAdmin(reqUser.email, reqUser.role) });
     if (error) {
       res.status(400).json({ error });
       return;

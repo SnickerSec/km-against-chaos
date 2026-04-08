@@ -94,7 +94,9 @@ export function validateDeck(deck: {
   chaosCards?: { text: string; pick?: number }[];
   knowledgeCards?: { text: string }[];
   gameType?: string;
-}): string | null {
+}, options?: { isAdmin?: boolean }): string | null {
+  const minChaos = options?.isAdmin ? 1 : MIN_CHAOS_CARDS;
+  const minKnowledge = options?.isAdmin ? 1 : MIN_KNOWLEDGE_CARDS;
   if (!deck.name || deck.name.trim().length === 0) {
     return "Deck name is required";
   }
@@ -102,11 +104,11 @@ export function validateDeck(deck: {
   if (deck.gameType === "uno") {
     return null;
   }
-  if (!deck.chaosCards || deck.chaosCards.length < MIN_CHAOS_CARDS) {
-    return `Need at least ${MIN_CHAOS_CARDS} Chaos cards (prompts)`;
+  if (!deck.chaosCards || deck.chaosCards.length < minChaos) {
+    return `Need at least ${minChaos} Chaos cards (prompts)`;
   }
-  if (!deck.knowledgeCards || deck.knowledgeCards.length < MIN_KNOWLEDGE_CARDS) {
-    return `Need at least ${MIN_KNOWLEDGE_CARDS} Knowledge cards (answers)`;
+  if (!deck.knowledgeCards || deck.knowledgeCards.length < minKnowledge) {
+    return `Need at least ${minKnowledge} Knowledge cards (answers)`;
   }
   for (const card of deck.chaosCards) {
     if (!card.text || card.text.trim().length === 0) {
@@ -492,8 +494,11 @@ export async function createDeckFromPacks(
   packIds: string[],
   name: string,
   winCondition: WinCondition,
-  ownerId: string
+  ownerId: string,
+  options?: { isAdmin?: boolean }
 ): Promise<CustomDeck> {
+  const minChaos = options?.isAdmin ? 1 : MIN_CHAOS_CARDS;
+  const minKnowledge = options?.isAdmin ? 1 : MIN_KNOWLEDGE_CARDS;
   // Fetch all selected packs
   const packRows = await Promise.all(packIds.map((id) => getPackById(id)));
   const validPacks = packRows.filter(Boolean) as NonNullable<Awaited<ReturnType<typeof getPackById>>>[];
@@ -502,8 +507,8 @@ export async function createDeckFromPacks(
   const allChaos = validPacks.flatMap((p) => p.chaosCards);
   const allKnowledge = validPacks.flatMap((p) => p.knowledgeCards);
 
-  if (allChaos.length < MIN_CHAOS_CARDS) throw new Error(`Need at least ${MIN_CHAOS_CARDS} prompt cards`);
-  if (allKnowledge.length < MIN_KNOWLEDGE_CARDS) throw new Error(`Need at least ${MIN_KNOWLEDGE_CARDS} answer cards`);
+  if (allChaos.length < minChaos) throw new Error(`Need at least ${minChaos} prompt cards`);
+  if (allKnowledge.length < minKnowledge) throw new Error(`Need at least ${minKnowledge} answer cards`);
 
   // Create the deck
   const deck = await createDeck({ name, chaosCards: allChaos, knowledgeCards: allKnowledge, winCondition, ownerId });
