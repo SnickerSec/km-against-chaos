@@ -566,6 +566,7 @@ router.get("/image-model", async (_req, res) => {
       settings,
       defaults: IMAGE_MODEL_DEFAULTS,
       models,
+      loraModels: FAL_LORA_MODELS.map((m) => ({ id: m.id, name: m.name, price: m.price, description: m.notes })),
       falKeyConfigured: !!process.env.FAL_KEY,
     });
   } catch (e: any) {

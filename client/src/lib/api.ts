@@ -528,10 +528,18 @@ export interface FalModelInfo {
   tags: string[];
 }
 
+export interface LoraModelInfo {
+  id: string;
+  name: string;
+  price: string;
+  description: string;
+}
+
 export interface ImageModelResponse {
   settings: ImageModelSettings;
   defaults: ImageModelSettings;
   models: FalModelInfo[];
+  loraModels: LoraModelInfo[];
   falKeyConfigured: boolean;
 }
 

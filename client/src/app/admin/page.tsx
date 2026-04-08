@@ -5,7 +5,7 @@ import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore, getAuthHeaders } from "@/lib/auth";
-import { fetchAdminSettings, updateAdminSetting, fetchModels, fetchApiKeysStatus, testProvider, ModelInfo, fetchPromptTemplates, updatePromptTemplates, resetPromptTemplates, PromptTemplates, fetchImageModel, updateImageModel, ImageModelSettings, FalModelInfo } from "@/lib/api";
+import { fetchAdminSettings, updateAdminSetting, fetchModels, fetchApiKeysStatus, testProvider, ModelInfo, fetchPromptTemplates, updatePromptTemplates, resetPromptTemplates, PromptTemplates, fetchImageModel, updateImageModel, ImageModelSettings, FalModelInfo, LoraModelInfo } from "@/lib/api";
 import GoogleSignIn from "@/components/GoogleSignIn";
 
 const API_URL =
@@ -78,6 +78,7 @@ export default function AdminPage() {
   const [imgSettings, setImgSettings] = useState<ImageModelSettings | null>(null);
   const [imgDefaults, setImgDefaults] = useState<ImageModelSettings | null>(null);
   const [imgModels, setImgModels] = useState<FalModelInfo[]>([]);
+  const [imgLoraModels, setImgLoraModels] = useState<LoraModelInfo[]>([]);
   const [imgFalKey, setImgFalKey] = useState(false);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgSaving, setImgSaving] = useState(false);
@@ -135,6 +136,7 @@ export default function AdminPage() {
         setImgSettings(data.settings);
         setImgDefaults(data.defaults);
         setImgModels(data.models);
+        setImgLoraModels(data.loraModels || []);
         setImgFalKey(data.falKeyConfigured);
         setImgLoading(false);
       })
@@ -583,7 +585,6 @@ export default function AdminPage() {
                 {imgLoading && <p className="text-gray-400 text-sm">Loading image model settings...</p>}
                 {!imgLoading && imgSettings && (() => {
                   const standardModels = imgModels.filter((m) => !m.loraSupport);
-                  const loraModels = imgModels.filter((m) => m.loraSupport);
                   const sq = imgSearch.toLowerCase().trim();
                   const filteredStandard = sq
                     ? standardModels.filter((m) => m.name.toLowerCase().includes(sq) || m.id.toLowerCase().includes(sq) || m.description.toLowerCase().includes(sq))
@@ -651,10 +652,10 @@ export default function AdminPage() {
                           onChange={(e) => setImgSettings({ ...imgSettings, loraEndpoint: e.target.value })}
                           className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
                         >
-                          {loraModels.map((m) => (
+                          {imgLoraModels.map((m) => (
                             <option key={m.id} value={m.id}>{m.name}{m.price ? ` (${m.price})` : ""}</option>
                           ))}
-                          {loraModels.length === 0 && <option disabled>No LoRA models available</option>}
+                          {imgLoraModels.length === 0 && <option disabled>No LoRA models available</option>}
                         </select>
                       </div>
 
