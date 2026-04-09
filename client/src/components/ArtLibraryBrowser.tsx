@@ -140,7 +140,7 @@ export default function ArtLibraryBrowser({ open, onClose, onSelect, gameType: i
                     src={artLibraryThumbUrl(entry.id)}
                     alt={entry.sourceCardText || "Card art"}
                     loading="lazy"
-                    className="w-full aspect-[3/4] object-cover bg-gray-800"
+                    className="w-full aspect-[5/7] object-cover bg-gray-800"
                   />
                   {/* Hover overlay */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition-colors flex items-end">

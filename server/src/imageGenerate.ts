@@ -170,22 +170,22 @@ export const DEFAULT_ART_STYLES: Record<string, ArtStyleConfig> = {
   },
   cah: {
     basePrompt: "dark humor editorial cartoon illustration, bold ink style, simple black and white with one accent color, minimalist",
-    aspectRatio: "3:4",
+    aspectRatio: "5:7",
     negativePrompt: "photo, realistic, complex, detailed background",
   },
   apples_to_apples: {
     basePrompt: "colorful playful cartoon illustration, friendly rounded style, bright colors, simple clean design",
-    aspectRatio: "3:4",
+    aspectRatio: "5:7",
     negativePrompt: "photo, realistic, dark, scary",
   },
   superfight: {
     basePrompt: "hard-boiled noir comic illustration, heavy black ink line art, high contrast, grayscale with halftone shading, one bold pop of yellow accent color, deadpan serious dramatic pose, semi-realistic proportions with exaggerated features, thick ink outlines, graphic novel aesthetic, GTA loading screen style, clean white background, single character centered, no text",
-    aspectRatio: "3:4",
+    aspectRatio: "5:7",
     negativePrompt: "photo, 3d render, anime, manga, cute, cartoonish, pastel colors, full color, rainbow, complex background, text, words, letters, watermarks, logos, stick figure, chibi",
   },
   default: {
     basePrompt: "simple cartoon illustration, bold outlines, flat colors, white background",
-    aspectRatio: "4:3",
+    aspectRatio: "5:7",
     negativePrompt: "photo, realistic, 3d render",
   },
 };

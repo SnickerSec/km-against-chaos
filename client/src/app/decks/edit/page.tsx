@@ -194,7 +194,7 @@ function ArtGallery({ deck }: { deck: CustomDeck }) {
                 <img
                   src={card.imageUrl}
                   alt={card.text}
-                  className="w-full aspect-[4/3] object-cover"
+                  className="w-full aspect-[5/7] object-cover"
                   loading="lazy"
                 />
                 <div className="p-1.5 bg-gray-800">

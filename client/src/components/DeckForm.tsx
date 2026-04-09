@@ -1153,7 +1153,7 @@ function CardListEditor({
             {cards.map((card, i) => (
               <div key={i} className={`flex gap-2 ${card.imageUrl ? "items-start" : "items-center"}`}>
                 {card.imageUrl && (
-                  <img src={card.imageUrl} alt="" className="shrink-0 w-16 h-20 rounded-lg object-cover border border-gray-600" />
+                  <img src={card.imageUrl} alt="" className="shrink-0 w-16 aspect-[5/7] rounded-lg object-cover border border-gray-600" />
                 )}
                 <div className="flex-1 min-w-0 flex flex-col gap-1">
                   <div className="flex gap-2 items-center">
