@@ -253,7 +253,7 @@ export async function saveToArtLibrary(opts: {
     const { rows } = await pool.query(
       `INSERT INTO art_library (id, data, prompt, source_card_text, game_type, deck_name, width, height, has_speech_bubble, generated_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       ON CONFLICT ON CONSTRAINT idx_art_library_dedup DO UPDATE SET use_count = art_library.use_count
+       ON CONFLICT (md5(prompt || source_card_text || game_type)) DO UPDATE SET use_count = art_library.use_count
        RETURNING id`,
       [
         id,
