@@ -43,7 +43,9 @@ async function getOrCreateSound(mp3Url: string, title: string): Promise<string> 
   const existing = await pool.query("SELECT id FROM sounds WHERE mp3_url = $1", [mp3Url]);
   if (existing.rows.length > 0) return existing.rows[0].id;
 
-  const r = await fetch(parsed.href, { headers: { "User-Agent": UA } });
+  // Build URL from constant origin + validated path to prevent SSRF
+  const safeUrl = new URL(parsed.pathname + parsed.search, `https://${ALLOWED_SOUND_HOST}`);
+  const r = await fetch(safeUrl.href, { headers: { "User-Agent": UA } });
   if (!r.ok) throw new Error("Failed to download sound from MyInstants");
   const buffer = Buffer.from(await r.arrayBuffer());
   if (buffer.length > MAX_FILE_BYTES) throw new Error("Sound file too large (max 5MB)");

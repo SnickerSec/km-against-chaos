@@ -142,12 +142,18 @@ async function renderBackPng(): Promise<Buffer> {
 
 // ── TGC API helpers ──
 
-function safeTgcUrl(path: string, query?: string): string {
-  // Prevent SSRF — ensure the constructed URL stays on thegamecrafter.com
-  const url = new URL(`${TGC_API}${path}${query ? `?${query}` : ""}`);
-  if (url.origin !== new URL(TGC_API).origin) {
-    throw new Error("TGC API path produced an off-origin URL");
+/** Sanitize a TGC resource ID — must be alphanumeric / hyphens / underscores only. */
+function safeTgcId(id: string): string {
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+    throw new Error("Invalid TGC resource ID");
   }
+  return id;
+}
+
+function safeTgcUrl(path: string, query?: string): string {
+  // Build URL from constant origin + validated path to prevent SSRF
+  const base = new URL(TGC_API);
+  const url = new URL(`${base.pathname}${path}${query ? `?${query}` : ""}`, base.origin);
   return url.href;
 }
 
@@ -235,7 +241,7 @@ router.get("/callback", async (req, res) => {
   }
 
   try {
-    const session = await tgcPost(`/session/sso/${sso_id}`, {
+    const session = await tgcPost(`/session/sso/${safeTgcId(sso_id)}`, {
       private_key: process.env.TGC_PRIVATE_KEY || "",
     });
 
