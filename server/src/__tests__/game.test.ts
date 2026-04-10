@@ -311,9 +311,8 @@ describe("pick-2 chaos cards", () => {
 
 describe("depleted hand with pick-2", () => {
   // 3 players × 7 cards = 21 cards dealt. With only 22 knowledge cards total,
-  // after dealing there's 1 card left. After first round of pick-2 submissions
-  // (2 players submit 2 cards each, draw back only 1), hands shrink.
-  // After enough rounds, a player will have fewer cards than pick requires.
+  // the deck is nearly empty after dealing — but played cards are immediately
+  // discarded and reshuffled, so hands stay full across rounds.
   const TINY_KNOWLEDGE: KnowledgeCard[] = Array.from({ length: 22 }, (_, i) => ({
     id: `tk${i}`,
     text: `Tiny answer ${i}`,
@@ -324,10 +323,10 @@ describe("depleted hand with pick-2", () => {
     createGame(LOBBY, PLAYERS, CHAOS_PICK2, TINY_KNOWLEDGE, { mode: "rounds", value: 10 });
   });
 
-  it("player with 1 card can submit 1 for a pick-2 prompt", () => {
-    // Play rounds until someone's hand drops below 2
-    let depleted = false;
-    for (let i = 0; i < 8 && !depleted; i++) {
+  it("hands stay full thanks to mid-round reshuffling with a tiny deck", () => {
+    // With immediate discarding, played cards are recycled into the deck
+    // so hands should never deplete even with a very small card pool.
+    for (let i = 0; i < 6; i++) {
       const round = startRound(LOBBY);
       if (!round) break;
       const czar = round.czarId;
@@ -335,23 +334,43 @@ describe("depleted hand with pick-2", () => {
 
       for (const p of submitters) {
         const view = getPlayerView(LOBBY, p)!;
-        if (view.hand.length < 2) {
-          // This player has fewer cards than pick requires — submit what they have
-          const result = submitCards(LOBBY, p, [view.hand[0].id]);
-          expect(result.success).toBe(true);
-          depleted = true;
-          break;
-        }
+        expect(view.hand.length).toBeGreaterThanOrEqual(2);
         submitCards(LOBBY, p, [view.hand[0].id, view.hand[1].id]);
       }
 
-      if (!depleted) {
-        pickWinner(LOBBY, czar, submitters[0]);
-        advanceRound(LOBBY);
+      pickWinner(LOBBY, czar, submitters[0]);
+      advanceRound(LOBBY);
+    }
+  });
+
+  it("player can submit fewer cards if deck is truly exhausted", () => {
+    // With only 8 total cards and 3 players (7 each = would need 21),
+    // some players start with fewer than 7 cards
+    const MICRO_KNOWLEDGE: KnowledgeCard[] = Array.from({ length: 8 }, (_, i) => ({
+      id: `mk${i}`,
+      text: `Micro answer ${i}`,
+    }));
+    cleanupGame(LOBBY);
+    createGame(LOBBY, PLAYERS, CHAOS_PICK2, MICRO_KNOWLEDGE, { mode: "rounds", value: 3 });
+
+    const round = startRound(LOBBY);
+    expect(round).not.toBeNull();
+    const czar = round!.czarId;
+    const submitters = allNonCzar(czar);
+
+    // With 8 cards split among 3 players, at least one should have a short hand
+    let foundShort = false;
+    for (const p of submitters) {
+      const view = getPlayerView(LOBBY, p)!;
+      if (view.hand.length === 1) {
+        const result = submitCards(LOBBY, p, [view.hand[0].id]);
+        expect(result.success).toBe(true);
+        foundShort = true;
+      } else if (view.hand.length >= 2) {
+        submitCards(LOBBY, p, [view.hand[0].id, view.hand[1].id]);
       }
     }
-
-    expect(depleted).toBe(true);
+    expect(foundShort).toBe(true);
   });
 });
 

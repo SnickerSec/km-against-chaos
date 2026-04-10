@@ -149,12 +149,9 @@ export function startRound(lobbyCode: string): RoundState | null {
     if (game.gameType !== "superfight") {
       game.chaosDiscard.push(game.currentRound.chaosCard);
     }
-    for (const cards of game.currentRound.submissions.values()) {
-      game.knowledgeDiscard.push(...cards);
-    }
-    if (game.currentRound.czarSetupCard) {
-      game.knowledgeDiscard.push(game.currentRound.czarSetupCard);
-    }
+    // Submissions are already discarded at submit time (for mid-round reshuffling),
+    // so we don't re-discard them here.
+    // czarSetupCard is already discarded at setup time (for mid-round reshuffling)
   }
 
   const czarId = game.playerIds[game.czarIndex % game.playerIds.length];
@@ -279,6 +276,7 @@ export function czarSetup(
   if (drawn) hand.push(drawn);
 
   round.czarSetupCard = playedCard;
+  game.knowledgeDiscard.push(playedCard);
   round.phase = "submitting";
   round.phaseDeadline = Date.now() + SUBMIT_TIME_MS;
 
@@ -366,6 +364,10 @@ export function submitCards(
 
   round.submissions.set(playerId, playedCards);
 
+  // Immediately discard played cards so they're available for reshuffling
+  // (the submissions Map still holds references for judging display)
+  game.knowledgeDiscard.push(...playedCards);
+
   // Check if all non-czar players have submitted
   const expectedCount = game.playerIds.filter((id) => id !== round.czarId).length;
   const allSubmitted = round.submissions.size >= expectedCount;
@@ -420,6 +422,10 @@ export function resolveMetaTargets(
 export function resetPlayerHand(lobbyCode: string, playerId: string): KnowledgeCard[] {
   const game = games.get(lobbyCode);
   if (!game) return [];
+
+  // Discard old hand before drawing a new one
+  const oldHand = game.hands.get(playerId);
+  if (oldHand) game.knowledgeDiscard.push(...oldHand);
 
   const newHand: KnowledgeCard[] = [];
   for (let i = 0; i < HAND_SIZE; i++) {
@@ -577,11 +583,16 @@ export function removePlayerFromGame(lobbyCode: string, playerId: string): void 
   const game = games.get(lobbyCode);
   if (!game) return;
 
+  // Return the player's hand to the discard pile
+  const hand = game.hands.get(playerId);
+  if (hand) game.knowledgeDiscard.push(...hand);
+
   game.playerIds = game.playerIds.filter(id => id !== playerId);
   game.hands.delete(playerId);
   game.scores.delete(playerId);
 
   // If they had a submission this round, remove it
+  // (cards already discarded at submit time)
   if (game.currentRound) {
     game.currentRound.submissions.delete(playerId);
   }
