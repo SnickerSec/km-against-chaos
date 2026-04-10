@@ -187,7 +187,7 @@ interface GameStore {
   hasSubmitted: boolean;
   submittedPlayers: Set<string>;
   selectedCards: string[];
-  winnerInfo: { winnerId: string; winnerName: string; cards: KnowledgeCard[] } | null;
+  winnerInfo: { winnerId: string; winnerName: string; cards: KnowledgeCard[]; audiencePick?: string | null } | null;
 
   // Game type
   gameType: GameType;
@@ -240,7 +240,7 @@ interface GameStore {
   addSubmittedPlayer: (playerId: string) => void;
   toggleCardSelection: (cardId: string, maxPick: number) => void;
   setHasSubmitted: (v: boolean) => void;
-  setWinnerInfo: (info: { winnerId: string; winnerName: string; cards: KnowledgeCard[] } | null) => void;
+  setWinnerInfo: (info: { winnerId: string; winnerName: string; cards: KnowledgeCard[]; audiencePick?: string | null } | null) => void;
   setScores: (scores: Record<string, number>) => void;
   addChatMessage: (msg: ChatMessage) => void;
   setChatOpen: (open: boolean) => void;

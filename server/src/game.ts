@@ -45,6 +45,7 @@ interface InternalRound {
   winnerId: string | null;
   phaseDeadline: number; // Date.now() + time limit
   czarSetupCard: KnowledgeCard | null; // Joking Hazard: card played by czar as panel 2
+  spectatorVotes: Map<string, string>; // spectatorId -> votedForPlayerId
 }
 
 const games = new Map<string, InternalGameState>();
@@ -195,6 +196,7 @@ export function startRound(lobbyCode: string): RoundState | null {
     winnerId: null,
     phaseDeadline,
     czarSetupCard: null,
+    spectatorVotes: new Map(),
   };
 
   return {
@@ -692,6 +694,57 @@ export function botPickWinner(lobbyCode: string, botCzarId: string): { winnerId:
     return { winnerId, metaEffect: result.metaEffect };
   }
   return { winnerId: null };
+}
+
+export function spectatorVote(
+  lobbyCode: string,
+  spectatorId: string,
+  votedForId: string
+): { success: boolean; error?: string } {
+  const game = games.get(lobbyCode);
+  if (!game) return { success: false, error: "Game not found" };
+
+  const round = game.currentRound;
+  if (!round || round.phase !== "judging") {
+    return { success: false, error: "Not in judging phase" };
+  }
+
+  if (!round.submissions.has(votedForId)) {
+    return { success: false, error: "Invalid submission" };
+  }
+
+  if (round.spectatorVotes.has(spectatorId)) {
+    return { success: false, error: "Already voted" };
+  }
+
+  round.spectatorVotes.set(spectatorId, votedForId);
+  return { success: true };
+}
+
+export function getAudiencePick(lobbyCode: string): string | null {
+  const game = games.get(lobbyCode);
+  if (!game?.currentRound) return null;
+
+  const votes = game.currentRound.spectatorVotes;
+  if (votes.size === 0) return null;
+
+  // Tally votes
+  const tally = new Map<string, number>();
+  for (const votedFor of votes.values()) {
+    tally.set(votedFor, (tally.get(votedFor) || 0) + 1);
+  }
+
+  // Find the submission with the most votes
+  let maxVotes = 0;
+  let audiencePick: string | null = null;
+  for (const [playerId, count] of tally) {
+    if (count > maxVotes) {
+      maxVotes = count;
+      audiencePick = playerId;
+    }
+  }
+
+  return audiencePick;
 }
 
 export function remapGamePlayer(

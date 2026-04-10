@@ -96,8 +96,8 @@ export function useSocket() {
 
     socket.on(
       "game:round-winner",
-      (winnerId: string, winnerName: string, cards: KnowledgeCard[], scores: Record<string, number>) => {
-        setWinnerInfo({ winnerId, winnerName, cards });
+      (winnerId: string, winnerName: string, cards: KnowledgeCard[], scores: Record<string, number>, audiencePick?: string | null) => {
+        setWinnerInfo({ winnerId, winnerName, cards, audiencePick });
         setScores(scores);
       }
     );
@@ -406,6 +406,21 @@ export function useSocket() {
     );
   };
 
+  const spectatorVote = (votedForId: string) => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    socket.emit(
+      "game:spectator-vote" as any,
+      votedForId,
+      (response: { success: boolean; error?: string }) => {
+        if (!response.success && response.error !== "Already voted") {
+          setError(response.error || "Failed to vote");
+        }
+      }
+    );
+  };
+
   const nextRound = () => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -674,6 +689,7 @@ export function useSocket() {
     czarSetup,
     submitCards,
     pickWinner,
+    spectatorVote,
     nextRound,
     sendChat,
     sendGif,

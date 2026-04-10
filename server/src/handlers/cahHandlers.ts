@@ -5,7 +5,7 @@ import {
   advanceRound, getScores, isGameOver, startRound, endGame,
   resolveMetaTargets, resetPlayerHand, botSubmitCards, botPickWinner,
   getCzarId, forceSubmitForMissing, czarSetup, botCzarSetup, forceCzarSetup,
-  getGameType, getCurrentPhase,
+  getGameType, getCurrentPhase, spectatorVote, getAudiencePick,
 } from "../game.js";
 import { getBotsInLobby, getPlayerNameInLobby } from "../lobby.js";
 import {
@@ -107,7 +107,8 @@ function triggerBotCzarPick(io: Server<ClientEvents, ServerEvents>, code: string
     const winnerCards = getWinnerCards(code);
     const winnerName = getPlayerNameInLobby(code, result.winnerId);
 
-    io.to(code).emit("game:round-winner", result.winnerId, winnerName || "Unknown", winnerCards || [], scores || {});
+    const audiencePick = getAudiencePick(code);
+    io.to(code).emit("game:round-winner", result.winnerId, winnerName || "Unknown", winnerCards || [], scores || {}, audiencePick);
 
     if (result.metaEffect) {
       const { effect, winnerId: wId, czarId: cId, playerIds } = result.metaEffect;
@@ -150,7 +151,8 @@ function handleTimerExpiry(io: Server<ClientEvents, ServerEvents>, code: string)
       const scores = getScores(code);
       const winnerCards = getWinnerCards(code);
       const winnerName = getPlayerNameInLobby(code, result.winnerId);
-      io.to(code).emit("game:round-winner", result.winnerId, winnerName || "Unknown", winnerCards || [], scores || {});
+      const audiencePick = getAudiencePick(code);
+      io.to(code).emit("game:round-winner", result.winnerId, winnerName || "Unknown", winnerCards || [], scores || {}, audiencePick);
 
       if (result.metaEffect) {
         const { effect, winnerId: wId, czarId: cId, playerIds } = result.metaEffect;
@@ -218,12 +220,21 @@ export function registerCahHandlers(
     const scores = getScores(code);
     const winnerCards = getWinnerCards(code);
     const winnerName = getPlayerName(code, winnerId);
-    io.to(code).emit("game:round-winner", winnerId, winnerName || "Unknown", winnerCards || [], scores || {});
+    const audiencePick = getAudiencePick(code);
+    io.to(code).emit("game:round-winner", winnerId, winnerName || "Unknown", winnerCards || [], scores || {}, audiencePick);
 
     if (result.metaEffect) {
       const { effect, winnerId: wId, czarId, playerIds } = result.metaEffect;
       emitMetaEffect(io, code, effect, wId, czarId, playerIds);
     }
+  });
+
+  socket.on("game:spectator-vote", (votedForId, callback) => {
+    const code = findPlayerLobby(socket.id);
+    if (!code) { callback({ success: false, error: "Not in a game" }); return; }
+
+    const result = spectatorVote(code, socket.id, votedForId);
+    callback(result);
   });
 
   socket.on("game:next-round", () => {

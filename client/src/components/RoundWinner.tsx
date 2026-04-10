@@ -8,20 +8,32 @@ interface Props {
     winnerId: string;
     winnerName: string;
     cards: KnowledgeCard[];
+    audiencePick?: string | null;
   };
   onNext: () => void;
   isHost: boolean;
 }
 
 export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
-  const { gameType, round } = useGameStore();
+  const { gameType, round, lobby } = useGameStore();
   const isJH = gameType === "joking_hazard";
+  const audiencePick = winnerInfo.audiencePick;
+  const audiencePickName = audiencePick ? lobby?.players.find(p => p.id === audiencePick)?.name : null;
+  const showAudiencePick = audiencePick && audiencePick !== winnerInfo.winnerId && audiencePickName;
 
   return (
     <div className="text-center mt-4 max-w-2xl mx-auto">
       <p className="text-green-400 text-xl font-bold mb-2">
         {winnerInfo.winnerName} wins the round!
       </p>
+
+      {showAudiencePick && (
+        <p className="text-yellow-400 text-sm mb-3">
+          <span className="inline-block bg-yellow-600/20 px-3 py-1 rounded-full">
+            Audience Pick: <strong>{audiencePickName}</strong>
+          </span>
+        </p>
+      )}
 
       {isJH && round ? (
         round.isBonus ? (

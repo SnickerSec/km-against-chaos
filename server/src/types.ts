@@ -206,6 +206,7 @@ export interface ClientEvents {
   "game:czar-setup": (cardId: string, callback: (response: { success: boolean; error?: string }) => void) => void;
   "game:submit": (cardIds: string[], callback: (response: { success: boolean; error?: string }) => void) => void;
   "game:pick-winner": (playerId: string, callback: (response: { success: boolean; error?: string }) => void) => void;
+  "game:spectator-vote": (votedForId: string, callback: (response: { success: boolean; error?: string }) => void) => void;
   "game:next-round": () => void;
   "reaction:send": (emoji: string) => void;
   "chat:send": (message: string) => void;
@@ -236,7 +237,7 @@ export interface ServerEvents {
   "game:round-start": (view: PlayerGameView) => void;
   "game:player-submitted": (playerId: string) => void;
   "game:judging": (submissions: Submission[], chaosCard: ChaosCard) => void;
-  "game:round-winner": (winnerId: string, winnerName: string, cards: KnowledgeCard[], scores: Record<string, number>) => void;
+  "game:round-winner": (winnerId: string, winnerName: string, cards: KnowledgeCard[], scores: Record<string, number>, audiencePick?: string | null) => void;
   "game:meta-effect": (payload: MetaEffectPayload) => void;
   "game:hand-updated": (hand: KnowledgeCard[]) => void;
   "game:over": (scores: Record<string, number>) => void;
