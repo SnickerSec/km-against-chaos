@@ -167,6 +167,9 @@ export async function listDecks(options?: { search?: string; gameType?: string; 
 
     let orderBy: string;
     switch (options?.sort) {
+      case "newest":
+        orderBy = "d.created_at DESC";
+        break;
       case "popular":
         orderBy = "d.built_in DESC, COALESCE(d.play_count, 0) DESC, d.created_at DESC";
         break;

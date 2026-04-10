@@ -47,15 +47,16 @@ export default function DecksPage() {
 
   const [printing, setPrinting] = useState<string | null>(null);
   const [gameTypeFilter, setGameTypeFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("newest");
 
   const user = useAuthStore((s) => s.user);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const isModerator = useAuthStore((s) => s.isModerator);
   const router = useRouter();
 
-  const load = async () => {
+  const load = async (sort?: string) => {
     try {
-      setDecks(await fetchDecks());
+      setDecks(await fetchDecks({ sort: sort || sortBy }));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -77,7 +78,7 @@ export default function DecksPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(sortBy); }, [sortBy]);
 
 
   const handleTabChange = (t: Tab) => {
@@ -291,21 +292,32 @@ export default function DecksPage() {
             </p>
           )}
 
-          {/* Game type filter */}
-          <div className="flex gap-1.5 mb-4 flex-wrap">
-            {GAME_TYPE_FILTERS.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setGameTypeFilter(f.id)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  gameTypeFilter === f.id
-                    ? "bg-purple-600 text-white"
-                    : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          {/* Game type filter + sort */}
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <div className="flex gap-1.5 flex-wrap flex-1">
+              {GAME_TYPE_FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setGameTypeFilter(f.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    gameTypeFilter === f.id
+                      ? "bg-purple-600 text-white"
+                      : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
+            >
+              <option value="newest">Newest</option>
+              <option value="popular">Most Played</option>
+              <option value="rating">Top Rated</option>
+            </select>
           </div>
 
           {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
