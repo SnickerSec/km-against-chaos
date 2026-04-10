@@ -52,7 +52,11 @@ export default function DecksPage() {
   const user = useAuthStore((s) => s.user);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const isModerator = useAuthStore((s) => s.isModerator);
+  const authLoading = useAuthStore((s) => s.loading);
+  const restore = useAuthStore((s) => s.restore);
   const router = useRouter();
+
+  useEffect(() => { restore(); }, [restore]);
 
   const load = async (sort?: string) => {
     try {
@@ -322,7 +326,7 @@ export default function DecksPage() {
 
           {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
-          {loading ? (
+          {loading || authLoading ? (
             <p className="text-gray-400">Loading decks...</p>
           ) : (() => {
             const visible = decks
