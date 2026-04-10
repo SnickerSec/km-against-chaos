@@ -22,7 +22,7 @@ interface Props {
 
 export default function ArtLibraryBrowser({ open, onClose, onSelect, gameType: initialGameType }: Props) {
   const [query, setQuery] = useState("");
-  const [gameType, setGameType] = useState(initialGameType || "");
+  const [gameType, setGameType] = useState("");
   const [results, setResults] = useState<ArtLibraryEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
