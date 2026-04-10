@@ -11,7 +11,7 @@ import { generateDeckPdf } from "@/lib/printDeck";
 import GoogleSignIn from "@/components/GoogleSignIn";
 import GameTypeBadge from "@/components/GameTypeBadge";
 
-type Tab = "my-decks" | "browse-packs";
+type Tab = "browse" | "my-decks" | "browse-packs";
 
 const GAME_TYPE_FILTERS = [
   { id: "all", label: "All" },
@@ -23,10 +23,17 @@ const GAME_TYPE_FILTERS = [
 ];
 
 export default function DecksPage() {
-  const [tab, setTab] = useState<Tab>("my-decks");
+  const [tab, setTab] = useState<Tab | null>(null);
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Browse community decks state
+  const [browseDecks, setBrowseDecks] = useState<DeckSummary[]>([]);
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseSearch, setBrowseSearch] = useState("");
+  const [browseGameType, setBrowseGameType] = useState("all");
+  const [browseSort, setBrowseSort] = useState("popular");
 
   // Browse packs state
   const [packs, setPacks] = useState<PackSummary[]>([]);
@@ -57,6 +64,31 @@ export default function DecksPage() {
   const router = useRouter();
 
   useEffect(() => { restore(); }, [restore]);
+
+  // Set default tab once auth is resolved
+  useEffect(() => {
+    if (!authLoading && tab === null) {
+      setTab(user ? "my-decks" : "browse");
+    }
+  }, [authLoading, user, tab]);
+
+  const loadBrowse = async () => {
+    setBrowseLoading(true);
+    try {
+      const params: any = { sort: browseSort };
+      if (browseSearch.trim()) params.search = browseSearch.trim();
+      if (browseGameType !== "all") params.gameType = browseGameType;
+      setBrowseDecks(await fetchDecks(params));
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBrowseLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === "browse") loadBrowse();
+  }, [tab, browseSort, browseGameType]);
 
   const load = async (sort?: string) => {
     try {
@@ -247,6 +279,16 @@ export default function DecksPage() {
       {/* Tabs */}
       <div className="flex gap-2 mb-6">
         <button
+          onClick={() => handleTabChange("browse")}
+          className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
+            tab === "browse"
+              ? "bg-purple-600 text-white"
+              : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+          }`}
+        >
+          Browse Decks
+        </button>
+        <button
           onClick={() => handleTabChange("my-decks")}
           className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors ${
             tab === "my-decks"
@@ -267,6 +309,115 @@ export default function DecksPage() {
           Create Remix
         </button>
       </div>
+
+      {/* Browse Decks tab */}
+      {tab === "browse" && (
+        <>
+          {/* Search + filters */}
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <div className="relative">
+                <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={16} />
+                <input
+                  type="text"
+                  placeholder="Search decks..."
+                  value={browseSearch}
+                  onChange={(e) => setBrowseSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") loadBrowse(); }}
+                  className="w-full pl-9 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            </div>
+            <select
+              value={browseSort}
+              onChange={(e) => setBrowseSort(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-purple-500"
+            >
+              <option value="popular">Most Played</option>
+              <option value="newest">Newest</option>
+              <option value="rating">Top Rated</option>
+            </select>
+          </div>
+          <div className="flex gap-1.5 flex-wrap mb-4">
+            {GAME_TYPE_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setBrowseGameType(f.id)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  browseGameType === f.id
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+
+          {browseLoading ? (
+            <p className="text-gray-400">Loading decks...</p>
+          ) : browseDecks.length === 0 ? (
+            <div className="text-center py-12 bg-gray-900 rounded-xl">
+              <p className="text-gray-400 text-lg mb-2">No decks found</p>
+              <p className="text-gray-500 text-sm">Try a different search or filter</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {browseDecks.map((deck) => (
+                <div key={deck.id} className="flex items-center justify-between bg-gray-900 rounded-xl p-4">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-lg">{deck.name}</span>
+                    {deck.ownerName && (
+                      <p className="text-gray-500 text-xs">by {deck.ownerName}</p>
+                    )}
+                    {deck.description && (
+                      <p className="text-gray-400 text-sm truncate">{deck.description}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <GameTypeBadge gameType={deck.gameType} />
+                      <span className="text-gray-500 text-xs">
+                        {deck.gameType === "uno"
+                          ? "108 cards"
+                          : deck.gameType === "joking_hazard"
+                          ? `${deck.knowledgeCount} panels`
+                          : `${deck.chaosCount} prompts · ${deck.knowledgeCount} answers`}
+                      </span>
+                      {(deck.playCount ?? 0) > 0 && (
+                        <span className="text-gray-500 text-xs flex items-center gap-0.5">
+                          <Icon icon="mdi:play" width={12} /> {deck.playCount}
+                        </span>
+                      )}
+                      {(deck.avgRating ?? 0) > 0 && (
+                        <span className="text-yellow-500 text-xs flex items-center gap-0.5">
+                          <Icon icon="mdi:star" width={12} /> {deck.avgRating!.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-4">
+                    <Link
+                      href={`/?deck=${deck.id}`}
+                      className="px-3 py-1 text-xs bg-purple-600 hover:bg-purple-700 rounded font-semibold transition-colors"
+                    >
+                      Play
+                    </Link>
+                    {user && (!user || deck.ownerId !== user.id) && (
+                      <button
+                        onClick={() => handleRemix(deck.id)}
+                        className="px-3 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-600 transition-colors"
+                      >
+                        Remix
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* My Decks tab */}
       {tab === "my-decks" && (
