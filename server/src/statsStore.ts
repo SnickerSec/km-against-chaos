@@ -106,6 +106,41 @@ export async function getUserStats(userId: string) {
   };
 }
 
+export async function getGameHistory(userId: string, page = 1, limit = 20) {
+  const offset = (page - 1) * limit;
+
+  const countResult = await pool.query(
+    `SELECT COUNT(*) as total FROM game_players gp WHERE gp.user_id = $1 AND gp.is_bot = FALSE`,
+    [userId]
+  );
+  const total = parseInt(countResult.rows[0].total) || 0;
+
+  const result = await pool.query(`
+    SELECT gh.id, gh.deck_name, gh.game_type, gh.ended_at, gh.player_count,
+           gp.final_score, gp.is_winner
+    FROM game_players gp
+    JOIN game_history gh ON gh.id = gp.game_id
+    WHERE gp.user_id = $1 AND gp.is_bot = FALSE
+    ORDER BY gh.ended_at DESC
+    LIMIT $2 OFFSET $3
+  `, [userId, limit, offset]);
+
+  return {
+    results: result.rows.map(r => ({
+      id: r.id,
+      deckName: r.deck_name,
+      gameType: r.game_type,
+      endedAt: r.ended_at,
+      playerCount: r.player_count,
+      finalScore: r.final_score,
+      isWinner: r.is_winner,
+    })),
+    total,
+    page,
+    pages: Math.ceil(total / limit),
+  };
+}
+
 export async function getLeaderboard(gameType?: string) {
   const whereClause = gameType ? `AND gh.game_type = $1` : '';
   const params = gameType ? [gameType] : [];

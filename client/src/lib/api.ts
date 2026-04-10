@@ -263,6 +263,12 @@ export async function fetchMyStats() {
   return res.json();
 }
 
+export async function fetchGameHistory(page = 1, limit = 20) {
+  const res = await fetch(`${API_URL}/api/stats/history?page=${page}&limit=${limit}`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch game history");
+  return res.json();
+}
+
 export async function fetchLeaderboard(gameType?: string) {
   const params = gameType ? `?gameType=${gameType}` : '';
   const res = await fetch(`${API_URL}/api/stats/leaderboard${params}`);

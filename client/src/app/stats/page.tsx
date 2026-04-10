@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/auth";
-import { fetchMyStats, fetchLeaderboard } from "@/lib/api";
+import { fetchMyStats, fetchLeaderboard, fetchGameHistory } from "@/lib/api";
 import GameTypeBadge from "@/components/GameTypeBadge";
 
 interface PlayerStats {
@@ -38,6 +38,9 @@ export default function StatsPage() {
   const [myStats, setMyStats] = useState<PlayerStats | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [gameTypeFilter, setGameTypeFilter] = useState<string>("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyData, setHistoryData] = useState<{ results: PlayerStats["recentGames"]; total: number; page: number; pages: number } | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +67,15 @@ export default function StatsPage() {
     }
     load();
   }, [user, gameTypeFilter]);
+
+  useEffect(() => {
+    if (!user) return;
+    setHistoryLoading(true);
+    fetchGameHistory(historyPage, 20)
+      .then(setHistoryData)
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false));
+  }, [user, historyPage]);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 min-h-screen">
@@ -121,14 +133,14 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* Recent Games */}
-          {myStats.recentGames.length > 0 && (
+          {/* Game History */}
+          {historyData && historyData.results.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide">
-                Recent Games
+                Game History
               </h3>
               <div className="bg-gray-900 rounded-lg border border-gray-800 divide-y divide-gray-800">
-                {myStats.recentGames.map((g) => (
+                {historyData.results.map((g) => (
                   <div
                     key={g.id}
                     className="flex items-center justify-between px-4 py-3"
@@ -153,6 +165,27 @@ export default function StatsPage() {
                   </div>
                 ))}
               </div>
+              {historyData.pages > 1 && (
+                <div className="flex items-center justify-between mt-3">
+                  <button
+                    onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                    disabled={historyPage <= 1 || historyLoading}
+                    className="px-3 py-1.5 text-sm bg-gray-800 border border-gray-700 text-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-700 transition-colors"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-gray-500 text-sm">
+                    Page {historyData.page} of {historyData.pages}
+                  </span>
+                  <button
+                    onClick={() => setHistoryPage((p) => Math.min(historyData!.pages, p + 1))}
+                    disabled={historyPage >= historyData.pages || historyLoading}
+                    className="px-3 py-1.5 text-sm bg-gray-800 border border-gray-700 text-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-700 transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </section>
