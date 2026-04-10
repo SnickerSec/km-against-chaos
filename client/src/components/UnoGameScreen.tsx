@@ -37,11 +37,13 @@ export default function UnoGameScreen() {
     unoDeckTemplate, unoRoundWinner, lobby, roundNumber, maxRounds, scores,
     unoWinMode, unoTargetPoints, unoStackingEnabled,
   } = useGameStore();
-  const { playUnoCard, drawUnoCard, callUno, challengeUno, unoNextRound, leaveLobby, playLobbySound } = useSocket();
+  const { playUnoCard, drawUnoCard, callUno, challengeUno, unoNextRound, leaveLobby, rematch, voteRematch, playLobbySound } = useSocket();
   useSounds();
   const [soundPickerOpen, setSoundPickerOpen] = useState(false);
   const socket = getSocket();
   const myId = socket.id;
+  const isHost = lobby?.hostId === myId;
+  const [hasVotedRematch, setHasVotedRematch] = useState(false);
 
   // All hooks must be called before any early return
   const [dragCardId, setDragCardId] = useState<string | null>(null);
@@ -254,13 +256,54 @@ export default function UnoGameScreen() {
                     ))}
                   </div>
                 )}
-                {unoWinMode !== "single_round" && (
-                  <button
-                    onClick={unoNextRound}
-                    className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-medium transition-colors"
-                  >
-                    Next Round
-                  </button>
+                {unoWinMode === "single_round" ? (
+                  /* Single round: game is over, show rematch controls */
+                  <div className="flex flex-col items-center gap-2 mt-1">
+                    {isHost ? (
+                      <button
+                        onClick={rematch}
+                        className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-medium transition-colors"
+                      >
+                        Rematch
+                      </button>
+                    ) : !hasVotedRematch ? (
+                      <button
+                        onClick={() => { voteRematch(); setHasVotedRematch(true); }}
+                        className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-medium transition-colors"
+                      >
+                        Vote Rematch
+                      </button>
+                    ) : (
+                      <p className="text-purple-400 text-sm">Voted for rematch!</p>
+                    )}
+                  </div>
+                ) : (
+                  /* Multi-round: next round + optional rematch */
+                  <div className="flex items-center gap-3 mt-1">
+                    <button
+                      onClick={unoNextRound}
+                      className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-medium transition-colors"
+                    >
+                      Next Round
+                    </button>
+                    {isHost ? (
+                      <button
+                        onClick={rematch}
+                        className="px-4 py-2 text-gray-400 hover:text-purple-300 text-sm transition-colors"
+                      >
+                        Rematch
+                      </button>
+                    ) : !hasVotedRematch ? (
+                      <button
+                        onClick={() => { voteRematch(); setHasVotedRematch(true); }}
+                        className="px-4 py-2 text-gray-400 hover:text-purple-300 text-sm transition-colors"
+                      >
+                        Vote Rematch
+                      </button>
+                    ) : (
+                      <span className="text-purple-400 text-xs">Voted!</span>
+                    )}
+                  </div>
                 )}
               </div>
             )

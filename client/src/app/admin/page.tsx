@@ -582,7 +582,10 @@ export default function AdminPage() {
                 <h3 className="text-sm font-semibold text-purple-300 mb-3">Image Generation (fal.ai)</h3>
                 {imgLoading && <p className="text-gray-400 text-sm">Loading image model settings...</p>}
                 {!imgLoading && imgSettings && (() => {
-                  const standardModels = imgModels;
+                  const standardModels = [...imgModels].sort((a, b) => {
+                    const priceNum = (p: string) => parseFloat(p.replace(/[^0-9.]/g, "")) || 0;
+                    return priceNum(a.price) - priceNum(b.price);
+                  });
                   const sq = imgSearch.toLowerCase().trim();
                   const filteredStandard = sq
                     ? standardModels.filter((m) => m.name.toLowerCase().includes(sq) || m.id.toLowerCase().includes(sq) || m.description.toLowerCase().includes(sq))
