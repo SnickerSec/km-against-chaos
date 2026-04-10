@@ -361,6 +361,9 @@ export default function DecksPage() {
                         ) : (
                           <span className="font-semibold text-lg">{deck.name}</span>
                         )}
+                      {deck.ownerName && (
+                        <p className="text-gray-500 text-xs">by {deck.ownerName}</p>
+                      )}
                       {deck.description && (
                         <p className="text-gray-400 text-sm truncate">{deck.description}</p>
                       )}
