@@ -264,7 +264,7 @@ export default function DecksPage() {
               : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
           }`}
         >
-          Browse Packs
+          Create Remix
         </button>
       </div>
 
