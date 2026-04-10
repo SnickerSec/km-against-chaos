@@ -419,8 +419,8 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
     });
     setDraftId(deck.id);
     onDraftCreated?.(deck.id);
-    setName(deck.name);
-    setDescription(deck.description);
+    if (!name.trim()) setName(deck.name);
+    if (!description.trim()) setDescription(deck.description);
 
     // For Uno, try to parse template from the response
     if (isUno) {
