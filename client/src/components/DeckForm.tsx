@@ -1134,7 +1134,7 @@ function CardListEditor({
   onAdd: () => void;
   onRemove: (index: number) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [artBrowseIndex, setArtBrowseIndex] = useState<number | null>(null);
   const count = cards.filter((c) => c.text.trim()).length;
 
