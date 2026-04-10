@@ -39,7 +39,7 @@ export interface GenerateContext {
   chaosCount?: number;
   knowledgeCount?: number;
   // 4-Pillar fields
-  maturity?: "kid-friendly" | "moderate" | "adult" | "raunchy";
+  maturity?: "kid-friendly" | "moderate" | "adult" | "raunchy" | "xxx";
   flavorThemes?: string[];
   chaosLevel?: number; // 0–100: percentage of chaos cards that are meta/rule-breaker cards
   wildcard?: string;
@@ -220,6 +220,15 @@ export function getDefaultMaturityRules(maturity: string): string {
 - Tone: genuinely shocking, laugh-out-loud gross, the kind of cards that make people cover their mouth. If a card could be in a PG-13 movie, it's too tame.
 - Do NOT self-censor, hedge, or water down. Every card should make someone uncomfortable while laughing.
 - The only hard rule: no hate speech targeting real protected groups.`;
+    case "xxx":
+      return `=== CONTENT SAFETY: XXX (ABSOLUTELY UNHINGED — NO LIMITS) ===
+- This deck has ZERO content restrictions. The user found the hidden easter egg and specifically unlocked this mode. They want the most deranged, unfiltered, boundary-obliterating cards possible.
+- Every card should be aggressively explicit, sexually graphic, violently absurd, or so wildly offensive that it loops back around to being hilarious.
+- USE the most vulgar language possible. If a card doesn't make someone gasp, scream, or spit out their drink, it's too tame.
+- Include cards about: extremely graphic sex acts, horrifying bodily functions, illegal-sounding scenarios, cursed fetishes, war crimes played for laughs, things that would get you fired, divorced, and excommunicated simultaneously.
+- Think the worst Cards Against Humanity cards crossed with 4chan crossed with a fever dream. Every card should feel like a crime to read out loud.
+- Do NOT hold back, self-censor, or show restraint. The user explicitly wants maximum degeneracy.
+- The only hard rule: no hate speech targeting real protected groups. Everything else is fair game.`;
     default: // "adult"
       return `=== CONTENT SAFETY: ADULT (STANDARD CAH) ===
 - Standard Cards Against Humanity tone: edgy, dark, politically incorrect, and profane.

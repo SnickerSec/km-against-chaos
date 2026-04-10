@@ -1405,6 +1405,8 @@ function AIGenerationPanel({
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(!isCreate ? true : false);
+  const raunchyClicks = useRef(0);
+  const [xxxUnlocked, setXxxUnlocked] = useState(maturity === "xxx");
 
   const handleGenerate = async () => {
     if (!theme.trim() && flavorThemes.length === 0) return;
@@ -1520,17 +1522,35 @@ function AIGenerationPanel({
         <div>
           <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Content Safety</label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {MATURITY_LEVELS.filter((level) =>
-              (gameType === "apples-to-apples" || gameType === "uno" || gameType === "codenames") ? level.id === "kid-friendly" || level.id === "moderate" : true
-            ).map((level) => (
+            {[
+              ...MATURITY_LEVELS.filter((level) =>
+                (gameType === "apples-to-apples" || gameType === "uno" || gameType === "codenames") ? level.id === "kid-friendly" || level.id === "moderate" : true
+              ),
+              ...(xxxUnlocked ? [{ id: "xxx" as const, label: "XXX", icon: "mdi:skull-crossbones", desc: "Absolutely unhinged, full send" }] : []),
+            ].map((level) => (
               <button
                 key={level.id}
                 type="button"
-                onClick={() => setMaturity(level.id)}
+                onClick={() => {
+                  if (level.id === "raunchy" && maturity === "raunchy") {
+                    raunchyClicks.current++;
+                    if (raunchyClicks.current >= 10 && !xxxUnlocked) {
+                      setXxxUnlocked(true);
+                      setMaturity("xxx");
+                    }
+                  } else {
+                    if (level.id !== "raunchy") raunchyClicks.current = 0;
+                    setMaturity(level.id);
+                  }
+                }}
                 className={`flex flex-col items-center gap-1 p-3 rounded-lg border text-sm font-medium transition-colors ${
                   maturity === level.id
-                    ? "bg-purple-600/30 border-purple-500 text-purple-200"
-                    : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500"
+                    ? level.id === "xxx"
+                      ? "bg-red-600/30 border-red-500 text-red-200 animate-pulse"
+                      : "bg-purple-600/30 border-purple-500 text-purple-200"
+                    : level.id === "xxx"
+                      ? "bg-red-900/20 border-red-800 text-red-400 hover:border-red-600"
+                      : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500"
                 }`}
               >
                 <Icon icon={level.icon} width={20} />
@@ -1538,7 +1558,9 @@ function AIGenerationPanel({
               </button>
             ))}
           </div>
-          <p className="text-gray-600 text-xs mt-1">{MATURITY_LEVELS.find((m) => m.id === maturity)?.desc}</p>
+          <p className="text-gray-600 text-xs mt-1">
+            {maturity === "xxx" ? "Absolutely unhinged, full send" : MATURITY_LEVELS.find((m) => m.id === maturity)?.desc}
+          </p>
         </div>
 
         {/* Chaos Level */}
