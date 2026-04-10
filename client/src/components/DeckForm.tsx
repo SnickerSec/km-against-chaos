@@ -1383,6 +1383,7 @@ function AIGenerationPanel({
   const [open, setOpen] = useState(!isCreate ? true : false);
   const raunchyClicks = useRef(0);
   const [xxxUnlocked, setXxxUnlocked] = useState(maturity === "xxx");
+  const [artStyleSearch, setArtStyleSearch] = useState("");
 
   const handleGenerate = async () => {
     if (!theme.trim() && flavorThemes.length === 0) return;
@@ -1656,34 +1657,60 @@ function AIGenerationPanel({
                 <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
                   Art Style
                   {artStyle && (
-                    <span className="ml-2 text-purple-400 normal-case font-normal">
-                      {artStyleOptions.find(s => s.id === artStyle)?.label || artStyle}
-                    </span>
+                    <span className="ml-2 text-purple-400 normal-case font-normal">1 selected</span>
                   )}
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {artStyleOptions.map((style) => (
-                    <button
-                      key={style.id}
-                      type="button"
-                      onClick={() => {
-                        setArtStyle(artStyle === style.id ? null : style.id);
-                        // Reset preview when style changes
-                        if (previewUrl) { setPreviewUrl(null); setPreviewError(null); }
-                      }}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-sm transition-all ${
-                        artStyle === style.id
-                          ? "bg-purple-600/40 border-purple-500 text-purple-200"
-                          : "bg-gray-800/50 border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-700/50"
-                      }`}
-                    >
-                      <Icon icon={style.icon} width={18} className={artStyle === style.id ? "text-purple-400" : "text-gray-500"} />
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{style.label}</div>
-                        <div className="text-[10px] text-gray-500 truncate">{style.description}</div>
-                      </div>
-                    </button>
-                  ))}
+
+                {/* Selected style chip */}
+                {artStyle && (() => {
+                  const s = artStyleOptions.find(o => o.id === artStyle);
+                  return s ? (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setArtStyle(null);
+                          if (previewUrl) { setPreviewUrl(null); setPreviewError(null); }
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-600/30 border border-purple-500 text-purple-200 text-xs font-medium transition-colors hover:bg-purple-600/50"
+                      >
+                        <Icon icon={s.icon} width={12} />
+                        {s.label}
+                        <Icon icon="mdi:close" width={12} className="ml-0.5 opacity-60" />
+                      </button>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Search input */}
+                <input
+                  type="text"
+                  value={artStyleSearch}
+                  onChange={(e) => setArtStyleSearch(e.target.value)}
+                  placeholder="Search art styles..."
+                  className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+                />
+
+                {/* Filterable style chips */}
+                <div className="flex flex-wrap gap-2 mt-2 max-h-32 overflow-y-auto">
+                  {artStyleOptions
+                    .filter((s) => s.id !== artStyle)
+                    .filter((s) => !artStyleSearch.trim() || s.label.toLowerCase().includes(artStyleSearch.toLowerCase()) || s.description.toLowerCase().includes(artStyleSearch.toLowerCase()))
+                    .map((style) => (
+                      <button
+                        key={style.id}
+                        type="button"
+                        onClick={() => {
+                          setArtStyle(style.id);
+                          setArtStyleSearch("");
+                          if (previewUrl) { setPreviewUrl(null); setPreviewError(null); }
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600"
+                      >
+                        <Icon icon={style.icon} width={13} />
+                        {style.label}
+                      </button>
+                    ))}
                 </div>
                 {!artStyle && (
                   <p className="text-[10px] text-gray-600 mt-1">Default style based on game type. Select one to customize.</p>
