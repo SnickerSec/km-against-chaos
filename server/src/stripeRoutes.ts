@@ -2,7 +2,7 @@ import { Router } from "express";
 import Stripe from "stripe";
 import { requireAuth, isAdmin } from "./auth.js";
 import pool from "./db.js";
-import { generateDeckArt, generatePreviewImage } from "./imageGenerate.js";
+import { generateDeckArt, generatePreviewImage, ART_STYLE_OPTIONS } from "./imageGenerate.js";
 import { createLogger } from "./logger.js";
 
 const log = createLogger("stripe");
@@ -172,6 +172,11 @@ function checkPreviewLimit(userId: string): { allowed: boolean; remaining: numbe
   return { allowed: entry.count < PREVIEW_LIMIT, remaining: PREVIEW_LIMIT - entry.count };
 }
 
+// Return available art style options for the client
+router.get("/api/art/styles", (_req, res) => {
+  res.json(ART_STYLE_OPTIONS.map(({ id, label, description, icon }) => ({ id, label, description, icon })));
+});
+
 // Async preview jobs: start generation, return job ID, client polls for result
 const previewJobs = new Map<string, { status: "pending" | "done" | "error"; imageUrl?: string; artLibraryId?: string; error?: string; previewsRemaining?: number }>();
 
@@ -194,7 +199,7 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
     }
   }
 
-  const { cardText, gameType, theme, maturity, flavorThemes, wildcard } = req.body || {};
+  const { cardText, gameType, theme, maturity, flavorThemes, wildcard, artStyle } = req.body || {};
   if (!cardText || !gameType) {
     res.status(400).json({ error: "cardText and gameType are required" });
     return;
@@ -208,7 +213,7 @@ router.post("/api/art/preview", requireAuth, async (req: any, res) => {
 
   // Generate in background
   generatePreviewImage(
-    cardText, gameType, theme || "Custom Deck", maturity || "adult", flavorThemes, wildcard, userId,
+    cardText, gameType, theme || "Custom Deck", maturity || "adult", flavorThemes, wildcard, userId, artStyle,
   ).then((result) => {
     if (!result) {
       previewJobs.set(jobId, { status: "error", error: "Failed to generate preview" });

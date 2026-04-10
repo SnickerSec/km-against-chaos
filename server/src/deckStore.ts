@@ -33,6 +33,7 @@ export interface CustomDeck {
   gameType?: GameType;
   artTier?: string;
   artGenerationStatus?: string | null;
+  artStyle?: string | null;
 }
 
 export interface DeckSummary {
@@ -55,6 +56,7 @@ export interface DeckSummary {
   avgRating?: number;
   artTier?: string;
   artGenerationStatus?: string | null;
+  artStyle?: string | null;
 }
 
 const DEFAULT_WIN_CONDITION: WinCondition = { mode: "rounds", value: 10 };
@@ -86,6 +88,7 @@ function rowToDeck(row: any): CustomDeck {
     gameType: (row.game_type as GameType) || "cah",
     artTier: row.art_tier || "free",
     artGenerationStatus: row.art_generation_status || null,
+    artStyle: row.art_style || null,
   };
 }
 
@@ -237,6 +240,7 @@ export async function createDeck(input: {
   remixedFrom?: string;
   gameType?: GameType;
   draft?: boolean;
+  artStyle?: string | null;
 }): Promise<CustomDeck> {
   const id = randomUUID().slice(0, 8);
   const now = new Date().toISOString();
@@ -258,8 +262,8 @@ export async function createDeck(input: {
 
   const { rows } = await pool.query(
     `INSERT INTO decks (id, name, description, chaos_cards, knowledge_cards, win_condition, owner_id,
-       maturity, flavor_themes, chaos_level, wildcard, remixed_from, game_type, draft, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+       maturity, flavor_themes, chaos_level, wildcard, remixed_from, game_type, draft, art_style, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
      RETURNING *`,
     [
       id,
@@ -276,6 +280,7 @@ export async function createDeck(input: {
       input.remixedFrom || null,
       input.gameType || "cah",
       input.draft ?? false,
+      input.artStyle || null,
       now,
       now,
     ]
@@ -301,6 +306,7 @@ export async function remixDeck(sourceId: string, ownerId: string): Promise<Cust
     wildcard: source.wildcard,
     remixedFrom: sourceId,
     gameType: source.gameType,
+    artStyle: source.artStyle,
   });
 }
 
@@ -318,6 +324,7 @@ export async function updateDeck(
     wildcard?: string;
     gameType?: GameType;
     draft?: boolean;
+    artStyle?: string | null;
   },
   ownerId?: string,
   bypassOwnership?: boolean
@@ -348,20 +355,21 @@ export async function updateDeck(
   const wildcard = input.wildcard !== undefined ? input.wildcard : existing.wildcard || "";
   const gameType = input.gameType !== undefined ? input.gameType : existing.gameType || "cah";
   const draft = input.draft !== undefined ? input.draft : (existing as any).draft ?? false;
+  const artStyle = input.artStyle !== undefined ? input.artStyle : existing.artStyle || null;
 
   let queryText: string;
   let queryParams: any[];
 
   if (bypassOwnership) {
     queryText = `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5,
-       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, draft = $11, updated_at = NOW()
-     WHERE id = $12 RETURNING *`;
-    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, draft, id];
+       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, draft = $11, art_style = $12, updated_at = NOW()
+     WHERE id = $13 RETURNING *`;
+    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, draft, artStyle, id];
   } else {
     queryText = `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5,
-       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, draft = $11, updated_at = NOW()
-     WHERE id = $12 AND (owner_id = $13 OR owner_id IS NULL) RETURNING *`;
-    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, draft, id, ownerId];
+       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, draft = $11, art_style = $12, updated_at = NOW()
+     WHERE id = $13 AND (owner_id = $14 OR owner_id IS NULL) RETURNING *`;
+    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, draft, artStyle, id, ownerId];
   }
 
   const { rows } = await pool.query(queryText, queryParams);

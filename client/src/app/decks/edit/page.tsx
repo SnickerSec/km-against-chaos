@@ -133,6 +133,7 @@ function EditDeckContent() {
           wildcard: deck.wildcard,
           packs: deck.packs,
           gameType: deck.gameType,
+          artStyle: deck.artStyle,
         }}
         submitLabel="Save Changes"
         onSubmit={async (data) => {

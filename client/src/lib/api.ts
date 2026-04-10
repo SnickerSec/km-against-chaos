@@ -47,6 +47,7 @@ export interface CustomDeck {
   gameType?: string;
   artTier?: string;
   artGenerationStatus?: string | null;
+  artStyle?: string | null;
   packs?: { type: string; name: string; description: string; chaosCards: { text: string; pick?: number }[]; knowledgeCards: { text: string; bonus?: boolean }[] }[];
 }
 
@@ -566,15 +567,28 @@ export async function getFavorites(): Promise<string[]> {
   return res.json();
 }
 
+export interface ArtStyleOption {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+}
+
+export async function getArtStyles(): Promise<ArtStyleOption[]> {
+  const res = await fetch(`${API_URL}/api/art/styles`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
 export async function generateArtPreview(
   cardText: string, gameType: string, theme: string,
-  maturity?: string, flavorThemes?: string[], wildcard?: string,
+  maturity?: string, flavorThemes?: string[], wildcard?: string, artStyle?: string,
 ): Promise<{ imageUrl: string; artLibraryId?: string; previewsRemaining?: number }> {
   // Start the job
   const startRes = await fetch(`${API_URL}/api/art/preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ cardText, gameType, theme, maturity, flavorThemes, wildcard }),
+    body: JSON.stringify({ cardText, gameType, theme, maturity, flavorThemes, wildcard, artStyle }),
   });
   if (!startRes.ok) {
     const data = await startRes.json().catch(() => ({}));

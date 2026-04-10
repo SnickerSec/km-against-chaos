@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
-import { generateCardsAI, generateDeckAI, generateArtPreview, artLibraryImageUrl, type GenerateContext } from "@/lib/api";
+import { generateCardsAI, generateDeckAI, generateArtPreview, getArtStyles, artLibraryImageUrl, type GenerateContext, type ArtStyleOption } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import ArtLibraryBrowser from "./ArtLibraryBrowser";
 
@@ -148,6 +148,7 @@ interface DeckFormData {
   wildcard?: string;
   gameType?: string;
   premiumArt?: boolean;
+  artStyle?: string | null;
 }
 
 type PackType = "base" | "expansion" | "themed";
@@ -222,6 +223,8 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
   const [wildcard, setWildcard] = useState(initial?.wildcard || "");
   const [draftId, setDraftId] = useState<string | null>(null);
   const [premiumArt, setPremiumArt] = useState(false);
+  const [artStyle, setArtStyle] = useState<string | null>(initial?.artStyle || null);
+  const [artStyleOptions, setArtStyleOptions] = useState<ArtStyleOption[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -249,6 +252,8 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
       open: !initial,
     }];
   });
+
+  useEffect(() => { getArtStyles().then(setArtStyleOptions); }, []);
 
   // Check if base game has enough cards to unlock expansions/packs
   const basePack = packs.find((p) => p.type === "base")!;
@@ -355,6 +360,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
       wildcard: wildcard.trim(),
       gameType: isCodenames ? "codenames" : isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : gameType === "superfight" ? "superfight" : "cah",
       premiumArt,
+      artStyle,
     };
   };
 
@@ -533,6 +539,9 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
         setPreviewError={setPreviewError}
         previewsRemaining={previewsRemaining}
         setPreviewsRemaining={setPreviewsRemaining}
+        artStyle={artStyle}
+        setArtStyle={setArtStyle}
+        artStyleOptions={artStyleOptions}
         packs={packs}
         deckName={name}
         onGenerateArt={onGenerateArt ? handleGenerateArt : undefined}
@@ -1353,6 +1362,9 @@ function AIGenerationPanel({
   setPreviewError,
   previewsRemaining,
   setPreviewsRemaining,
+  artStyle,
+  setArtStyle,
+  artStyleOptions,
   packs,
   deckName,
   onGenerateArt,
@@ -1382,6 +1394,9 @@ function AIGenerationPanel({
   setPreviewError: (v: string | null) => void;
   previewsRemaining: number | null;
   setPreviewsRemaining: (v: number | null) => void;
+  artStyle: string | null;
+  setArtStyle: (v: string | null) => void;
+  artStyleOptions: ArtStyleOption[];
   packs: { chaosCards: { text: string }[]; knowledgeCards: { text: string }[] }[];
   deckName: string;
   onGenerateArt?: () => Promise<void>;
@@ -1637,6 +1652,47 @@ function AIGenerationPanel({
               </div>
             </div>
 
+            {/* Art Style Selector */}
+            {artStyleOptions.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">
+                  Art Style
+                  {artStyle && (
+                    <span className="ml-2 text-purple-400 normal-case font-normal">
+                      {artStyleOptions.find(s => s.id === artStyle)?.label || artStyle}
+                    </span>
+                  )}
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {artStyleOptions.map((style) => (
+                    <button
+                      key={style.id}
+                      type="button"
+                      onClick={() => {
+                        setArtStyle(artStyle === style.id ? null : style.id);
+                        // Reset preview when style changes
+                        if (previewUrl) { setPreviewUrl(null); setPreviewError(null); }
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-sm transition-all ${
+                        artStyle === style.id
+                          ? "bg-purple-600/40 border-purple-500 text-purple-200"
+                          : "bg-gray-800/50 border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-700/50"
+                      }`}
+                    >
+                      <Icon icon={style.icon} width={18} className={artStyle === style.id ? "text-purple-400" : "text-gray-500"} />
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{style.label}</div>
+                        <div className="text-[10px] text-gray-500 truncate">{style.description}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                {!artStyle && (
+                  <p className="text-[10px] text-gray-600 mt-1">Default style based on game type. Select one to customize.</p>
+                )}
+              </div>
+            )}
+
             {!previewUrl && !previewLoading && !premiumArt && (
               <button
                 type="button"
@@ -1653,7 +1709,7 @@ function AIGenerationPanel({
                   setPreviewLoading(true);
                   setPreviewError(null);
                   try {
-                    const { imageUrl, previewsRemaining: rem } = await generateArtPreview(sample.text, apiGameType, deckName || "Custom Deck", maturity, flavorThemes, wildcard);
+                    const { imageUrl, previewsRemaining: rem } = await generateArtPreview(sample.text, apiGameType, deckName || "Custom Deck", maturity, flavorThemes, wildcard, artStyle || undefined);
                     setPreviewUrl(imageUrl);
                     if (rem !== undefined) setPreviewsRemaining(rem);
                   } catch (err: any) {

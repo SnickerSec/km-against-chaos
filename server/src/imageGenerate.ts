@@ -162,32 +162,240 @@ interface ArtStyleConfig {
 
 export const DEFAULT_IMAGE_SUFFIX = "absolutely no text, no letters, no words, no writing, no captions anywhere in the image";
 
-export const DEFAULT_ART_STYLES: Record<string, ArtStyleConfig> = {
+// ── User-selectable art styles (card-game-friendly) ──
+
+export interface ArtStyleOption {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  config: ArtStyleConfig;
+}
+
+export const ART_STYLE_OPTIONS: ArtStyleOption[] = [
+  {
+    id: "classic-cartoon",
+    label: "Classic Cartoon",
+    description: "Bold outlines, flat colors, clean and playful",
+    icon: "mdi:draw",
+    config: {
+      basePrompt: "simple cartoon illustration, bold outlines, flat colors, white background, clean vector style, bright saturated colors",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, complex shading",
+    },
+  },
+  {
+    id: "editorial-ink",
+    label: "Editorial Ink",
+    description: "Dark humor editorial cartoon, black and white with accent color",
+    icon: "mdi:fountain-pen-tip",
+    config: {
+      basePrompt: "dark humor editorial cartoon illustration, bold ink style, simple black and white with one accent color, minimalist, crosshatching",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, complex, detailed background, full color",
+    },
+  },
+  {
+    id: "pop-art",
+    label: "Pop Art",
+    description: "Bold dots, primary colors, comic book halftone",
+    icon: "mdi:palette",
+    config: {
+      basePrompt: "pop art illustration, bold primary colors, Ben-Day dots, thick black outlines, Roy Lichtenstein style, comic book halftone shading, flat graphic design, high contrast",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, pastel, muted colors, watercolor",
+    },
+  },
+  {
+    id: "retro-pixel",
+    label: "Retro Pixel",
+    description: "16-bit pixel art, nostalgic video game aesthetic",
+    icon: "mdi:gamepad-square",
+    config: {
+      basePrompt: "16-bit pixel art, retro video game style, limited color palette, clean pixel edges, nostalgic SNES era, character sprite, simple background",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, smooth gradients, high resolution detail, anti-aliased",
+    },
+  },
+  {
+    id: "woodcut",
+    label: "Woodcut Print",
+    description: "Bold black and white woodblock print, vintage feel",
+    icon: "mdi:axe",
+    config: {
+      basePrompt: "woodcut print illustration, bold black and white, strong contrast, hand-carved lines, vintage printmaking, linocut style, dramatic shadows, simple composition",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, color, 3d render, smooth gradients, pastel, anime",
+    },
+  },
+  {
+    id: "watercolor",
+    label: "Watercolor",
+    description: "Soft washes, flowing colors, artistic and dreamy",
+    icon: "mdi:water",
+    config: {
+      basePrompt: "watercolor painting, soft flowing colors, visible brushstrokes, artistic washes, light and airy, gentle color bleeding, delicate illustration, white paper background",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, sharp edges, vector, pixel art, dark, heavy",
+    },
+  },
+  {
+    id: "noir-comic",
+    label: "Noir Comic",
+    description: "Hard-boiled graphic novel, heavy shadows, GTA style",
+    icon: "mdi:detective",
+    config: {
+      basePrompt: "hard-boiled noir comic illustration, heavy black ink line art, high contrast, grayscale with halftone shading, one bold pop of yellow accent color, deadpan serious dramatic pose, semi-realistic proportions with exaggerated features, thick ink outlines, graphic novel aesthetic, GTA loading screen style, clean white background, single character centered",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, 3d render, anime, manga, cute, cartoonish, pastel colors, full color, rainbow, complex background, text, words, letters, watermarks, logos, stick figure, chibi",
+    },
+  },
+  {
+    id: "sticker",
+    label: "Sticker",
+    description: "Cute die-cut sticker look, thick white border",
+    icon: "mdi:sticker-emoji",
+    config: {
+      basePrompt: "cute sticker illustration, thick white outline border, kawaii style, chibi proportions, simple flat colors, clean vector design, die-cut sticker on plain background, adorable character",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, complex background, dark, scary, detailed shading",
+    },
+  },
+  {
+    id: "tarot",
+    label: "Tarot Card",
+    description: "Mystical art nouveau, ornate borders, rich gold tones",
+    icon: "mdi:cards",
+    config: {
+      basePrompt: "tarot card illustration, art nouveau style, ornate decorative border, mystical symbolism, rich gold and deep jewel tones, intricate line work, Alphonse Mucha inspired, dramatic composition, single central figure",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, cartoon, pixel art, modern, minimalist",
+    },
+  },
+  {
+    id: "manga",
+    label: "Manga",
+    description: "Japanese manga style, expressive characters, screen tones",
+    icon: "mdi:star-four-points",
+    config: {
+      basePrompt: "manga illustration, Japanese comic style, expressive character, screen tone shading, dynamic pose, large eyes, clean ink lines, speed lines, black and white with selective color accents",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, western cartoon, pixel art, watercolor, oil painting",
+    },
+  },
+  {
+    id: "vintage-ad",
+    label: "Vintage Ad",
+    description: "1950s advertisement style, retro Americana",
+    icon: "mdi:television-classic",
+    config: {
+      basePrompt: "1950s vintage advertisement illustration, retro Americana, limited color print, halftone dots, mid-century design, cheerful characters, clean graphic style, nostalgic wholesome aesthetic",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, modern, 3d render, anime, dark, grunge, complex",
+    },
+  },
+  {
+    id: "neon-glow",
+    label: "Neon Glow",
+    description: "Vibrant neon colors on dark background, synthwave",
+    icon: "mdi:lightning-bolt",
+    config: {
+      basePrompt: "neon glow illustration, vibrant neon pink and cyan and purple, dark background, synthwave aesthetic, glowing outlines, retrowave, electric atmosphere, bold silhouette, simple composition",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, natural lighting, pastel, muted, watercolor, daytime",
+    },
+  },
+  {
+    id: "chalk-sketch",
+    label: "Chalk Sketch",
+    description: "Chalkboard drawing, hand-drawn, whimsical doodle",
+    icon: "mdi:lead-pencil",
+    config: {
+      basePrompt: "chalk drawing on dark chalkboard, white and colored chalk, hand-drawn doodle style, whimsical sketch, loose line work, textured chalk strokes, simple illustration, playful",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, clean vector, digital, smooth, polished",
+    },
+  },
+  {
+    id: "ukiyo-e",
+    label: "Ukiyo-e",
+    description: "Japanese woodblock print, flat colors, flowing lines",
+    icon: "mdi:waves",
+    config: {
+      basePrompt: "ukiyo-e Japanese woodblock print, flat bold colors, flowing lines, Hokusai inspired, traditional Japanese art, dramatic composition, stylized figures, decorative patterns, limited color palette",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, western art, pixel art, modern digital",
+    },
+  },
+  {
+    id: "graffiti",
+    label: "Graffiti",
+    description: "Street art spray paint style, bold and urban",
+    icon: "mdi:spray",
+    config: {
+      basePrompt: "graffiti street art illustration, spray paint style, bold colors, dripping paint, urban wall texture, wildstyle lettering influence, stencil art, vibrant and rebellious, brick wall background",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, clean, corporate, watercolor, pastel, delicate",
+    },
+  },
+  {
+    id: "paper-cutout",
+    label: "Paper Cutout",
+    description: "Layered paper craft, shadow depth, handmade feel",
+    icon: "mdi:content-cut",
+    config: {
+      basePrompt: "paper cutout collage illustration, layered construction paper, visible paper texture, drop shadows between layers, handmade craft aesthetic, simple shapes, bold flat colors, playful composition",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, digital, smooth, gradient, complex shading",
+    },
+  },
+  {
+    id: "minimalist",
+    label: "Minimalist",
+    description: "Simple geometric shapes, limited palette, modern",
+    icon: "mdi:circle-outline",
+    config: {
+      basePrompt: "minimalist illustration, simple geometric shapes, limited two-tone color palette, lots of negative space, modern graphic design, clean lines, abstract representation, sophisticated simplicity",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, detailed, complex, busy, ornate, 3d render, textured",
+    },
+  },
+  {
+    id: "gothic",
+    label: "Gothic",
+    description: "Dark medieval, ornate details, moody atmosphere",
+    icon: "mdi:skull",
+    config: {
+      basePrompt: "gothic illustration, dark medieval aesthetic, ornate decorative elements, moody atmospheric, deep burgundy and black, intricate line work, dramatic lighting, cathedral-inspired composition, macabre elegance",
+      aspectRatio: "5:7",
+      negativePrompt: "photo, realistic, 3d render, bright, cheerful, cartoon, cute, pastel, modern",
+    },
+  },
+];
+
+// Game-type defaults map to art style option IDs
+const GAME_TYPE_DEFAULT_STYLES: Record<string, string> = {
+  joking_hazard: "classic-cartoon", // Joking Hazard has its own special stick-figure style override
+  cah: "editorial-ink",
+  apples_to_apples: "classic-cartoon",
+  superfight: "noir-comic",
+};
+
+// Special game-type overrides that differ from the selectable art style options
+const GAME_TYPE_STYLE_OVERRIDES: Record<string, ArtStyleConfig> = {
   joking_hazard: {
     basePrompt: "stick figure character, single panel webcomic, round heads, colored shirts, black outlines on characters only, plain white background seamless to edges, no border, no frame, no panel outline, characters large and centered filling most of the frame, close-up framing, minimal detail, no text, no speech bubbles, no words, no crowd, no background objects, no watermarks",
     aspectRatio: "5:7",
     negativePrompt: "realistic, photo, 3d render, complex shading, anime, manga, watermarks, logos, signatures, copyright, crowd, group, many people, busy, detailed background, text, words, letters, border, frame, panel outline, black border",
   },
-  cah: {
-    basePrompt: "dark humor editorial cartoon illustration, bold ink style, simple black and white with one accent color, minimalist",
-    aspectRatio: "5:7",
-    negativePrompt: "photo, realistic, complex, detailed background",
-  },
-  apples_to_apples: {
-    basePrompt: "colorful playful cartoon illustration, friendly rounded style, bright colors, simple clean design",
-    aspectRatio: "5:7",
-    negativePrompt: "photo, realistic, dark, scary",
-  },
-  superfight: {
-    basePrompt: "hard-boiled noir comic illustration, heavy black ink line art, high contrast, grayscale with halftone shading, one bold pop of yellow accent color, deadpan serious dramatic pose, semi-realistic proportions with exaggerated features, thick ink outlines, graphic novel aesthetic, GTA loading screen style, clean white background, single character centered, no text",
-    aspectRatio: "5:7",
-    negativePrompt: "photo, 3d render, anime, manga, cute, cartoonish, pastel colors, full color, rainbow, complex background, text, words, letters, watermarks, logos, stick figure, chibi",
-  },
-  default: {
-    basePrompt: "simple cartoon illustration, bold outlines, flat colors, white background",
-    aspectRatio: "5:7",
-    negativePrompt: "photo, realistic, 3d render",
-  },
+};
+
+export const DEFAULT_ART_STYLES: Record<string, ArtStyleConfig> = {
+  joking_hazard: GAME_TYPE_STYLE_OVERRIDES.joking_hazard,
+  cah: ART_STYLE_OPTIONS.find(o => o.id === "editorial-ink")!.config,
+  apples_to_apples: ART_STYLE_OPTIONS.find(o => o.id === "classic-cartoon")!.config,
+  superfight: ART_STYLE_OPTIONS.find(o => o.id === "noir-comic")!.config,
+  default: ART_STYLE_OPTIONS.find(o => o.id === "classic-cartoon")!.config,
 };
 
 async function getPromptTemplateOverrides(): Promise<any> {
@@ -198,7 +406,13 @@ async function getPromptTemplateOverrides(): Promise<any> {
   return {};
 }
 
-export async function getArtStyle(gameType: string): Promise<ArtStyleConfig> {
+export async function getArtStyle(gameType: string, artStyle?: string): Promise<ArtStyleConfig> {
+  // If user selected a specific art style, use it (unless game type has a forced override)
+  if (artStyle && !GAME_TYPE_STYLE_OVERRIDES[gameType]) {
+    const option = ART_STYLE_OPTIONS.find(o => o.id === artStyle);
+    if (option) return option.config;
+  }
+
   const defaults = DEFAULT_ART_STYLES[gameType] || DEFAULT_ART_STYLES.default;
   try {
     const overrides = await getPromptTemplateOverrides();
@@ -524,8 +738,9 @@ export async function generatePreviewImage(
   flavorThemes?: string[],
   wildcard?: string,
   userId?: string,
+  artStyle?: string,
 ): Promise<{ imageUrl: string; artLibraryId?: string } | null> {
-  const style = await getArtStyle(gameType);
+  const style = await getArtStyle(gameType, artStyle);
   const prompt = await buildImagePrompt(cardText, style, { theme, maturity, flavorThemes, wildcard });
   const imageUrl = await generateCardImage(prompt, style);
   if (!imageUrl) return null;
@@ -578,7 +793,8 @@ export async function generateDeckArt(deckId: string): Promise<void> {
     const maturity = deck.maturity || "adult";
     const flavorThemes: string[] = deck.flavor_themes || [];
     const wildcard: string = deck.wildcard || "";
-    const style = await getArtStyle(gameType);
+    const artStyleId: string = deck.art_style || "";
+    const style = await getArtStyle(gameType, artStyleId);
     const context = { theme, maturity, flavorThemes, wildcard };
 
     // Collect all cards that need images
