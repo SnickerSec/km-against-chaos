@@ -14,6 +14,7 @@ import {
   type PackInput,
 } from "./deckStore.js";
 import { generateCards, generateDeck } from "./aiGenerate.js";
+import { saveCardsToLibrary } from "./cardLibraryRoutes.js";
 import { requireAuth, requireModeratorOrAdmin, isAdmin } from "./auth.js";
 import pool from "./db.js";
 import { createLogger } from "./logger.js";
@@ -312,9 +313,10 @@ router.post("/generate", requireAuth, requireAiRateLimit, async (req, res) => {
   }
 
   try {
+    const resolvedGameType = gameType || "cards-against-humanity";
     const cards = await generateCards({
       theme: theme.trim(),
-      gameType: gameType || "cards-against-humanity",
+      gameType: resolvedGameType,
       packType: packType || "base",
       packName,
       deckName,
@@ -327,6 +329,21 @@ router.post("/generate", requireAuth, requireAiRateLimit, async (req, res) => {
       wildcard: typeof wildcard === "string" ? wildcard.slice(0, MAX_WILDCARD_LEN) : undefined,
     });
     res.json(cards);
+
+    // Save to card library (fire-and-forget)
+    const apiGameType = resolvedGameType === "cards-against-humanity" ? "cah"
+      : resolvedGameType === "joking-hazard" ? "joking_hazard"
+      : resolvedGameType === "apples-to-apples" ? "apples_to_apples"
+      : resolvedGameType;
+    const libCards = [
+      ...(cards.chaosCards || []).map((c: any) => ({ text: c.text, pick: c.pick || 1, type: "chaos" as const })),
+      ...(cards.knowledgeCards || []).map((c: any) => ({ text: c.text, pick: 1, type: "knowledge" as const })),
+    ];
+    saveCardsToLibrary(libCards, {
+      gameType: apiGameType, maturity, theme: theme.trim(),
+      flavorThemes: Array.isArray(flavorThemes) ? flavorThemes.slice(0, 5) : undefined,
+      generatedBy: (req as any).user.id,
+    }).catch(() => {});
   } catch (e: any) {
     log.error("AI generation error", { error: e.message });
     res.status(500).json({
@@ -402,6 +419,23 @@ router.post("/generate-deck", requireAuth, requireAiRateLimit, async (req, res) 
     }
 
     res.json({ ...generated, id: savedDraft.id });
+
+    // Save to card library (fire-and-forget)
+    if (!isUno) {
+      const apiGameType = resolvedGameType === "cards-against-humanity" ? "cah"
+        : resolvedGameType === "joking-hazard" ? "joking_hazard"
+        : resolvedGameType === "apples-to-apples" ? "apples_to_apples"
+        : resolvedGameType;
+      const libCards = [
+        ...(generated.chaosCards || []).map((c: any) => ({ text: c.text, pick: c.pick || 1, type: "chaos" as const })),
+        ...(generated.knowledgeCards || []).map((c: any) => ({ text: c.text, pick: 1, type: "knowledge" as const })),
+      ];
+      saveCardsToLibrary(libCards, {
+        gameType: apiGameType, maturity, theme: theme.trim(),
+        flavorThemes: Array.isArray(flavorThemes) ? flavorThemes.slice(0, 5) : undefined,
+        generatedBy: ownerId,
+      }).catch(() => {});
+    }
   } catch (e: any) {
     log.error("AI deck generation error", { error: e.message });
     res.status(500).json({

@@ -741,3 +741,40 @@ export function artLibraryThumbUrl(id: string): string {
 export async function trackArtUse(id: string): Promise<void> {
   await fetch(`${API_URL}/api/art-library/use/${id}`, { method: "POST" }).catch(() => {});
 }
+
+// ── Card Library ──
+
+export interface CardLibraryEntry {
+  id: string;
+  text: string;
+  cardType: "chaos" | "knowledge";
+  pick: number;
+  gameType: string;
+  maturity: string;
+  theme: string;
+  useCount: number;
+  createdAt: string;
+}
+
+export async function browseCardLibrary(opts: {
+  q?: string; gameType?: string; cardType?: string; page?: number; limit?: number;
+}): Promise<{ results: CardLibraryEntry[]; total: number; page: number; pages: number }> {
+  const params = new URLSearchParams();
+  if (opts.q) params.set("q", opts.q);
+  if (opts.gameType) params.set("gameType", opts.gameType);
+  if (opts.cardType) params.set("cardType", opts.cardType);
+  if (opts.page) params.set("page", String(opts.page));
+  if (opts.limit) params.set("limit", String(opts.limit));
+  const qs = params.toString();
+  const res = await fetch(`${API_URL}/api/card-library/browse${qs ? `?${qs}` : ""}`);
+  if (!res.ok) throw new Error("Failed to browse card library");
+  return res.json();
+}
+
+export async function trackCardLibraryUse(ids: string[]): Promise<void> {
+  await fetch(`${API_URL}/api/card-library/use`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  }).catch(() => {});
+}

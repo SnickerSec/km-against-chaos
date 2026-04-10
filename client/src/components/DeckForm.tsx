@@ -5,6 +5,7 @@ import { Icon } from "@iconify/react";
 import { generateCardsAI, generateDeckAI, generateArtPreview, getArtStyles, artLibraryImageUrl, type GenerateContext, type ArtStyleOption } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import ArtLibraryBrowser from "./ArtLibraryBrowser";
+import CardLibraryBrowser from "./CardLibraryBrowser";
 
 // ── 4-Pillar constants ──
 
@@ -874,6 +875,7 @@ function CardPackEditor({
   const style = PACK_LABELS[pack.type];
   const chaosCardCount = pack.chaosCards.filter((c) => c.text.trim()).length;
   const knowledgeCardCount = pack.knowledgeCards.filter((c) => c.text.trim()).length;
+  const [cardLibraryOpen, setCardLibraryOpen] = useState(false);
 
   const updateChaos = (index: number, field: keyof CardInput, value: string | number | boolean) => {
     onUpdate((p) => {
@@ -1054,15 +1056,44 @@ function CardPackEditor({
             </>
           )}
 
-          {/* Bulk Add */}
-          <BulkAdd
+          {/* Bulk Add + Card Library */}
+          <div className="flex gap-2">
+            <BulkAdd
+              gameType={gameType}
+              onAddChaos={gameType === "joking-hazard"
+                ? (cards) => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
+                : (cards) => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, ...cards] }))}
+              onAddKnowledge={(cards) =>
+                onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
+              }
+            />
+            <button
+              type="button"
+              onClick={() => setCardLibraryOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600/10 hover:bg-cyan-600/20 border border-cyan-600/40 rounded-lg text-cyan-400 text-xs font-medium transition-colors"
+            >
+              <Icon icon="mdi:library" width={14} />
+              Card Library
+            </button>
+          </div>
+
+          <CardLibraryBrowser
+            open={cardLibraryOpen}
+            onClose={() => setCardLibraryOpen(false)}
             gameType={gameType}
-            onAddChaos={gameType === "joking-hazard"
-              ? (cards) => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
-              : (cards) => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, ...cards] }))}
-            onAddKnowledge={(cards) =>
-              onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
-            }
+            onImport={(cards) => {
+              const chaos = cards.filter(c => c.type === "chaos").map(c => ({ text: c.text, pick: c.pick || 1 }));
+              const knowledge = cards.filter(c => c.type === "knowledge").map(c => ({ text: c.text }));
+              onUpdate((p) => ({
+                ...p,
+                chaosCards: gameType === "joking-hazard"
+                  ? p.chaosCards
+                  : [...p.chaosCards, ...chaos],
+                knowledgeCards: gameType === "joking-hazard"
+                  ? [...p.knowledgeCards, ...chaos.map(c => ({ text: c.text })), ...knowledge]
+                  : [...p.knowledgeCards, ...knowledge],
+              }));
+            }}
           />
         </div>
       )}
