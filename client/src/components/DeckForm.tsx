@@ -834,31 +834,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
         </div>
       ))}
 
-      {/* Add expansion / themed pack buttons (create mode only, after base has cards, not for Uno) */}
-      {!initial && baseHasCards && gameType !== "uno" && gameType !== "codenames" && (
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => addPack("expansion")}
-            className="flex-1 py-3 bg-yellow-600/10 hover:bg-yellow-600/20 border border-yellow-600/40 rounded-xl text-yellow-400 font-semibold text-sm transition-colors"
-          >
-            + Add Expansion Box
-          </button>
-          <button
-            type="button"
-            onClick={() => addPack("themed")}
-            className="flex-1 py-3 bg-cyan-600/10 hover:bg-cyan-600/20 border border-cyan-600/40 rounded-xl text-cyan-400 font-semibold text-sm transition-colors"
-          >
-            + Add Themed Pack
-          </button>
-        </div>
-      )}
-
-      {!initial && !baseHasCards && packs.length === 1 && (
-        <p className="text-gray-500 text-xs text-center">
-          Create a Base Game to unlock Expansion Boxes and Themed Packs
-        </p>
-      )}
+      {/* Add expansion / themed pack buttons — only shown in edit mode (after deck is created) */}
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
 
