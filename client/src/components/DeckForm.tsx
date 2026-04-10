@@ -912,15 +912,25 @@ function CardPackEditor({
               : `${chaosCardCount} ${gameType === "apples-to-apples" ? "green" : "prompts"} · ${knowledgeCardCount} ${gameType === "apples-to-apples" ? "red" : "answers"}`}
           </span>
         </div>
-        {!isBase && (
+        <div className="flex items-center gap-2 ml-2">
           <button
             type="button"
-            onClick={onRemove}
-            className="text-gray-500 hover:text-red-400 text-sm ml-2 transition-colors"
+            onClick={(e) => { e.stopPropagation(); setCardLibraryOpen(true); }}
+            className="flex items-center gap-1 px-2 py-1 bg-cyan-600/10 hover:bg-cyan-600/20 border border-cyan-600/40 rounded text-cyan-400 text-xs font-medium transition-colors"
           >
-            Remove
+            <Icon icon="mdi:library" width={13} />
+            Card Library
           </button>
-        )}
+          {!isBase && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="text-gray-500 hover:text-red-400 text-sm transition-colors"
+            >
+              Remove
+            </button>
+          )}
+        </div>
       </div>
 
       {pack.open && (
@@ -1056,26 +1066,16 @@ function CardPackEditor({
             </>
           )}
 
-          {/* Bulk Add + Card Library */}
-          <div className="flex gap-2">
-            <BulkAdd
-              gameType={gameType}
-              onAddChaos={gameType === "joking-hazard"
-                ? (cards) => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
-                : (cards) => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, ...cards] }))}
-              onAddKnowledge={(cards) =>
-                onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
-              }
-            />
-            <button
-              type="button"
-              onClick={() => setCardLibraryOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600/10 hover:bg-cyan-600/20 border border-cyan-600/40 rounded-lg text-cyan-400 text-xs font-medium transition-colors"
-            >
-              <Icon icon="mdi:library" width={14} />
-              Card Library
-            </button>
-          </div>
+          {/* Bulk Add */}
+          <BulkAdd
+            gameType={gameType}
+            onAddChaos={gameType === "joking-hazard"
+              ? (cards) => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
+              : (cards) => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, ...cards] }))}
+            onAddKnowledge={(cards) =>
+              onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, ...cards] }))
+            }
+          />
 
           <CardLibraryBrowser
             open={cardLibraryOpen}
