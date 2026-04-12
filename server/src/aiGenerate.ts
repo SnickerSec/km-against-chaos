@@ -96,7 +96,7 @@ export const GAME_TYPE_KEYS = [
   "codenames",
 ] as const;
 
-export const MATURITY_KEYS = ["kid-friendly", "moderate", "adult", "raunchy"] as const;
+export const MATURITY_KEYS = ["kid-friendly", "moderate", "adult", "raunchy", "xxx"] as const;
 
 export function getDefaultEngineRules(gameType: string): string {
   if (gameType === "cah" || gameType === "cards-against-humanity") {

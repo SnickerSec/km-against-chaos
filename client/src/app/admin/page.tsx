@@ -358,6 +358,7 @@ export default function AdminPage() {
     moderate: "Moderate (PG-13)",
     adult: "Adult (R)",
     raunchy: "Raunchy (NC-17)",
+    xxx: "XXX (Unhinged)",
   };
 
   if (authLoading || !user || !isAdmin) {
