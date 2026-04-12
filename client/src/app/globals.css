@@ -13,6 +13,14 @@ button, a, [role="button"] {
   user-select: none;
 }
 
+@keyframes logo-sep-pulse {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+.logo-sep-pulse {
+  animation: logo-sep-pulse 2.4s ease-in-out infinite;
+}
+
 @keyframes float-up {
   0% {
     opacity: 1;

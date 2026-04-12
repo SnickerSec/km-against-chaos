@@ -134,6 +134,16 @@ export default function HomeScreen() {
                 <stop offset="0%" stopColor="#382E54"/>
                 <stop offset="100%" stopColor="#221C34"/>
               </linearGradient>
+              <filter id="sepGlow" x="-200%" y="-50%" width="500%" height="200%">
+                <feGaussianBlur stdDeviation="3.5" result="blur1"/>
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="blur2"/>
+                <feMerge>
+                  <feMergeNode in="blur1"/>
+                  <feMergeNode in="blur1"/>
+                  <feMergeNode in="blur2"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
             </defs>
             {/* Card stack with shadow */}
             <g filter="url(#shadow)">
@@ -145,8 +155,8 @@ export default function HomeScreen() {
             <text x="90" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="52" fontWeight="bold" fill="#7B42D4" textAnchor="middle" dominantBaseline="central">D</text>
             {/* "ecked" text */}
             <text x="140" y="72" filter="url(#shadow)" fontFamily="Arial, Helvetica, sans-serif" fontSize="48" fontWeight="bold" fill="#7B42D4" letterSpacing="2" dominantBaseline="central">ecked</text>
-            {/* Separator */}
-            <line x1="300" y1="45" x2="300" y2="95" stroke="#666" strokeWidth="2"/>
+            {/* Separator — glowing */}
+            <line x1="300" y1="45" x2="300" y2="95" stroke="#C084FC" strokeWidth="2.5" strokeLinecap="round" filter="url(#sepGlow)" className="logo-sep-pulse"/>
             {/* Subtitle */}
             <text x="315" y="75" fontFamily="Arial, Helvetica, sans-serif" fontSize="9" fontWeight="300" fill="#999" letterSpacing="3">DIGITAL CARD EXPERIENCE</text>
           </svg>
