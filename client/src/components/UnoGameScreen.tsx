@@ -61,8 +61,15 @@ export default function UnoGameScreen() {
     return px >= r.left - 24 && px <= r.right + 24 && py >= r.top - 24 && py <= r.bottom + 24;
   }, []);
 
-  const handleCardClick = useCallback((cardId: string) => {
+  const handleCardSelect = useCallback((cardId: string) => {
     if (!isMyTurn || isRoundOver) return;
+    if (!playableCardIds.includes(cardId)) return;
+    useGameStore.setState({ selectedUnoCard: selectedUnoCard === cardId ? null : cardId, choosingColor: false });
+  }, [isMyTurn, isRoundOver, playableCardIds, selectedUnoCard]);
+
+  const handleCardPlay = useCallback((cardId: string) => {
+    if (!isMyTurn || isRoundOver) return;
+    if (!playableCardIds.includes(cardId)) return;
     const card = unoHand.find(c => c.id === cardId);
     if (!card) return;
     if (card.type === "wild" || card.type === "wild_draw_four") {
@@ -70,7 +77,7 @@ export default function UnoGameScreen() {
       return;
     }
     playUnoCard(cardId);
-  }, [isMyTurn, isRoundOver, unoHand, playUnoCard]);
+  }, [isMyTurn, isRoundOver, playableCardIds, unoHand, playUnoCard]);
 
   const onDragStart = useCallback((cardId: string, e: React.PointerEvent) => {
     if (!isMyTurn || isRoundOver || !playableCardIds.includes(cardId)) return;
@@ -95,12 +102,12 @@ export default function UnoGameScreen() {
       return;
     }
     if (isOverDiscard(dragPos.x, dragPos.y)) {
-      handleCardClick(dragCardId);
+      handleCardPlay(dragCardId);
     }
     setDragCardId(null);
     setDragPos(null);
     setOverDrop(false);
-  }, [dragCardId, dragPos, isOverDiscard, handleCardClick]);
+  }, [dragCardId, dragPos, isOverDiscard, handleCardPlay]);
 
   if (!unoTurn) {
     return (
@@ -344,6 +351,18 @@ export default function UnoGameScreen() {
       {/* Reaction bar */}
       <ReactionBar />
 
+      {/* Play selected card button */}
+      {!isRoundOver && selectedUnoCard && !choosingColor && playableCardIds.includes(selectedUnoCard) && (
+        <div className="flex justify-center pb-2">
+          <button
+            onClick={() => handleCardPlay(selectedUnoCard)}
+            className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-full text-sm transition-colors animate-bounce"
+          >
+            Play Card
+          </button>
+        </div>
+      )}
+
       {/* Hand */}
       {!isRoundOver && (
         <div className="bg-gray-900 border-t border-gray-800 px-4 py-4">
@@ -363,7 +382,8 @@ export default function UnoGameScreen() {
                     card={card}
                     playable={isPlayable}
                     selected={selectedUnoCard === card.id}
-                    onClick={() => handleCardClick(card.id)}
+                    onClick={() => handleCardSelect(card.id)}
+                    onDoubleClick={() => handleCardPlay(card.id)}
                   />
                 </div>
               );

@@ -23,12 +23,14 @@ export default function UnoCard({
   selected,
   small,
   onClick,
+  onDoubleClick,
 }: {
   card: UnoCardType;
   playable?: boolean;
   selected?: boolean;
   small?: boolean;
   onClick?: () => void;
+  onDoubleClick?: () => void;
 }) {
   const colorKey = card.color || "wild";
   const colors = COLOR_MAP[colorKey] || COLOR_MAP.wild;
@@ -42,6 +44,7 @@ export default function UnoCard({
     <button
       type="button"
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       disabled={playable === false}
       className={`
         relative flex flex-col items-center justify-center rounded-xl border-2 transition-all
