@@ -192,7 +192,7 @@ export default function HomeScreen() {
             {/* Separator — cyan neon */}
             <line x1="300" y1="42" x2="300" y2="98" stroke="#22D3EE" strokeWidth="3" strokeLinecap="round" filter="url(#sepGlow)" className="logo-sep-pulse"/>
             {/* Subtitle — gold */}
-            <text x="315" y="70" fontFamily="Arial, Helvetica, sans-serif" fontSize="9" fontWeight="400" fill="#D4A84C" letterSpacing="3" dominantBaseline="central">DIGITAL CARD EXPERIENCE</text>
+            <text x="315" y="70" fontFamily="Arial, Helvetica, sans-serif" fontSize="11" fontWeight="400" fill="#D4A84C" letterSpacing="3" dominantBaseline="central">DIGITAL CARD EXPERIENCE</text>
           </svg>
           </h1>
           <div className="flex items-center gap-3">
