@@ -129,11 +129,11 @@ export default function HomeScreen() {
             <defs>
               <linearGradient id="cardGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#A855F7" stopOpacity="0.55"/>
-                <stop offset="100%" stopColor="#EC4899" stopOpacity="0.45"/>
+                <stop offset="100%" stopColor="#6D28D9" stopOpacity="0.45"/>
               </linearGradient>
               <linearGradient id="eckedGrad" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor="#C084FC"/>
-                <stop offset="100%" stopColor="#F472B6"/>
+                <stop offset="100%" stopColor="#A855F7"/>
               </linearGradient>
               <filter id="cardGlow" filterUnits="userSpaceOnUse" x="0" y="0" width="240" height="160">
                 <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
