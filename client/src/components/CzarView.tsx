@@ -5,7 +5,8 @@ import { useGameStore, type GameType } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
 import CardPreview from "./CardPreview";
-import { fetchDeck, API_URL } from "@/lib/api";
+import { fetchDeck, API_URL, ttsSpeak } from "@/lib/api";
+import { Icon } from "@iconify/react";
 
 export default function CzarView({ isCzar }: { isCzar: boolean }) {
   const { round, gameType, lobby } = useGameStore();
@@ -34,6 +35,20 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
   const submissionCount = round?.submissions.length || 0;
   const roundKey = round?.roundNumber ?? 0;
   const [flippedCount, setFlippedCount] = useState(0);
+  const [ttsMuted, setTtsMuted] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("tts_muted") === "1";
+  });
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const toggleMute = () => {
+    setTtsMuted((m) => {
+      const next = !m;
+      try { localStorage.setItem("tts_muted", next ? "1" : "0"); } catch {}
+      if (next && audioRef.current) { audioRef.current.pause(); }
+      return next;
+    });
+  };
+
   useEffect(() => {
     if (!cardBackSrc || submissionCount === 0) { setFlippedCount(submissionCount); return; }
     setFlippedCount(0);
@@ -43,6 +58,24 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
     }
     return () => { timers.forEach(clearTimeout); };
   }, [roundKey, submissionCount, cardBackSrc]);
+
+  const spokenRef = useRef<Set<number>>(new Set());
+  useEffect(() => { spokenRef.current = new Set(); }, [roundKey]);
+  useEffect(() => {
+    if (ttsMuted || !round) return;
+    const idx = flippedCount - 1;
+    if (idx < 0 || spokenRef.current.has(idx)) return;
+    const sub = round.submissions[idx];
+    if (!sub) return;
+    spokenRef.current.add(idx);
+    const text = sub.cards.map((c) => c.text).join(". ");
+    ttsSpeak(text).then((url) => {
+      if (!url || ttsMuted) return;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.play().catch(() => {});
+    });
+  }, [flippedCount, ttsMuted, round]);
 
   const startLongPress = useCallback((text: string) => {
     longPressTriggered.current = false;
@@ -78,6 +111,16 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
 
   return (
     <div>
+      <div className="flex justify-end max-w-lg mx-auto mb-2 px-1">
+        <button
+          onClick={toggleMute}
+          className="text-gray-400 hover:text-white text-xs flex items-center gap-1"
+          title={ttsMuted ? "Unmute card reading" : "Mute card reading"}
+        >
+          <Icon icon={ttsMuted ? "mdi:volume-off" : "mdi:volume-high"} width={16} />
+          {ttsMuted ? "Voice off" : "Voice on"}
+        </button>
+      </div>
       <p className="text-center text-gray-400 text-sm mb-4">
         {isCzar
           ? isJH ? "Pick the funniest punchline!" : "Pick the funniest answer!"

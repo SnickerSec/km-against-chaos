@@ -151,6 +151,19 @@ export async function uploadDeckCardBack(id: string, file: File): Promise<{ card
   return res.json();
 }
 
+export async function ttsSpeak(text: string, voice?: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/tts/speak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice }),
+    });
+    if (!res.ok) return null;
+    const { url } = await res.json();
+    return url ? (url.startsWith("http") ? url : `${API_URL}${url}`) : null;
+  } catch { return null; }
+}
+
 export async function generateDeckCardBack(id: string, prompt?: string): Promise<{ cardBackUrl: string; prompt: string }> {
   const res = await fetch(`${API_URL}/api/decks/${id}/card-back/generate`, {
     method: "POST",
