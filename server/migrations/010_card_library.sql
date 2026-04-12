@@ -10,9 +10,11 @@ CREATE TABLE IF NOT EXISTS card_library (
   flavor_themes JSONB DEFAULT '[]',
   use_count INTEGER DEFAULT 0,
   generated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(md5(text || card_type || game_type))
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_card_library_unique_text
+  ON card_library (md5(text || card_type || game_type));
 
 CREATE INDEX IF NOT EXISTS idx_card_library_game_type ON card_library(game_type);
 CREATE INDEX IF NOT EXISTS idx_card_library_card_type ON card_library(card_type);
