@@ -50,6 +50,15 @@ button, a, [role="button"] {
 .hover-glow-green:hover  { box-shadow: 0 0 22px rgba(34, 197, 94, 0.50); }
 .hover-glow-yellow:hover { box-shadow: 0 0 22px rgba(234, 179, 8, 0.50); }
 
+/* Phase transition — fade + subtle upward slide */
+@keyframes phase-enter {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-phase-enter {
+  animation: phase-enter 260ms ease-out both;
+}
+
 /* Thin neon accent line — used as a top/bottom border accent */
 .accent-line-cyan {
   background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.6), transparent);

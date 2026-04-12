@@ -188,7 +188,7 @@ export default function GameScreen() {
       )}
 
       {/* Main content area */}
-      <div className="flex-1 px-4 pb-6">
+      <div key={winnerInfo ? "winner" : round.phase} className="flex-1 px-4 pb-6 animate-phase-enter">
         {winnerInfo ? (
           <RoundWinner
             winnerInfo={winnerInfo}
@@ -197,7 +197,7 @@ export default function GameScreen() {
           />
         ) : round.phase === "czar_setup" ? (
           isSpectator ? (
-            <div className="text-center text-gray-400 mt-8">
+            <div className="text-center text-gray-400 mt-8 animate-pulse">
               <p className="text-lg">The Judge is picking a setup card...</p>
             </div>
           ) : isCzar ? (
@@ -213,7 +213,7 @@ export default function GameScreen() {
               />
             </div>
           ) : (
-            <div className="text-center text-gray-400 mt-8">
+            <div className="text-center text-gray-400 mt-8 animate-pulse">
               <p className="text-lg">The Judge is picking a setup card...</p>
             </div>
           )
@@ -223,7 +223,7 @@ export default function GameScreen() {
           ) : isCzar ? (
             <WaitingForSubmissions cardBackSrc={cardBackSrc} />
           ) : hasSubmitted ? (
-            <div className="text-center text-gray-400 mt-8">
+            <div className="text-center text-gray-400 mt-8 animate-pulse">
               <p className="text-lg">Cards submitted!</p>
               <p className="text-sm mt-1">Waiting for other players...</p>
             </div>

@@ -24,17 +24,19 @@ export default function Home() {
   return (
     <>
       <ServerRestartBanner />
-      {screen === "lobby" ? (
-        <LobbyScreen />
-      ) : screen === "game" ? (
-        <GameScreen />
-      ) : screen === "gameover" ? (
-        <GameOverScreen />
-      ) : (
-        <Suspense>
-          <HomeScreen />
-        </Suspense>
-      )}
+      <div key={screen ?? "home"} className="animate-phase-enter">
+        {screen === "lobby" ? (
+          <LobbyScreen />
+        ) : screen === "game" ? (
+          <GameScreen />
+        ) : screen === "gameover" ? (
+          <GameOverScreen />
+        ) : (
+          <Suspense>
+            <HomeScreen />
+          </Suspense>
+        )}
+      </div>
       <InstallPrompt />
     </>
   );
