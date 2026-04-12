@@ -125,17 +125,30 @@ export default function HomeScreen() {
       <div className="flex flex-col items-start mb-8">
         <div className="flex items-center justify-between w-full mb-2">
           <h1>
-            <svg viewBox="-10 0 240 58" className="w-64 h-auto block -ml-3" aria-label="Decked">
-            {/* Back card */}
-            <rect x="2" y="4" width="34" height="46" rx="5" fill="#6b21a8" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-12 19 27)"/>
-            {/* Middle card */}
-            <rect x="8" y="2" width="34" height="46" rx="5" fill="#4c1d95" stroke="#a855f7" strokeWidth="1.5" transform="rotate(-4 25 25)"/>
-            {/* Front card */}
-            <rect x="14" y="4" width="34" height="46" rx="5" fill="#1f2937" stroke="#a855f7" strokeWidth="2"/>
+            <svg viewBox="0 0 520 160" className="w-80 h-auto block -ml-3" aria-label="Decked" fill="none">
+            <defs>
+              <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="2" dy="3" stdDeviation="4" floodColor="#000" floodOpacity="0.4"/>
+              </filter>
+              <linearGradient id="cardGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#382E54"/>
+                <stop offset="100%" stopColor="#221C34"/>
+              </linearGradient>
+            </defs>
+            {/* Card stack with shadow */}
+            <g filter="url(#shadow)">
+              <rect x="28" y="18" width="85" height="115" rx="10" fill="#5B4A8A" stroke="#7B6BA8" strokeWidth="2" transform="rotate(-12 70 75)"/>
+              <rect x="38" y="15" width="85" height="115" rx="10" fill="#4A3D6E" stroke="#6B5D94" strokeWidth="2" transform="rotate(-6 80 72)"/>
+              <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#5B4A8A" strokeWidth="2"/>
+            </g>
             {/* D on front card */}
-            <text x="31" y="34" textAnchor="middle" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="24" fill="#a855f7">D</text>
+            <text x="90" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="52" fontWeight="bold" fill="#7B42D4" textAnchor="middle" dominantBaseline="central">D</text>
             {/* "ecked" text */}
-            <text x="58" y="42" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="42" fill="rgb(168, 85, 247)" letterSpacing="2">ecked</text>
+            <text x="140" y="72" filter="url(#shadow)" fontFamily="Arial, Helvetica, sans-serif" fontSize="48" fontWeight="bold" fill="#7B42D4" letterSpacing="2" dominantBaseline="central">ecked</text>
+            {/* Separator */}
+            <line x1="300" y1="45" x2="300" y2="95" stroke="#666" strokeWidth="2"/>
+            {/* Subtitle */}
+            <text x="315" y="75" fontFamily="Arial, Helvetica, sans-serif" fontSize="9" fontWeight="300" fill="#999" letterSpacing="3">DIGITAL CARD EXPERIENCE</text>
           </svg>
           </h1>
           <div className="flex items-center gap-3">
