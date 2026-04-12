@@ -150,6 +150,19 @@ export async function uploadDeckCardBack(id: string, file: File): Promise<{ card
   return res.json();
 }
 
+export async function generateDeckCardBack(id: string, prompt?: string): Promise<{ cardBackUrl: string; prompt: string }> {
+  const res = await fetch(`${API_URL}/api/decks/${id}/card-back/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ prompt: prompt || undefined }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to generate card back");
+  }
+  return res.json();
+}
+
 export async function deleteDeckCardBack(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/decks/${id}/card-back`, {
     method: "DELETE",

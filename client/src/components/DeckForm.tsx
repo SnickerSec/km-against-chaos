@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
-import { generateCardsAI, generateDeckAI, generateArtPreview, getArtStyles, artLibraryImageUrl, uploadDeckCardBack, deleteDeckCardBack, API_URL, type GenerateContext, type ArtStyleOption } from "@/lib/api";
+import { generateCardsAI, generateDeckAI, generateArtPreview, getArtStyles, artLibraryImageUrl, uploadDeckCardBack, deleteDeckCardBack, generateDeckCardBack, API_URL, type GenerateContext, type ArtStyleOption } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import ArtLibraryBrowser from "./ArtLibraryBrowser";
 import CardLibraryBrowser from "./CardLibraryBrowser";
@@ -247,6 +247,18 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
     setCardBackUploading(true);
     try {
       const { cardBackUrl: url } = await uploadDeckCardBack(deckId, file);
+      setCardBackUrl(url);
+    } catch (e: any) { setCardBackError(e.message); }
+    finally { setCardBackUploading(false); }
+  };
+
+  const [cardBackPrompt, setCardBackPrompt] = useState("");
+  const onCardBackGenerate = async () => {
+    if (!deckId) return;
+    setCardBackError(null);
+    setCardBackUploading(true);
+    try {
+      const { cardBackUrl: url } = await generateDeckCardBack(deckId, cardBackPrompt.trim() || undefined);
       setCardBackUrl(url);
     } catch (e: any) { setCardBackError(e.message); }
     finally { setCardBackUploading(false); }
@@ -630,7 +642,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
               </div>
               <div className="flex-1 space-y-2">
                 <p className="text-xs text-gray-400">Shown on the back of every card in this deck. PNG/JPEG/WebP/GIF, max 5MB.</p>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <button
                     type="button"
                     onClick={() => cardBackInputRef.current?.click()}
@@ -639,6 +651,15 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
                   >
                     <Icon icon={cardBackUploading ? "mdi:loading" : "mdi:upload"} className={cardBackUploading ? "animate-spin" : ""} />
                     {cardBackUrl ? "Replace" : "Upload"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onCardBackGenerate}
+                    disabled={cardBackUploading}
+                    className="px-3 py-1.5 text-sm bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 disabled:opacity-50 rounded-lg text-white flex items-center gap-1"
+                  >
+                    <Icon icon={cardBackUploading ? "mdi:loading" : "mdi:auto-fix"} className={cardBackUploading ? "animate-spin" : ""} />
+                    Generate AI
                   </button>
                   {cardBackUrl && (
                     <button
@@ -651,6 +672,14 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
                     </button>
                   )}
                 </div>
+                <input
+                  type="text"
+                  value={cardBackPrompt}
+                  onChange={(e) => setCardBackPrompt(e.target.value)}
+                  placeholder="Optional AI prompt (defaults to deck theme)"
+                  maxLength={500}
+                  className="w-full px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                />
                 {cardBackError && <p className="text-xs text-red-400">{cardBackError}</p>}
               </div>
               <input

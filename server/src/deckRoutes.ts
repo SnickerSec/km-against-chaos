@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomBytes } from "crypto";
 import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
 import { join } from "path";
+import * as fal from "@fal-ai/serverless-client";
 import {
   listDecks,
   getDeck,
@@ -537,6 +538,61 @@ router.post("/:id/card-back", requireAuth, async (req: any, res) => {
       res.status(500).json({ error: "Upload failed" });
     }
   });
+});
+
+router.post("/:id/card-back/generate", requireAuth, requireAiRateLimit, async (req: any, res) => {
+  if (!process.env.FAL_KEY) {
+    res.status(503).json({ error: "AI image generation not configured" }); return;
+  }
+  const deck = await getDeck(req.params.id);
+  if (!deck) { res.status(404).json({ error: "Deck not found" }); return; }
+  const isMod = req.user.isAdmin || req.user.role === "moderator" || req.user.role === "admin";
+  if (!isMod && deck.ownerId && deck.ownerId !== req.user.id) {
+    res.status(403).json({ error: "Not your deck" }); return;
+  }
+
+  const body = req.body || {};
+  const userPrompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 500) : "";
+  const themeBits = [
+    deck.name,
+    deck.description,
+    ...(deck.flavorThemes || []),
+    deck.wildcard || "",
+  ].filter(Boolean).join(", ");
+  const prompt = userPrompt
+    || `Playing card back design, symmetrical pattern, centered emblem, decorative border, themed around: ${themeBits || "party card game"}. No text, no letters, no words. Bold graphic design, high contrast, print-ready.`;
+
+  try {
+    fal.config({ credentials: process.env.FAL_KEY });
+    const result = await fal.subscribe("fal-ai/flux/schnell", {
+      input: {
+        prompt,
+        image_size: { width: 768, height: 1024 },
+        num_images: 1,
+        num_inference_steps: 4,
+      },
+    }) as any;
+    const imgUrl = result?.images?.[0]?.url;
+    if (!imgUrl) throw new Error("No image returned");
+
+    const imgRes = await fetch(imgUrl);
+    if (!imgRes.ok) throw new Error(`Image fetch failed: ${imgRes.status}`);
+    const buf = Buffer.from(await imgRes.arrayBuffer());
+
+    mkdirSync(CARD_BACK_DIR, { recursive: true });
+    for (const e of Object.values(EXT_BY_MIME)) {
+      const prev = join(CARD_BACK_DIR, `${deck.id}.${e}`);
+      if (existsSync(prev)) try { unlinkSync(prev); } catch {}
+    }
+    const filename = `${deck.id}.jpg`;
+    writeFileSync(join(CARD_BACK_DIR, filename), buf);
+    const url = `/uploads/card-backs/${filename}?v=${Date.now()}`;
+    await pool.query("UPDATE decks SET card_back_url = $1, updated_at = NOW() WHERE id = $2", [url, deck.id]);
+    res.json({ cardBackUrl: url, prompt });
+  } catch (e: any) {
+    log.error("card back generation failed", { error: e.message });
+    res.status(500).json({ error: "Generation failed. Try again." });
+  }
 });
 
 router.delete("/:id/card-back", requireAuth, async (req: any, res) => {
