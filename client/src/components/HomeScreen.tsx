@@ -157,6 +157,16 @@ export default function HomeScreen() {
                   <feMergeNode in="SourceGraphic"/>
                 </feMerge>
               </filter>
+              <filter id="dGlow" filterUnits="userSpaceOnUse" x="50" y="20" width="80" height="100">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+                <feFlood floodColor="#4C1D95" floodOpacity="1"/>
+                <feComposite in2="blur" operator="in" result="glow"/>
+                <feMerge>
+                  <feMergeNode in="glow"/>
+                  <feMergeNode in="glow"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
             </defs>
             {/* Card stack — translucent neon */}
             <g filter="url(#cardGlow)">
@@ -165,7 +175,7 @@ export default function HomeScreen() {
               <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#E9D5FF" strokeOpacity="0.9" strokeWidth="1.5"/>
             </g>
             {/* Outlined D on front card */}
-            <text x="90" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="58" fontWeight="bold" fill="none" stroke="#E9D5FF" strokeWidth="2" textAnchor="middle" dominantBaseline="central" filter="url(#textGlow)">D</text>
+            <text x="90" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="58" fontWeight="bold" fill="none" stroke="#E9D5FF" strokeWidth="2" textAnchor="middle" dominantBaseline="central" filter="url(#dGlow)">D</text>
             {/* "ecked" gradient text with glow */}
             <text x="140" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="48" fontWeight="bold" fill="url(#eckedGrad)" letterSpacing="2" dominantBaseline="central" filter="url(#textGlow)">ecked</text>
             {/* Separator — cyan neon */}
