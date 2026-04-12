@@ -134,13 +134,11 @@ export default function HomeScreen() {
                 <stop offset="0%" stopColor="#382E54"/>
                 <stop offset="100%" stopColor="#221C34"/>
               </linearGradient>
-              <filter id="sepGlow" x="-200%" y="-50%" width="500%" height="200%">
-                <feGaussianBlur stdDeviation="3.5" result="blur1"/>
-                <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="blur2"/>
+              <filter id="sepGlow" filterUnits="userSpaceOnUse" x="280" y="35" width="40" height="70">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur1"/>
                 <feMerge>
                   <feMergeNode in="blur1"/>
                   <feMergeNode in="blur1"/>
-                  <feMergeNode in="blur2"/>
                   <feMergeNode in="SourceGraphic"/>
                 </feMerge>
               </filter>
