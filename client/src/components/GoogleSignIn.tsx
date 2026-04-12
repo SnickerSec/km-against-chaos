@@ -87,37 +87,45 @@ function ProfileDropdown({ user, onLogout }: { user: { name: string; picture?: s
   );
 }
 
+let gsiInitialized = false;
+let gsiCallback: ((credential: string) => void) | null = null;
+
 export default function GoogleSignIn() {
   const { user, loading, login, logout, restore } = useAuthStore();
   const buttonRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const initialized = useRef(false);
+  const rendered = useRef(false);
 
   useEffect(() => {
     restore();
   }, [restore]);
 
   useEffect(() => {
-    if (loading || user || initialized.current) return;
+    if (loading || user || rendered.current) return;
 
     const clientId = getGoogleClientId();
     if (!clientId) return;
 
-    const renderButton = () => {
-      if (!window.google || !buttonRef.current || initialized.current) return;
-      initialized.current = true;
+    gsiCallback = async (credential: string) => {
+      try {
+        setError(null);
+        await login(credential);
+      } catch {
+        setError("Sign-in failed. Try again.");
+      }
+    };
 
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: async (response: { credential: string }) => {
-          try {
-            setError(null);
-            await login(response.credential);
-          } catch {
-            setError("Sign-in failed. Try again.");
-          }
-        },
-      });
+    const renderButton = () => {
+      if (!window.google || !buttonRef.current || rendered.current) return;
+      rendered.current = true;
+
+      if (!gsiInitialized) {
+        gsiInitialized = true;
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (response: { credential: string }) => gsiCallback?.(response.credential),
+        });
+      }
 
       window.google.accounts.id.renderButton(buttonRef.current, {
         theme: "filled_black",
@@ -139,10 +147,10 @@ export default function GoogleSignIn() {
     }
   }, [loading, user, login]);
 
-  // Reset initialized when user logs out so button can re-render
+  // Reset rendered flag when user logs out so button can re-render
   useEffect(() => {
     if (!user && !loading) {
-      initialized.current = false;
+      rendered.current = false;
     }
   }, [user, loading]);
 
