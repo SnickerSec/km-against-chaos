@@ -15,6 +15,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const codeFromUrl = searchParams.get("code");
   const deckFromUrl = searchParams.get("deck");
+  const autojoinFromUrl = searchParams.get("autojoin");
 
   const nameRef = useRef<HTMLInputElement>(null);
   const roomCodeRef = useRef<HTMLInputElement>(null);
@@ -60,6 +61,16 @@ export default function HomeScreen() {
       setName(authUser.name.split(" ")[0]); // Use first name
     }
   }, [authUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-join when ?code=XXX&autojoin=1 is present and user is signed in
+  useEffect(() => {
+    if (!autojoinFromUrl || !codeFromUrl) return;
+    const joinName = name.trim() || authUser?.name?.split(" ")[0] || "";
+    if (!joinName) return;
+    router.replace("/", { scroll: false });
+    setPlayerName(joinName);
+    joinLobby(codeFromUrl.toUpperCase(), joinName);
+  }, [autojoinFromUrl, codeFromUrl, authUser, name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-host when ?deck= param is present
   useEffect(() => {

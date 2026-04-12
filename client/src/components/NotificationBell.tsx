@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth";
 import { useFriendsStore } from "@/lib/friendsStore";
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead, getVapidPublicKey, subscribePush } from "@/lib/api";
@@ -27,6 +28,7 @@ export default function NotificationBell() {
   const { notifications, setNotifications, markNotificationRead: markRead } = useFriendsStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -71,9 +73,15 @@ export default function NotificationBell() {
     setNotifications(notifications.map((n) => ({ ...n, read: true })));
   };
 
-  const handleClick = async (id: string) => {
+  const handleClick = async (id: string, n: typeof notifications[number]) => {
     await markNotificationRead(id);
     markRead(id);
+    setOpen(false);
+    if (n.type === "game_invite" && n.data?.lobbyCode) {
+      router.push(`/?code=${encodeURIComponent(n.data.lobbyCode)}&autojoin=1`);
+    } else if (n.type === "friend_request" || n.type === "friend_accepted") {
+      router.push("/friends");
+    }
   };
 
   return (
@@ -109,7 +117,7 @@ export default function NotificationBell() {
               notifications.slice(0, 20).map((n) => (
                 <button
                   key={n.id}
-                  onClick={() => handleClick(n.id)}
+                  onClick={() => handleClick(n.id, n)}
                   className={`w-full text-left px-3 py-2.5 border-b border-gray-700/50 hover:bg-gray-700 transition-colors ${
                     n.read ? "opacity-60" : ""
                   }`}
