@@ -51,7 +51,9 @@ export function getSocket(): Socket {
       if (data.chatHistory?.length) {
         useGameStore.setState({ chatMessages: data.chatHistory });
       }
-      store.setScreen(data.screen);
+      // Don't set screen to "game" if we have no game view — fall back to lobby
+      const screen = (data.screen === "game" && !data.gameView) ? "lobby" : data.screen;
+      store.setScreen(screen);
     });
   }
   return socket;
