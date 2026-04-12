@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useGameStore, type KnowledgeCard } from "@/lib/store";
 import ComicPanel from "./ComicPanel";
+import { fetchDeck, API_URL } from "@/lib/api";
 
 interface Props {
   winnerInfo: {
@@ -20,6 +22,21 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
   const audiencePick = winnerInfo.audiencePick;
   const audiencePickName = audiencePick ? lobby?.players.find(p => p.id === audiencePick)?.name : null;
   const showAudiencePick = audiencePick && audiencePick !== winnerInfo.winnerId && audiencePickName;
+
+  const [cardBackUrl, setCardBackUrl] = useState<string | null>(null);
+  const [flipped, setFlipped] = useState(false);
+  const deckId = lobby?.deckId;
+  useEffect(() => {
+    if (!deckId) return;
+    let cancelled = false;
+    fetchDeck(deckId).then((d) => { if (!cancelled) setCardBackUrl(d.cardBackUrl || null); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [deckId]);
+  useEffect(() => {
+    const t = setTimeout(() => setFlipped(true), 450);
+    return () => clearTimeout(t);
+  }, [winnerInfo.winnerId]);
+  const cardBackSrc = cardBackUrl ? (cardBackUrl.startsWith("http") ? cardBackUrl : `${API_URL}${cardBackUrl}`) : null;
 
   return (
     <div className="text-center mt-4 max-w-2xl mx-auto">
@@ -58,6 +75,28 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
             <ComicPanel text={winnerInfo.cards[0]?.text || ""} cardId={winnerInfo.cards[0]?.id} imageUrl={winnerInfo.cards[0]?.imageUrl} borderColor="green" label="Panel 3" labelColor="text-green-400" />
           </div>
         )
+      ) : cardBackSrc ? (
+        <div className="mb-6 max-w-lg mx-auto" style={{ perspective: "1200px" }}>
+          <div
+            className="relative w-full transition-transform duration-700 ease-out"
+            style={{ transformStyle: "preserve-3d", transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)", minHeight: "10rem" }}
+          >
+            <div
+              className="absolute inset-0 rounded-xl border-2 border-gray-700 overflow-hidden shadow-xl"
+              style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
+            >
+              <img src={cardBackSrc} alt="" aria-hidden className="w-full h-full object-cover" />
+            </div>
+            <div
+              className="bg-green-900/30 border-2 border-green-600 rounded-xl p-5"
+              style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+            >
+              {winnerInfo.cards.map((card, i) => (
+                <p key={i} className="text-lg font-medium">{card.text}</p>
+              ))}
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="bg-green-900/30 border-2 border-green-600 rounded-xl p-5 mb-6 max-w-lg mx-auto">
           {winnerInfo.cards.map((card, i) => (
