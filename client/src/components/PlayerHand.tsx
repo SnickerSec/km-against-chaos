@@ -131,8 +131,8 @@ export default function PlayerHand({
       </div>
 
       {selectedCards.length === pick && !blurred && !onCardClick && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800">
-          <Button onClick={handleSubmit} variant="success" size="lg" fullWidth className="max-w-lg mx-auto">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800 flex justify-center">
+          <Button onClick={handleSubmit} variant="success" size="lg" fullWidth className="max-w-lg">
             Submit Card{pick > 1 ? "s" : ""}
           </Button>
         </div>

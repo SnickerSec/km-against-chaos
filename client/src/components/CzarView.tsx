@@ -199,16 +199,16 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
       </div>
 
       {isCzar && selected && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800">
-          <Button onClick={handlePick} variant="primary" size="lg" fullWidth className="max-w-lg mx-auto">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800 flex justify-center">
+          <Button onClick={handlePick} variant="primary" size="lg" fullWidth className="max-w-lg">
             Pick Winner
           </Button>
         </div>
       )}
 
       {canVote && selected && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800">
-          <Button onClick={handleSpectatorVote} variant="vote" size="lg" fullWidth className="max-w-lg mx-auto">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800 flex justify-center">
+          <Button onClick={handleSpectatorVote} variant="vote" size="lg" fullWidth className="max-w-lg">
             Cast Vote
           </Button>
         </div>
