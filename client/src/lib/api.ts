@@ -677,6 +677,13 @@ export async function saveSound(title: string, mp3: string): Promise<SavedSound>
   return res.json();
 }
 
+export async function incrementSoundPlay(id: string): Promise<void> {
+  await fetch(`${API_URL}/api/sounds/saved/${id}/play`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+}
+
 export async function deleteSound(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/sounds/saved/${id}`, {
     method: "DELETE",

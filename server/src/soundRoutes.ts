@@ -115,7 +115,7 @@ router.get("/saved", requireAuth, async (req: any, res) => {
        FROM user_sounds us
        JOIN sounds s ON us.sound_id = s.id
        WHERE us.user_id = $1
-       ORDER BY us.created_at DESC`,
+       ORDER BY us.play_count DESC, us.created_at DESC`,
       [req.user.id]
     );
     res.json(rows);
@@ -164,6 +164,20 @@ router.post("/saved", requireAuth, async (req: any, res) => {
       [userSoundId]
     );
     res.status(already.length > 0 ? 200 : 201).json(rows[0]);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Increment play count for a saved sound
+router.post("/saved/:id/play", requireAuth, async (req: any, res) => {
+  try {
+    const { rowCount } = await pool.query(
+      "UPDATE user_sounds SET play_count = play_count + 1 WHERE id = $1 AND user_id = $2",
+      [req.params.id, req.user.id]
+    );
+    if (!rowCount) { res.status(404).json({ error: "Not found" }); return; }
+    res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

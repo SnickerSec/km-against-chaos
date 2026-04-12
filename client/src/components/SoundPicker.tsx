@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Icon } from "@iconify/react";
-import { searchSounds, fetchSavedSounds, saveSound, deleteSound, SavedSound } from "@/lib/api";
+import { searchSounds, fetchSavedSounds, saveSound, deleteSound, incrementSoundPlay, SavedSound } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 
 interface Props {
@@ -79,9 +79,10 @@ export default function SoundPicker({ onPlay, onClose }: Props) {
     setDeletingId(null);
   }
 
-  function handlePlay(mp3: string, title: string) {
+  function handlePlay(mp3: string, title: string, savedId?: string) {
     if (previewAudio) { previewAudio.pause(); }
     setPlayingUrl(null);
+    if (savedId) incrementSoundPlay(savedId).catch(() => {});
     onPlay(mp3, title);
     onClose();
   }
@@ -221,7 +222,7 @@ export default function SoundPicker({ onPlay, onClose }: Props) {
                           : <Icon icon="mdi:delete-outline" />}
                       </button>
                       <button
-                        onClick={() => handlePlay(s.mp3, s.title)}
+                        onClick={() => handlePlay(s.mp3, s.title, s.id)}
                         className="px-2 py-1 bg-green-700 hover:bg-green-600 text-white rounded text-xs font-medium transition-colors shrink-0"
                       >
                         Play
