@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useGameStore } from "@/lib/store";
+import { fetchDeck, API_URL } from "@/lib/api";
 import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
 import PlayerHand from "./PlayerHand";
@@ -29,6 +30,17 @@ export default function GameScreen() {
   const { nextRound, leaveLobby, czarSetup, playLobbySound } = useSocket();
   useSounds();
   const [soundPickerOpen, setSoundPickerOpen] = useState(false);
+  const [cardBackUrl, setCardBackUrl] = useState<string | null>(null);
+  const deckId = lobby?.deckId;
+  useEffect(() => {
+    if (!deckId) { setCardBackUrl(null); return; }
+    let cancelled = false;
+    fetchDeck(deckId)
+      .then((d) => { if (!cancelled) setCardBackUrl(d.cardBackUrl || null); })
+      .catch(() => { if (!cancelled) setCardBackUrl(null); });
+    return () => { cancelled = true; };
+  }, [deckId]);
+  const cardBackSrc = cardBackUrl ? (cardBackUrl.startsWith("http") ? cardBackUrl : `${API_URL}${cardBackUrl}`) : null;
 
   if (gameType === "codenames") return <CodenamesGameScreen />;
   if (gameType === "uno") return <UnoGameScreen />;
@@ -83,7 +95,22 @@ export default function GameScreen() {
       )}
 
       {/* Card display — comic strip for JH, single card for CAH */}
-      <div className="px-4 pt-6 pb-4">
+      <div className="px-4 pt-6 pb-4 relative">
+        {cardBackSrc && !isJH && !isSF && (
+          <div className="hidden sm:block absolute right-4 top-4 pointer-events-none" aria-hidden>
+            <div className="relative w-16 h-24">
+              <div className="absolute inset-0 rounded-md border border-gray-700 bg-gray-800 overflow-hidden translate-x-1.5 translate-y-1.5 opacity-60">
+                <img src={cardBackSrc} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute inset-0 rounded-md border border-gray-700 bg-gray-800 overflow-hidden translate-x-0.5 translate-y-0.5 opacity-80">
+                <img src={cardBackSrc} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute inset-0 rounded-md border border-gray-600 bg-gray-800 overflow-hidden shadow-lg">
+                <img src={cardBackSrc} alt="Deck back" className="w-full h-full object-cover" />
+              </div>
+            </div>
+          </div>
+        )}
         {isJH ? (
           round.isBonus ? (
             /* BONUS ROUND — red card is Panel 3, players submit Panels 1+2 */
@@ -191,9 +218,9 @@ export default function GameScreen() {
           )
         ) : round.phase === "submitting" ? (
           isSpectator ? (
-            <WaitingForSubmissions />
+            <WaitingForSubmissions cardBackSrc={cardBackSrc} />
           ) : isCzar ? (
-            <WaitingForSubmissions />
+            <WaitingForSubmissions cardBackSrc={cardBackSrc} />
           ) : hasSubmitted ? (
             <div className="text-center text-gray-400 mt-8">
               <p className="text-lg">Cards submitted!</p>
@@ -221,7 +248,7 @@ export default function GameScreen() {
   );
 }
 
-function WaitingForSubmissions() {
+function WaitingForSubmissions({ cardBackSrc }: { cardBackSrc?: string | null }) {
   const { submittedPlayers, lobby, round } = useGameStore();
   const totalPlayers = (lobby?.players.length || 0) - 1; // minus czar
   const submitted = submittedPlayers.size;
@@ -229,9 +256,18 @@ function WaitingForSubmissions() {
   return (
     <div className="text-center mt-8">
       <p className="text-gray-400 text-lg mb-2">Waiting for players...</p>
-      <p className="text-gray-500">
+      <p className="text-gray-500 mb-4">
         {submitted} / {totalPlayers} submitted
       </p>
+      {cardBackSrc && submitted > 0 && (
+        <div className="flex justify-center gap-2 flex-wrap max-w-md mx-auto">
+          {Array.from({ length: submitted }).map((_, i) => (
+            <div key={i} className="w-16 h-24 rounded-md border border-gray-700 bg-gray-800 overflow-hidden shadow-md">
+              <img src={cardBackSrc} alt="" aria-hidden className="w-full h-full object-cover" />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
