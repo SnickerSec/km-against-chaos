@@ -170,9 +170,9 @@ export default function HomeScreen() {
             </defs>
             {/* Card stack — translucent neon */}
             <g filter="url(#cardGlow)">
-              <rect x="28" y="18" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#C084FC" strokeOpacity="0.6" strokeWidth="1.5" transform="rotate(-12 70 75)"/>
-              <rect x="38" y="15" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#C084FC" strokeOpacity="0.75" strokeWidth="1.5" transform="rotate(-6 80 72)"/>
-              <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#E9D5FF" strokeOpacity="0.9" strokeWidth="1.5"/>
+              <rect x="28" y="18" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.6" strokeWidth="2" transform="rotate(-12 70 75)"/>
+              <rect x="38" y="15" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.75" strokeWidth="2" transform="rotate(-6 80 72)"/>
+              <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.95" strokeWidth="2.5"/>
             </g>
             {/* Outlined D on front card */}
             <text x="90" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="58" fontWeight="bold" fill="none" stroke="#A855F7" strokeWidth="2.5" textAnchor="middle" dominantBaseline="central" filter="url(#dGlow)">D</text>
