@@ -70,7 +70,8 @@ export default function GameScreen() {
       <MetaEffectOverlay />
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800">
+      <div className="relative flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800">
+        <div className="absolute bottom-0 left-0 right-0 h-px accent-line-cyan pointer-events-none" />
         <span className="text-sm text-gray-400 inline-flex items-center gap-2 shrink-0">
           Round {roundNumber}/{maxRounds}
           {round.phaseDeadline && round.phase !== "revealing" && !winnerInfo && (

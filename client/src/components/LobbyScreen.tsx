@@ -111,7 +111,7 @@ export default function LobbyScreen() {
       )}
       <h2 className="text-2xl font-bold mb-4">Lobby</h2>
 
-      <div className="bg-gray-800 px-6 py-4 rounded-lg mb-6 flex flex-col items-center">
+      <div className="bg-gray-800 border border-purple-500/40 glow-purple px-6 py-4 rounded-lg mb-6 flex flex-col items-center">
         <p className="text-gray-400 text-sm text-center">Room Code</p>
         <p className="text-4xl font-mono font-bold tracking-[0.3em] text-purple-400 text-center mb-3">
           {lobby.code}

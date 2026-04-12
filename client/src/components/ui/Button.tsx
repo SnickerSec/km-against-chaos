@@ -6,9 +6,9 @@ type Variant = "primary" | "success" | "vote" | "secondary";
 type Size = "sm" | "md" | "lg";
 
 const VARIANT: Record<Variant, string> = {
-  primary:   "bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 text-white",
-  success:   "bg-green-600  hover:bg-green-700  disabled:bg-gray-700 disabled:text-gray-500 text-white",
-  vote:      "bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-700 disabled:text-gray-500 text-white",
+  primary:   "bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:shadow-none text-white hover-glow-purple",
+  success:   "bg-green-600  hover:bg-green-700  disabled:bg-gray-700 disabled:text-gray-500 disabled:shadow-none text-white hover-glow-green",
+  vote:      "bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:shadow-none text-white hover-glow-yellow",
   secondary: "bg-gray-700   hover:bg-gray-600   disabled:bg-gray-800 disabled:text-gray-500 text-gray-200",
 };
 
@@ -29,7 +29,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   ref,
 ) {
   const width = fullWidth ? "w-full block" : "";
-  const base = "inline-flex items-center justify-center gap-2 transition-colors disabled:cursor-not-allowed";
+  const base = "inline-flex items-center justify-center gap-2 transition-all disabled:cursor-not-allowed";
   return (
     <button ref={ref} className={`${base} ${VARIANT[variant]} ${SIZE[size]} ${width} ${className}`} {...rest}>
       {children}

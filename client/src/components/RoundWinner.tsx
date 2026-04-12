@@ -99,7 +99,7 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
           </div>
         </div>
       ) : (
-        <div className="bg-green-900/30 border-2 border-green-600 rounded-xl p-5 mb-6 max-w-lg mx-auto">
+        <div className="bg-green-900/30 border-2 border-green-500 glow-green rounded-xl p-5 mb-6 max-w-lg mx-auto">
           {winnerInfo.cards.map((card, i) => (
             <p key={i} className="text-lg font-medium">
               {card.text}
