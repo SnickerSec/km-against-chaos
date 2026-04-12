@@ -373,7 +373,7 @@ export default function DecksPage() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <span className="font-semibold text-lg">{deck.name}</span>
+                    <Link href={`/decks/view?id=${deck.id}`} className="font-semibold text-lg hover:text-purple-400 transition-colors">{deck.name}</Link>
                     {deck.ownerName && (
                       <p className="text-gray-500 text-xs">by {deck.ownerName}</p>
                     )}
