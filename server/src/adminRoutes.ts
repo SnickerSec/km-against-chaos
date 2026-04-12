@@ -317,6 +317,44 @@ router.get("/decks", async (_req, res) => {
   }
 });
 
+// Backfill the card library from every deck's existing cards
+router.post("/card-library/backfill", async (_req, res) => {
+  try {
+    const { saveCardsToLibrary } = await import("./cardLibraryRoutes.js");
+    const { rows } = await pool.query(
+      `SELECT id, game_type, maturity, chaos_cards, knowledge_cards, owner_id
+       FROM decks WHERE game_type != 'uno' AND game_type != 'codenames'`
+    );
+    let chaosAdded = 0;
+    let knowledgeAdded = 0;
+    for (const r of rows) {
+      const gameType = r.game_type || "cah";
+      const chaos = (r.chaos_cards || []).map((c: any) => ({
+        text: String(c.text || "").trim(),
+        pick: c.pick || 1,
+        type: "chaos" as const,
+      })).filter((c: any) => c.text);
+      const knowledge = (r.knowledge_cards || []).map((c: any) => ({
+        text: String(c.text || "").trim(),
+        pick: 1,
+        type: "knowledge" as const,
+      })).filter((c: any) => c.text);
+      if (chaos.length || knowledge.length) {
+        await saveCardsToLibrary([...chaos, ...knowledge], {
+          gameType,
+          maturity: r.maturity || "adult",
+          generatedBy: r.owner_id || undefined,
+        });
+        chaosAdded += chaos.length;
+        knowledgeAdded += knowledge.length;
+      }
+    }
+    res.json({ decksScanned: rows.length, chaosAdded, knowledgeAdded });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Toggle featured (built_in) status on a deck
 router.put("/decks/:id/featured", async (req, res) => {
   const { featured } = (req as any).body;
