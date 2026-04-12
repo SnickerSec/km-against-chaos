@@ -12,6 +12,25 @@ const TTS_DIR = join(UPLOAD_DIR, "tts");
 const DEFAULT_VOICE = "21m00Tcm4TlvDq8ikWAM"; // Rachel
 const MAX_TEXT = 500;
 
+// Curated ElevenLabs pre-made voice catalog
+const VOICES: { id: string; name: string; description: string }[] = [
+  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", description: "Calm, narrator" },
+  { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi", description: "Strong, confident" },
+  { id: "EXAVITQu4vr4xnSDxMaL", name: "Bella", description: "Soft, friendly" },
+  { id: "ErXwobaYiN019PkySvjV", name: "Antoni", description: "Warm, casual" },
+  { id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli", description: "Emotional, youthful" },
+  { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh", description: "Deep, serious" },
+  { id: "VR6AewLTigWG4xSOukaG", name: "Arnold", description: "Crisp, assertive" },
+  { id: "pNInz6obpgDQGcFmaJgB", name: "Adam", description: "Deep, narrator" },
+  { id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam", description: "Dynamic, storyteller" },
+  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", description: "British, authoritative" },
+];
+const VALID_VOICE_IDS = new Set(VOICES.map((v) => v.id));
+
+router.get("/voices", (_req, res) => {
+  res.json({ voices: VOICES, defaultVoice: DEFAULT_VOICE });
+});
+
 router.use((req, res, next) => {
   if (req.headers["content-type"]?.includes("application/json")) {
     let body = "";
@@ -29,7 +48,8 @@ router.post("/speak", async (req, res) => {
   }
   const body = (req as any).body || {};
   const rawText = typeof body.text === "string" ? body.text.trim() : "";
-  const voice = (typeof body.voice === "string" && body.voice) || DEFAULT_VOICE;
+  const requestedVoice = typeof body.voice === "string" ? body.voice : "";
+  const voice = VALID_VOICE_IDS.has(requestedVoice) ? requestedVoice : DEFAULT_VOICE;
   if (!rawText) { res.status(400).json({ error: "text required" }); return; }
   const text = rawText.slice(0, MAX_TEXT);
 

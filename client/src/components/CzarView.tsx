@@ -23,11 +23,16 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
   const canVote = isSpectator && !isCzar && !hasVoted;
 
   const [cardBackUrl, setCardBackUrl] = useState<string | null>(null);
+  const [voiceId, setVoiceId] = useState<string | null>(null);
   const deckId = lobby?.deckId;
   useEffect(() => {
     if (!deckId) return;
     let cancelled = false;
-    fetchDeck(deckId).then((d) => { if (!cancelled) setCardBackUrl(d.cardBackUrl || null); }).catch(() => {});
+    fetchDeck(deckId).then((d) => {
+      if (cancelled) return;
+      setCardBackUrl(d.cardBackUrl || null);
+      setVoiceId(d.voiceId || null);
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [deckId]);
   const cardBackSrc = cardBackUrl ? (cardBackUrl.startsWith("http") ? cardBackUrl : `${API_URL}${cardBackUrl}`) : null;
@@ -69,7 +74,7 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
     if (!sub) return;
     spokenRef.current.add(idx);
     const text = sub.cards.map((c) => c.text).join(". ");
-    ttsSpeak(text).then((url) => {
+    ttsSpeak(text, voiceId || undefined).then((url) => {
       if (!url || ttsMuted) return;
       const audio = new Audio(url);
       audioRef.current = audio;

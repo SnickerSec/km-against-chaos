@@ -50,6 +50,7 @@ export interface CustomDeck {
   artGenerationStatus?: string | null;
   artStyle?: string | null;
   cardBackUrl?: string | null;
+  voiceId?: string | null;
   packs?: { type: string; name: string; description: string; chaosCards: { text: string; pick?: number }[]; knowledgeCards: { text: string; bonus?: boolean }[] }[];
 }
 
@@ -65,6 +66,7 @@ export interface DeckExport {
   chaosLevel?: number;
   wildcard?: string;
   remixedFrom?: string;
+  voiceId?: string | null;
 }
 
 export interface PackSummary {
@@ -148,6 +150,13 @@ export async function uploadDeckCardBack(id: string, file: File): Promise<{ card
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "Failed to upload card back");
   }
+  return res.json();
+}
+
+export interface TtsVoice { id: string; name: string; description: string }
+export async function fetchTtsVoices(): Promise<{ voices: TtsVoice[]; defaultVoice: string }> {
+  const res = await fetch(`${API_URL}/api/tts/voices`);
+  if (!res.ok) return { voices: [], defaultVoice: "" };
   return res.json();
 }
 

@@ -136,6 +136,7 @@ function EditDeckContent() {
           packs: deck.packs,
           gameType: deck.gameType,
           artStyle: deck.artStyle,
+          voiceId: deck.voiceId,
         }}
         submitLabel="Save Changes"
         onSubmit={async (data) => {

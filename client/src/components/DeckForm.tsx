@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
-import { generateCardsAI, generateDeckAI, generateArtPreview, getArtStyles, artLibraryImageUrl, uploadDeckCardBack, deleteDeckCardBack, generateDeckCardBack, API_URL, type GenerateContext, type ArtStyleOption } from "@/lib/api";
+import { generateCardsAI, generateDeckAI, generateArtPreview, getArtStyles, artLibraryImageUrl, uploadDeckCardBack, deleteDeckCardBack, generateDeckCardBack, fetchTtsVoices, ttsSpeak, API_URL, type GenerateContext, type ArtStyleOption, type TtsVoice } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import ArtLibraryBrowser from "./ArtLibraryBrowser";
 import CardLibraryBrowser from "./CardLibraryBrowser";
@@ -150,6 +150,7 @@ interface DeckFormData {
   gameType?: string;
   premiumArt?: boolean;
   artStyle?: string | null;
+  voiceId?: string | null;
 }
 
 type PackType = "base" | "expansion" | "themed";
@@ -165,7 +166,7 @@ interface CardPack {
 }
 
 interface Props {
-  initial?: DeckFormData & { maturity?: string; flavorThemes?: string[]; chaosLevel?: number; wildcard?: string };
+  initial?: DeckFormData & { maturity?: string; flavorThemes?: string[]; chaosLevel?: number; wildcard?: string; voiceId?: string | null };
   onSubmit: (data: DeckFormData) => Promise<void>;
   onGenerateArt?: (data: DeckFormData) => Promise<void>;
   onDraftCreated?: (draftId: string) => void;
@@ -236,6 +237,18 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
   const [cardBackUploading, setCardBackUploading] = useState(false);
   const [cardBackError, setCardBackError] = useState<string | null>(null);
   const cardBackInputRef = useRef<HTMLInputElement>(null);
+  const [voiceId, setVoiceId] = useState<string>(initial?.voiceId || "");
+  const [ttsVoices, setTtsVoices] = useState<TtsVoice[]>([]);
+  const [voicePreviewing, setVoicePreviewing] = useState(false);
+  useEffect(() => { fetchTtsVoices().then((r) => setTtsVoices(r.voices)); }, []);
+  const previewVoice = async () => {
+    setVoicePreviewing(true);
+    try {
+      const sample = `This is a preview of ${name.trim() || "your deck"}.`;
+      const url = await ttsSpeak(sample, voiceId || undefined);
+      if (url) await new Audio(url).play().catch(() => {});
+    } finally { setVoicePreviewing(false); }
+  };
 
   const onCardBackPick = async (file: File) => {
     if (!deckId) return;
@@ -406,6 +419,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
       gameType: isCodenames ? "codenames" : isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : gameType === "superfight" ? "superfight" : "cah",
       premiumArt,
       artStyle,
+      voiceId: voiceId || null,
     };
   };
 
@@ -693,6 +707,34 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
                   e.target.value = "";
                 }}
               />
+            </div>
+          </div>
+        )}
+
+        {ttsVoices.length > 0 && (
+          <div className="bg-gray-900 rounded-xl p-4">
+            <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Card Reader Voice</label>
+            <p className="text-xs text-gray-500 mb-2">The voice used to read submissions aloud during judging.</p>
+            <div className="flex gap-2 flex-wrap">
+              <select
+                value={voiceId}
+                onChange={(e) => setVoiceId(e.target.value)}
+                className="flex-1 min-w-[180px] px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-purple-500"
+              >
+                <option value="">Default (Rachel — calm narrator)</option>
+                {ttsVoices.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name} — {v.description}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={previewVoice}
+                disabled={voicePreviewing}
+                className="px-3 py-2 text-sm bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-lg text-white flex items-center gap-1"
+              >
+                <Icon icon={voicePreviewing ? "mdi:loading" : "mdi:play"} className={voicePreviewing ? "animate-spin" : ""} />
+                Preview
+              </button>
             </div>
           </div>
         )}
