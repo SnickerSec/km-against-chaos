@@ -34,6 +34,7 @@ export interface CustomDeck {
   artTier?: string;
   artGenerationStatus?: string | null;
   artStyle?: string | null;
+  cardBackUrl?: string | null;
 }
 
 export interface DeckSummary {
@@ -89,6 +90,7 @@ function rowToDeck(row: any): CustomDeck {
     artTier: row.art_tier || "free",
     artGenerationStatus: row.art_generation_status || null,
     artStyle: row.art_style || null,
+    cardBackUrl: row.card_back_url || null,
   };
 }
 

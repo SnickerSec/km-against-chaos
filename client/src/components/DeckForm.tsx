@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Icon } from "@iconify/react";
-import { generateCardsAI, generateDeckAI, generateArtPreview, getArtStyles, artLibraryImageUrl, type GenerateContext, type ArtStyleOption } from "@/lib/api";
+import { generateCardsAI, generateDeckAI, generateArtPreview, getArtStyles, artLibraryImageUrl, uploadDeckCardBack, deleteDeckCardBack, API_URL, type GenerateContext, type ArtStyleOption } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 import ArtLibraryBrowser from "./ArtLibraryBrowser";
 import CardLibraryBrowser from "./CardLibraryBrowser";
@@ -170,6 +170,8 @@ interface Props {
   onGenerateArt?: (data: DeckFormData) => Promise<void>;
   onDraftCreated?: (draftId: string) => void;
   submitLabel: string;
+  deckId?: string;
+  initialCardBackUrl?: string | null;
 }
 
 const PACK_LABELS: Record<PackType, { label: string; color: string; border: string }> = {
@@ -182,7 +184,7 @@ function makeId() {
   return Math.random().toString(36).slice(2, 8);
 }
 
-export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCreated, submitLabel }: Props) {
+export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCreated, submitLabel, deckId, initialCardBackUrl }: Props) {
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const [name, setName] = useState(initial?.name || "");
   const [description, setDescription] = useState(initial?.description || "");
@@ -230,6 +232,36 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewsRemaining, setPreviewsRemaining] = useState<number | null>(null);
+  const [cardBackUrl, setCardBackUrl] = useState<string | null>(initialCardBackUrl || null);
+  const [cardBackUploading, setCardBackUploading] = useState(false);
+  const [cardBackError, setCardBackError] = useState<string | null>(null);
+  const cardBackInputRef = useRef<HTMLInputElement>(null);
+
+  const onCardBackPick = async (file: File) => {
+    if (!deckId) return;
+    setCardBackError(null);
+    if (!["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.type)) {
+      setCardBackError("Use PNG, JPEG, WebP, or GIF"); return;
+    }
+    if (file.size > 5 * 1024 * 1024) { setCardBackError("Max 5MB"); return; }
+    setCardBackUploading(true);
+    try {
+      const { cardBackUrl: url } = await uploadDeckCardBack(deckId, file);
+      setCardBackUrl(url);
+    } catch (e: any) { setCardBackError(e.message); }
+    finally { setCardBackUploading(false); }
+  };
+
+  const onCardBackRemove = async () => {
+    if (!deckId) return;
+    setCardBackError(null);
+    setCardBackUploading(true);
+    try {
+      await deleteDeckCardBack(deckId);
+      setCardBackUrl(null);
+    } catch (e: any) { setCardBackError(e.message); }
+    finally { setCardBackUploading(false); }
+  };
 
   const [packs, setPacks] = useState<CardPack[]>(() => {
     if (initial?.packs && initial.packs.length > 0) {
@@ -584,6 +616,57 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
           onChange={(e) => setDescription(e.target.value)}
           className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
         />
+
+        {deckId && (
+          <div className="bg-gray-900 rounded-xl p-4">
+            <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Card Back Image</label>
+            <div className="flex items-center gap-4">
+              <div className="w-24 h-32 rounded-lg border-2 border-gray-700 bg-gray-800 flex items-center justify-center overflow-hidden shrink-0">
+                {cardBackUrl ? (
+                  <img src={cardBackUrl.startsWith("http") ? cardBackUrl : `${API_URL}${cardBackUrl}`} alt="Card back" className="w-full h-full object-cover" />
+                ) : (
+                  <Icon icon="mdi:cards-outline" className="text-3xl text-gray-600" />
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <p className="text-xs text-gray-400">Shown on the back of every card in this deck. PNG/JPEG/WebP/GIF, max 5MB.</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => cardBackInputRef.current?.click()}
+                    disabled={cardBackUploading}
+                    className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-lg text-white flex items-center gap-1"
+                  >
+                    <Icon icon={cardBackUploading ? "mdi:loading" : "mdi:upload"} className={cardBackUploading ? "animate-spin" : ""} />
+                    {cardBackUrl ? "Replace" : "Upload"}
+                  </button>
+                  {cardBackUrl && (
+                    <button
+                      type="button"
+                      onClick={onCardBackRemove}
+                      disabled={cardBackUploading}
+                      className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 disabled:opacity-50 rounded-lg text-gray-300"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {cardBackError && <p className="text-xs text-red-400">{cardBackError}</p>}
+              </div>
+              <input
+                ref={cardBackInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onCardBackPick(f);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Uno Theme — color names & action names under deck info */}
         {gameType === "uno" && (

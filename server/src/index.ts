@@ -116,6 +116,9 @@ app.use("/api/stripe/webhook", (req: any, _res, next) => {
   req.on("end", () => { req.rawBody = Buffer.concat(chunks); next(); });
 });
 
+const UPLOAD_DIR = process.env.UPLOAD_DIR || join(process.cwd(), "uploads");
+app.use("/uploads", staticLimiter, express.static(UPLOAD_DIR, { maxAge: "1h", fallthrough: false }));
+
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin", apiLimiter, adminRoutes);
 app.use("/api/decks", apiLimiter, deckRoutes);

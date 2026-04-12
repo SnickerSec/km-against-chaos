@@ -121,6 +121,8 @@ function EditDeckContent() {
       <ArtGallery deck={deck} />
 
       <DeckForm
+        deckId={id!}
+        initialCardBackUrl={deck.cardBackUrl}
         initial={{
           name: deck.name,
           description: deck.description,

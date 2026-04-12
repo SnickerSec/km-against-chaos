@@ -1,0 +1,1 @@
+ALTER TABLE decks ADD COLUMN IF NOT EXISTS card_back_url TEXT;

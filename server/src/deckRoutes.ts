@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { randomBytes } from "crypto";
+import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import { join } from "path";
 import {
   listDecks,
   getDeck,
@@ -476,6 +478,80 @@ router.put("/:id", requireAuth, async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Card back image upload ──────────────────────────────────────────────────
+const UPLOAD_DIR = process.env.UPLOAD_DIR || join(process.cwd(), "uploads");
+const CARD_BACK_DIR = join(UPLOAD_DIR, "card-backs");
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const EXT_BY_MIME: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+};
+
+router.post("/:id/card-back", requireAuth, async (req: any, res) => {
+  const contentType = (req.headers["content-type"] || "").toLowerCase();
+  const ext = EXT_BY_MIME[contentType];
+  if (!ext) {
+    res.status(415).json({ error: "Unsupported image type. Use PNG, JPEG, WebP, or GIF." });
+    return;
+  }
+  const deck = await getDeck(req.params.id);
+  if (!deck) { res.status(404).json({ error: "Deck not found" }); return; }
+  const isMod = req.user.isAdmin || req.user.role === "moderator" || req.user.role === "admin";
+  if (!isMod && deck.ownerId && deck.ownerId !== req.user.id) {
+    res.status(403).json({ error: "Not your deck" }); return;
+  }
+
+  const chunks: Buffer[] = [];
+  let size = 0;
+  let aborted = false;
+  req.on("data", (chunk: Buffer) => {
+    size += chunk.length;
+    if (size > MAX_IMAGE_BYTES) {
+      aborted = true;
+      res.status(413).json({ error: "Image too large (max 5MB)" });
+      req.destroy();
+      return;
+    }
+    chunks.push(chunk);
+  });
+  req.on("end", async () => {
+    if (aborted) return;
+    try {
+      mkdirSync(CARD_BACK_DIR, { recursive: true });
+      // Remove any prior file with a different extension
+      for (const e of Object.values(EXT_BY_MIME)) {
+        const prev = join(CARD_BACK_DIR, `${deck.id}.${e}`);
+        if (existsSync(prev)) try { unlinkSync(prev); } catch {}
+      }
+      const filename = `${deck.id}.${ext}`;
+      writeFileSync(join(CARD_BACK_DIR, filename), Buffer.concat(chunks));
+      const url = `/uploads/card-backs/${filename}?v=${Date.now()}`;
+      await pool.query("UPDATE decks SET card_back_url = $1, updated_at = NOW() WHERE id = $2", [url, deck.id]);
+      res.json({ cardBackUrl: url });
+    } catch (e: any) {
+      log.error("card back upload failed", { error: e.message });
+      res.status(500).json({ error: "Upload failed" });
+    }
+  });
+});
+
+router.delete("/:id/card-back", requireAuth, async (req: any, res) => {
+  const deck = await getDeck(req.params.id);
+  if (!deck) { res.status(404).json({ error: "Deck not found" }); return; }
+  const isMod = req.user.isAdmin || req.user.role === "moderator" || req.user.role === "admin";
+  if (!isMod && deck.ownerId && deck.ownerId !== req.user.id) {
+    res.status(403).json({ error: "Not your deck" }); return;
+  }
+  for (const e of Object.values(EXT_BY_MIME)) {
+    const prev = join(CARD_BACK_DIR, `${deck.id}.${e}`);
+    if (existsSync(prev)) try { unlinkSync(prev); } catch {}
+  }
+  await pool.query("UPDATE decks SET card_back_url = NULL, updated_at = NOW() WHERE id = $1", [deck.id]);
+  res.json({ success: true });
 });
 
 // Delete a deck

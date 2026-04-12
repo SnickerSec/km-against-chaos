@@ -48,6 +48,7 @@ export interface CustomDeck {
   artTier?: string;
   artGenerationStatus?: string | null;
   artStyle?: string | null;
+  cardBackUrl?: string | null;
   packs?: { type: string; name: string; description: string; chaosCards: { text: string; pick?: number }[]; knowledgeCards: { text: string; bonus?: boolean }[] }[];
 }
 
@@ -134,6 +135,27 @@ export async function updateDeck(
     throw new Error(err.error || "Failed to update deck");
   }
   return res.json();
+}
+
+export async function uploadDeckCardBack(id: string, file: File): Promise<{ cardBackUrl: string }> {
+  const res = await fetch(`${API_URL}/api/decks/${id}/card-back`, {
+    method: "POST",
+    headers: { "Content-Type": file.type, ...getAuthHeaders() },
+    body: file,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Failed to upload card back");
+  }
+  return res.json();
+}
+
+export async function deleteDeckCardBack(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/decks/${id}/card-back`, {
+    method: "DELETE",
+    headers: { ...getAuthHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to remove card back");
 }
 
 export async function deleteDeck(id: string): Promise<void> {
