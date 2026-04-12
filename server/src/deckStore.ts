@@ -58,6 +58,7 @@ export interface DeckSummary {
   artTier?: string;
   artGenerationStatus?: string | null;
   artStyle?: string | null;
+  cardBackUrl?: string | null;
 }
 
 const DEFAULT_WIN_CONDITION: WinCondition = { mode: "rounds", value: 10 };
@@ -185,7 +186,7 @@ export async function listDecks(options?: { search?: string; gameType?: string; 
     const { rows } = await pool.query(
       `SELECT d.id, d.name, d.description, d.built_in, d.win_condition, d.owner_id,
               d.maturity, d.flavor_themes, d.chaos_level, d.wildcard, d.remixed_from, d.game_type,
-              d.play_count, d.avg_rating,
+              d.play_count, d.avg_rating, d.card_back_url,
               jsonb_array_length(d.chaos_cards) as chaos_count,
               jsonb_array_length(d.knowledge_cards) as knowledge_count,
               u.name as owner_name
@@ -213,6 +214,7 @@ export async function listDecks(options?: { search?: string; gameType?: string; 
       gameType: (r.game_type as GameType) || "cah",
       playCount: parseInt(r.play_count) || 0,
       avgRating: parseFloat(r.avg_rating) || 0,
+      cardBackUrl: r.card_back_url || null,
     }));
   } catch (err) {
     log.error("listDecks query failed, returning built-in decks", { error: String(err) });

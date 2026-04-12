@@ -27,6 +27,7 @@ export interface DeckSummary {
   avgRating?: number;
   artTier?: string;
   artGenerationStatus?: string | null;
+  cardBackUrl?: string | null;
 }
 
 export interface CustomDeck {

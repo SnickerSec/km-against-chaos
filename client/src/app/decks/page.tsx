@@ -367,6 +367,11 @@ export default function DecksPage() {
             <div className="space-y-3">
               {browseDecks.map((deck) => (
                 <div key={deck.id} className="flex items-center justify-between bg-gray-900 rounded-xl p-4">
+                  {deck.cardBackUrl && (
+                    <div className="w-12 h-16 rounded-md border border-gray-700 bg-gray-800 overflow-hidden mr-3 shrink-0">
+                      <img src={deck.cardBackUrl.startsWith("http") ? deck.cardBackUrl : `${API_URL}${deck.cardBackUrl}`} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold text-lg">{deck.name}</span>
                     {deck.ownerName && (
@@ -501,6 +506,11 @@ export default function DecksPage() {
                     key={deck.id}
                     className="flex items-center justify-between bg-gray-900 rounded-xl p-4"
                   >
+                    {deck.cardBackUrl && (
+                      <div className="w-12 h-16 rounded-md border border-gray-700 bg-gray-800 overflow-hidden mr-3 shrink-0">
+                        <img src={deck.cardBackUrl.startsWith("http") ? deck.cardBackUrl : `${API_URL}${deck.cardBackUrl}`} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                         {(isOwner(deck) || isAdmin || isModerator) ? (
                           <Link
