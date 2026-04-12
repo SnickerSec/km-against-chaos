@@ -127,36 +127,51 @@ export default function HomeScreen() {
           <h1>
             <svg viewBox="0 0 520 160" className="w-80 h-auto block -ml-3" aria-label="Decked" fill="none">
             <defs>
-              <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="2" dy="3" stdDeviation="4" floodColor="#000" floodOpacity="0.4"/>
-              </filter>
               <linearGradient id="cardGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#382E54"/>
-                <stop offset="100%" stopColor="#221C34"/>
+                <stop offset="0%" stopColor="#A855F7" stopOpacity="0.55"/>
+                <stop offset="100%" stopColor="#EC4899" stopOpacity="0.45"/>
               </linearGradient>
-              <filter id="sepGlow" filterUnits="userSpaceOnUse" x="280" y="35" width="40" height="70">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur1"/>
+              <linearGradient id="eckedGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#C084FC"/>
+                <stop offset="100%" stopColor="#F472B6"/>
+              </linearGradient>
+              <filter id="cardGlow" filterUnits="userSpaceOnUse" x="0" y="0" width="240" height="160">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+                <feMerge>
+                  <feMergeNode in="blur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+              <filter id="sepGlow" filterUnits="userSpaceOnUse" x="280" y="30" width="40" height="80">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur1"/>
                 <feMerge>
                   <feMergeNode in="blur1"/>
                   <feMergeNode in="blur1"/>
                   <feMergeNode in="SourceGraphic"/>
                 </feMerge>
               </filter>
+              <filter id="textGlow" filterUnits="userSpaceOnUse" x="60" y="30" width="260" height="80">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
+                <feMerge>
+                  <feMergeNode in="blur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
             </defs>
-            {/* Card stack with shadow */}
-            <g filter="url(#shadow)">
-              <rect x="28" y="18" width="85" height="115" rx="10" fill="#5B4A8A" stroke="#7B6BA8" strokeWidth="2" transform="rotate(-12 70 75)"/>
-              <rect x="38" y="15" width="85" height="115" rx="10" fill="#4A3D6E" stroke="#6B5D94" strokeWidth="2" transform="rotate(-6 80 72)"/>
-              <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#5B4A8A" strokeWidth="2"/>
+            {/* Card stack — translucent neon */}
+            <g filter="url(#cardGlow)">
+              <rect x="28" y="18" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#C084FC" strokeOpacity="0.6" strokeWidth="1.5" transform="rotate(-12 70 75)"/>
+              <rect x="38" y="15" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#C084FC" strokeOpacity="0.75" strokeWidth="1.5" transform="rotate(-6 80 72)"/>
+              <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#E9D5FF" strokeOpacity="0.9" strokeWidth="1.5"/>
             </g>
-            {/* D on front card */}
-            <text x="90" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="52" fontWeight="bold" fill="#7B42D4" textAnchor="middle" dominantBaseline="central">D</text>
-            {/* "ecked" text */}
-            <text x="140" y="72" filter="url(#shadow)" fontFamily="Arial, Helvetica, sans-serif" fontSize="48" fontWeight="bold" fill="#7B42D4" letterSpacing="2" dominantBaseline="central">ecked</text>
-            {/* Separator — glowing */}
-            <line x1="300" y1="45" x2="300" y2="95" stroke="#C084FC" strokeWidth="2.5" strokeLinecap="round" filter="url(#sepGlow)" className="logo-sep-pulse"/>
-            {/* Subtitle */}
-            <text x="315" y="75" fontFamily="Arial, Helvetica, sans-serif" fontSize="9" fontWeight="300" fill="#999" letterSpacing="3">DIGITAL CARD EXPERIENCE</text>
+            {/* Outlined D on front card */}
+            <text x="90" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="58" fontWeight="bold" fill="none" stroke="#E9D5FF" strokeWidth="2" textAnchor="middle" dominantBaseline="central" filter="url(#textGlow)">D</text>
+            {/* "ecked" gradient text with glow */}
+            <text x="140" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="48" fontWeight="bold" fill="url(#eckedGrad)" letterSpacing="2" dominantBaseline="central" filter="url(#textGlow)">ecked</text>
+            {/* Separator — cyan neon */}
+            <line x1="300" y1="42" x2="300" y2="98" stroke="#22D3EE" strokeWidth="3" strokeLinecap="round" filter="url(#sepGlow)" className="logo-sep-pulse"/>
+            {/* Subtitle — gold */}
+            <text x="315" y="75" fontFamily="Arial, Helvetica, sans-serif" fontSize="9" fontWeight="400" fill="#D4A84C" letterSpacing="3" dominantBaseline="central">DIGITAL CARD EXPERIENCE</text>
           </svg>
           </h1>
           <div className="flex items-center gap-3">
