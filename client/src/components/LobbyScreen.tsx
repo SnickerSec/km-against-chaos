@@ -10,6 +10,7 @@ import { getSocket } from "@/lib/socket";
 import Chat from "./Chat";
 import VoiceChat from "./VoiceChat";
 import PlayerAvatar from "./PlayerAvatar";
+import { Button } from "./ui/Button";
 
 const GAME_TYPE_DISPLAY: Record<string, { label: string; icon: string; color: string }> = {
   cah:              { label: "Cards Against Humanity", icon: "mdi:cards",              color: "text-red-400" },
@@ -124,21 +125,15 @@ export default function LobbyScreen() {
         </div>
         <p className="text-gray-500 text-xs mt-2">Scan to join on your phone</p>
         <div className="flex gap-2 mt-3">
-          <button
-            onClick={copyInviteLink}
-            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs font-medium transition-colors"
-          >
+          <Button onClick={copyInviteLink} variant="secondary" size="sm">
             {copied ? "Copied!" : "Copy Invite Link"}
-          </button>
-          <button
-            onClick={shareInviteLink}
-            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-medium transition-colors"
-          >
+          </Button>
+          <Button onClick={shareInviteLink} variant="primary" size="sm">
             Share
-          </button>
+          </Button>
           <a
             href="/friends"
-            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs font-medium transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs font-medium transition-colors"
           >
             Invite Friends
           </a>
@@ -218,12 +213,9 @@ export default function LobbyScreen() {
       </div>
 
       {isHost && lobby.players.length < lobby.maxPlayers && (
-        <button
-          onClick={addBot}
-          className="w-full max-w-sm mb-4 py-2 bg-gray-700 hover:bg-gray-600 text-blue-400 rounded-lg text-sm font-medium transition-colors"
-        >
+        <Button onClick={addBot} variant="secondary" size="md" fullWidth className="max-w-sm mb-4 text-blue-400">
           + Add Bot Player
-        </button>
+        </Button>
       )}
 
       {error && (
@@ -236,15 +228,11 @@ export default function LobbyScreen() {
 
       <div className="w-full max-w-sm space-y-3">
         {isHost && (
-          <button
-            onClick={startGame}
-            disabled={activePlayers.length < 2}
-            className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg font-semibold text-lg transition-colors"
-          >
+          <Button onClick={startGame} disabled={activePlayers.length < 2} variant="success" size="lg" fullWidth>
             {activePlayers.length < 2
               ? `Need ${2 - activePlayers.length} more player${2 - activePlayers.length === 1 ? "" : "s"}`
               : "Start Game"}
-          </button>
+          </Button>
         )}
 
         {!isHost && !isSpectator && (

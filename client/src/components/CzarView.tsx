@@ -7,6 +7,7 @@ import { getSocket } from "@/lib/socket";
 import CardPreview from "./CardPreview";
 import { fetchDeck, API_URL, ttsSpeak } from "@/lib/api";
 import { Icon } from "@iconify/react";
+import { Button } from "./ui/Button";
 
 export default function CzarView({ isCzar }: { isCzar: boolean }) {
   const { round, gameType, lobby } = useGameStore();
@@ -199,23 +200,17 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
 
       {isCzar && selected && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800">
-          <button
-            onClick={handlePick}
-            className="w-full max-w-lg mx-auto block py-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-lg transition-colors"
-          >
+          <Button onClick={handlePick} variant="primary" size="lg" fullWidth className="max-w-lg mx-auto">
             Pick Winner
-          </button>
+          </Button>
         </div>
       )}
 
       {canVote && selected && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800">
-          <button
-            onClick={handleSpectatorVote}
-            className="w-full max-w-lg mx-auto block py-3 bg-yellow-600 hover:bg-yellow-700 rounded-lg font-semibold text-lg transition-colors"
-          >
+          <Button onClick={handleSpectatorVote} variant="vote" size="lg" fullWidth className="max-w-lg mx-auto">
             Cast Vote
-          </button>
+          </Button>
         </div>
       )}
 

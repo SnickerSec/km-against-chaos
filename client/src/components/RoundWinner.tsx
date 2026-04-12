@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useGameStore, type KnowledgeCard } from "@/lib/store";
 import ComicPanel from "./ComicPanel";
 import { fetchDeck, API_URL } from "@/lib/api";
+import { Button } from "./ui/Button";
 
 interface Props {
   winnerInfo: {
@@ -108,12 +109,9 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
       )}
 
       {isHost && (
-        <button
-          onClick={onNext}
-          className="py-3 px-8 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-lg transition-colors"
-        >
+        <Button onClick={onNext} variant="primary" size="lg">
           Next Round
-        </button>
+        </Button>
       )}
 
       {!isHost && (

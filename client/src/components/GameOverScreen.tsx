@@ -9,6 +9,7 @@ import { useAuthStore } from "@/lib/auth";
 import PlayerAvatar from "./PlayerAvatar";
 import DeckPicker from "./DeckPicker";
 import StarRating from "./StarRating";
+import { Button } from "./ui/Button";
 
 export default function GameOverScreen() {
   const { scores, lobby, reset } = useGameStore();
@@ -127,12 +128,9 @@ export default function GameOverScreen() {
       <div className="flex flex-col items-center gap-3">
         {isHost ? (
           <>
-            <button
-              onClick={rematch}
-              className="py-3 px-8 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-lg transition-colors"
-            >
+            <Button onClick={rematch} variant="primary" size="lg">
               Rematch
-            </button>
+            </Button>
             <button
               onClick={() => setShowDeckPicker(true)}
               className="py-2 px-6 text-purple-400 hover:text-purple-300 text-sm transition-colors"
@@ -143,12 +141,9 @@ export default function GameOverScreen() {
         ) : (
           <div className="flex flex-col items-center gap-2">
             {!hasVoted ? (
-              <button
-                onClick={() => { voteRematch(); setHasVoted(true); }}
-                className="py-3 px-8 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold text-lg transition-colors"
-              >
+              <Button onClick={() => { voteRematch(); setHasVoted(true); }} variant="primary" size="lg">
                 Vote Rematch
-              </button>
+              </Button>
             ) : (
               <p className="text-purple-400 text-sm font-medium">Voted for rematch!</p>
             )}

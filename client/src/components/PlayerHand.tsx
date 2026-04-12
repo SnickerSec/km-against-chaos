@@ -5,6 +5,7 @@ import { useSocket } from "@/lib/useSocket";
 import { Icon } from "@iconify/react";
 import { useMemo, useState, useRef, useCallback } from "react";
 import CardPreview from "./CardPreview";
+import { Button } from "./ui/Button";
 
 // Icons used for randomized-icon chaos effect
 const CHAOS_ICONS = [
@@ -131,12 +132,9 @@ export default function PlayerHand({
 
       {selectedCards.length === pick && !blurred && !onCardClick && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800">
-          <button
-            onClick={handleSubmit}
-            className="w-full max-w-lg mx-auto block py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold text-lg transition-colors"
-          >
+          <Button onClick={handleSubmit} variant="success" size="lg" fullWidth className="max-w-lg mx-auto">
             Submit Card{pick > 1 ? "s" : ""}
-          </button>
+          </Button>
         </div>
       )}
 
