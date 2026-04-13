@@ -1302,26 +1302,27 @@ function CardPackEditor({
             }
           />
 
-          <CardLibraryBrowser
-            open={cardLibraryOpen}
-            onClose={() => setCardLibraryOpen(false)}
-            gameType={gameType}
-            onImport={(cards) => {
-              const chaos = cards.filter(c => c.type === "chaos").map(c => ({ text: c.text, pick: c.pick || 1 }));
-              const knowledge = cards.filter(c => c.type === "knowledge").map(c => ({ text: c.text }));
-              onUpdate((p) => ({
-                ...p,
-                chaosCards: gameType === "joking-hazard"
-                  ? p.chaosCards
-                  : [...p.chaosCards, ...chaos],
-                knowledgeCards: gameType === "joking-hazard"
-                  ? [...p.knowledgeCards, ...chaos.map(c => ({ text: c.text })), ...knowledge]
-                  : [...p.knowledgeCards, ...knowledge],
-              }));
-            }}
-          />
         </div>
       )}
+
+      <CardLibraryBrowser
+        open={cardLibraryOpen}
+        onClose={() => setCardLibraryOpen(false)}
+        gameType={gameType}
+        onImport={(cards) => {
+          const chaos = cards.filter(c => c.type === "chaos").map(c => ({ text: c.text, pick: c.pick || 1 }));
+          const knowledge = cards.filter(c => c.type === "knowledge").map(c => ({ text: c.text }));
+          onUpdate((p) => ({
+            ...p,
+            chaosCards: gameType === "joking-hazard"
+              ? p.chaosCards
+              : [...p.chaosCards, ...chaos],
+            knowledgeCards: gameType === "joking-hazard"
+              ? [...p.knowledgeCards, ...chaos.map(c => ({ text: c.text })), ...knowledge]
+              : [...p.knowledgeCards, ...knowledge],
+          }));
+        }}
+      />
     </div>
   );
 }
