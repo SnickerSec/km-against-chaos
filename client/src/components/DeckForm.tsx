@@ -247,6 +247,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
   const [soundOverrides, setSoundOverrides] = useState<Record<string, string | null>>(initial?.soundOverrides || {});
   const [activeSoundSlot, setActiveSoundSlot] = useState<string | null>(null);
   const [soundPreviewAudio, setSoundPreviewAudio] = useState<HTMLAudioElement | null>(null);
+  const [soundSectionOpen, setSoundSectionOpen] = useState(false);
   const previewVoice = async () => {
     setVoicePreviewing(true);
     try {
@@ -747,10 +748,19 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
         )}
 
         {/* Game Sounds */}
-        <div className="bg-gray-900 rounded-xl p-4">
-          <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">Game Sounds</label>
-          <p className="text-xs text-gray-500 mb-3">Override the default sounds that play during game events. Search MyInstants or pick from your saved sounds.</p>
-          <div className="space-y-2">
+        <div className="bg-gray-900 rounded-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setSoundSectionOpen((o) => !o)}
+            className="w-full flex items-center justify-between p-4 text-left"
+          >
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Game Sounds</p>
+              {!soundSectionOpen && <p className="text-xs text-gray-600 mt-0.5">Override sounds for win, lose, victory, and more</p>}
+            </div>
+            <Icon icon={soundSectionOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-500 shrink-0" />
+          </button>
+          {soundSectionOpen && <div className="px-4 pb-4 space-y-2">
             {(Object.keys(SOUND_META) as SoundKey[]).map((key) => {
               const meta = SOUND_META[key];
               const current = soundOverrides[key];
@@ -796,7 +806,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
                 </div>
               );
             })}
-          </div>
+          </div>}
         </div>
 
         {activeSoundSlot && (
@@ -1637,7 +1647,7 @@ function AIGenerationPanel({
   const [theme, setTheme] = useState("");
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState(!isCreate ? true : false);
+  const [open, setOpen] = useState(false);
   const raunchyClicks = useRef(0);
   const [xxxUnlocked, setXxxUnlocked] = useState(maturity === "xxx");
   const [artStyleSearch, setArtStyleSearch] = useState("");
