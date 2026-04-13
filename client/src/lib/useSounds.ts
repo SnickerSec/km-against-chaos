@@ -3,14 +3,33 @@
 import { useEffect, useRef } from "react";
 import { useGameStore } from "./store";
 import { getSocket } from "./socket";
-import { playSound, preloadSounds } from "./sounds";
+import { playSound, playUrl, preloadSounds, SoundKey } from "./sounds";
+import { fetchDeck } from "./api";
 
 export function useSounds() {
   const {
     screen, scores, round,
     winnerInfo, activeMetaEffect,
     unoTurn, unoRoundWinner,
+    lobby,
   } = useGameStore();
+
+  const soundOverridesRef = useRef<Record<string, string | null> | null>(null);
+  const deckId = lobby?.deckId;
+  useEffect(() => {
+    if (!deckId) return;
+    let cancelled = false;
+    fetchDeck(deckId).then((d) => {
+      if (!cancelled) soundOverridesRef.current = d.soundOverrides || null;
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [deckId]);
+
+  function play(key: SoundKey) {
+    const url = soundOverridesRef.current?.[key];
+    if (url) playUrl(url);
+    else playSound(key);
+  }
 
   const prevScreen        = useRef(screen);
   const prevWinnerInfo    = useRef(winnerInfo);
@@ -30,7 +49,7 @@ export function useSounds() {
       const myId = getSocket().id ?? "";
       const isCzar = round?.czarId === myId;
       if (!isCzar) {
-        playSound(winnerInfo.winnerId === myId ? "win" : "lose");
+        play(winnerInfo.winnerId === myId ? "win" : "lose");
       }
     }
     prevWinnerInfo.current = winnerInfo;
@@ -42,11 +61,11 @@ export function useSounds() {
       const myId = getSocket().id ?? "";
       const affectsMe = activeMetaEffect.affectedPlayerIds.includes(myId);
       if (affectsMe && activeMetaEffect.effectType === "hand_reset") {
-        playSound("reset");
+        play("reset");
       } else if (affectsMe && activeMetaEffect.effectType === "score_subtract") {
-        playSound("stolen");
+        play("stolen");
       } else {
-        playSound("meta");
+        play("meta");
       }
     }
     prevMetaEffect.current = activeMetaEffect;
@@ -59,7 +78,7 @@ export function useSounds() {
       const vals = Object.values(scores);
       const myScore = scores[myId] ?? 0;
       const maxScore = vals.length ? Math.max(...vals) : 0;
-      playSound(myScore > 0 && myScore >= maxScore ? "victory" : "defeat");
+      play(myScore > 0 && myScore >= maxScore ? "victory" : "defeat");
     }
     prevScreen.current = screen;
   }, [screen, scores]);
@@ -68,7 +87,7 @@ export function useSounds() {
   useEffect(() => {
     if (!prevUnoWinner.current && unoRoundWinner) {
       const myId = getSocket().id ?? "";
-      playSound(unoRoundWinner.winnerId === myId ? "win" : "lose");
+      play(unoRoundWinner.winnerId === myId ? "win" : "lose");
     }
     prevUnoWinner.current = unoRoundWinner;
   }, [unoRoundWinner]);
@@ -76,7 +95,7 @@ export function useSounds() {
   // Uno: someone called UNO!
   useEffect(() => {
     if (!prevUnoCalledBy.current && unoTurn?.unoCalledBy) {
-      playSound("uno");
+      play("uno");
     }
     prevUnoCalledBy.current = unoTurn?.unoCalledBy;
   }, [unoTurn?.unoCalledBy]);
@@ -86,9 +105,9 @@ export function useSounds() {
     const action = unoTurn?.lastAction;
     if (action && action !== prevLastAction.current) {
       if (action.includes("wild_draw_four") || action.includes("draw_four")) {
-        playSound("draw4");
+        play("draw4");
       } else if (action.includes("skip")) {
-        playSound("skip");
+        play("skip");
       }
     }
     prevLastAction.current = unoTurn?.lastAction;

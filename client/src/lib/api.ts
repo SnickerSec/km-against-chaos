@@ -51,6 +51,7 @@ export interface CustomDeck {
   artStyle?: string | null;
   cardBackUrl?: string | null;
   voiceId?: string | null;
+  soundOverrides?: Record<string, string | null> | null;
   packs?: { type: string; name: string; description: string; chaosCards: { text: string; pick?: number }[]; knowledgeCards: { text: string; bonus?: boolean }[] }[];
 }
 
@@ -67,6 +68,7 @@ export interface DeckExport {
   wildcard?: string;
   remixedFrom?: string;
   voiceId?: string | null;
+  soundOverrides?: Record<string, string | null> | null;
 }
 
 export interface PackSummary {

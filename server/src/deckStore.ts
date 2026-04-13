@@ -36,6 +36,7 @@ export interface CustomDeck {
   artStyle?: string | null;
   cardBackUrl?: string | null;
   voiceId?: string | null;
+  soundOverrides?: Record<string, string> | null;
 }
 
 export interface DeckSummary {
@@ -94,6 +95,7 @@ function rowToDeck(row: any): CustomDeck {
     artStyle: row.art_style || null,
     cardBackUrl: row.card_back_url || null,
     voiceId: row.voice_id || null,
+    soundOverrides: row.sound_overrides || null,
   };
 }
 
@@ -335,6 +337,7 @@ export async function updateDeck(
     draft?: boolean;
     artStyle?: string | null;
     voiceId?: string | null;
+    soundOverrides?: Record<string, string | null> | null;
   },
   ownerId?: string,
   bypassOwnership?: boolean
@@ -367,20 +370,21 @@ export async function updateDeck(
   const draft = input.draft !== undefined ? input.draft : (existing as any).draft ?? false;
   const artStyle = input.artStyle !== undefined ? input.artStyle : existing.artStyle || null;
   const voiceId = input.voiceId !== undefined ? input.voiceId : existing.voiceId || null;
+  const soundOverrides = input.soundOverrides !== undefined ? input.soundOverrides : existing.soundOverrides || null;
 
   let queryText: string;
   let queryParams: any[];
 
   if (bypassOwnership) {
     queryText = `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5,
-       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, draft = $11, art_style = $12, voice_id = $13, updated_at = NOW()
-     WHERE id = $14 RETURNING *`;
-    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, draft, artStyle, voiceId, id];
+       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, draft = $11, art_style = $12, voice_id = $13, sound_overrides = $14, updated_at = NOW()
+     WHERE id = $15 RETURNING *`;
+    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, draft, artStyle, voiceId, JSON.stringify(soundOverrides || {}), id];
   } else {
     queryText = `UPDATE decks SET name = $1, description = $2, chaos_cards = $3, knowledge_cards = $4, win_condition = $5,
-       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, draft = $11, art_style = $12, voice_id = $13, updated_at = NOW()
-     WHERE id = $14 AND (owner_id = $15 OR owner_id IS NULL) RETURNING *`;
-    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, draft, artStyle, voiceId, id, ownerId];
+       maturity = $6, flavor_themes = $7, chaos_level = $8, wildcard = $9, game_type = $10, draft = $11, art_style = $12, voice_id = $13, sound_overrides = $14, updated_at = NOW()
+     WHERE id = $15 AND (owner_id = $16 OR owner_id IS NULL) RETURNING *`;
+    queryParams = [name, description, JSON.stringify(chaosCards), JSON.stringify(knowledgeCards), JSON.stringify(winCondition), maturity, JSON.stringify(flavorThemes), chaosLevel, wildcard, gameType, draft, artStyle, voiceId, JSON.stringify(soundOverrides || {}), id, ownerId];
   }
 
   const { rows } = await pool.query(queryText, queryParams);

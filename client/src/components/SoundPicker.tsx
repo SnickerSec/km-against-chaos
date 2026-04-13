@@ -8,9 +8,10 @@ import { useAuthStore } from "@/lib/auth";
 interface Props {
   onPlay: (mp3: string, title: string) => void;
   onClose: () => void;
+  onSelect?: (mp3: string, title: string) => void;
 }
 
-export default function SoundPicker({ onPlay, onClose }: Props) {
+export default function SoundPicker({ onPlay, onClose, onSelect }: Props) {
   const { user } = useAuthStore();
   const [tab, setTab] = useState<"search" | "saved">("saved");
   const [query, setQuery] = useState("");
@@ -99,7 +100,7 @@ export default function SoundPicker({ onPlay, onClose }: Props) {
         <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-gray-800">
           <h2 className="font-bold text-white flex items-center gap-2">
             <Icon icon="mdi:music-note" className="text-purple-400" />
-            Play a Sound
+            {onSelect ? "Choose a Sound" : "Play a Sound"}
           </h2>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
             <Icon icon="mdi:close" />
@@ -173,12 +174,21 @@ export default function SoundPicker({ onPlay, onClose }: Props) {
                         </button>
                       )}
                       {alreadySaved && <Icon icon="mdi:bookmark" className="text-yellow-400 shrink-0" />}
-                      <button
-                        onClick={() => handlePlay(r.mp3, r.title)}
-                        className="px-2 py-1 bg-green-700 hover:bg-green-600 text-white rounded text-xs font-medium transition-colors shrink-0"
-                      >
-                        Play
-                      </button>
+                      {onSelect ? (
+                        <button
+                          onClick={() => { onSelect(r.mp3, r.title); onClose(); }}
+                          className="px-2 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded text-xs font-medium transition-colors shrink-0"
+                        >
+                          Use
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handlePlay(r.mp3, r.title)}
+                          className="px-2 py-1 bg-green-700 hover:bg-green-600 text-white rounded text-xs font-medium transition-colors shrink-0"
+                        >
+                          Play
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -221,12 +231,21 @@ export default function SoundPicker({ onPlay, onClose }: Props) {
                           ? <Icon icon="mdi:loading" className="animate-spin" />
                           : <Icon icon="mdi:delete-outline" />}
                       </button>
-                      <button
-                        onClick={() => handlePlay(s.mp3, s.title, s.id)}
-                        className="px-2 py-1 bg-green-700 hover:bg-green-600 text-white rounded text-xs font-medium transition-colors shrink-0"
-                      >
-                        Play
-                      </button>
+                      {onSelect ? (
+                        <button
+                          onClick={() => { onSelect(s.mp3, s.title); onClose(); }}
+                          className="px-2 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded text-xs font-medium transition-colors shrink-0"
+                        >
+                          Use
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handlePlay(s.mp3, s.title, s.id)}
+                          className="px-2 py-1 bg-green-700 hover:bg-green-600 text-white rounded text-xs font-medium transition-colors shrink-0"
+                        >
+                          Play
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

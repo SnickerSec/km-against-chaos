@@ -137,6 +137,7 @@ function EditDeckContent() {
           gameType: deck.gameType,
           artStyle: deck.artStyle,
           voiceId: deck.voiceId,
+          soundOverrides: deck.soundOverrides,
         }}
         submitLabel="Save Changes"
         onSubmit={async (data) => {

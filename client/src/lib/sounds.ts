@@ -4,6 +4,19 @@ export type SoundKey =
   | "win" | "lose" | "meta" | "stolen" | "reset"
   | "victory" | "defeat" | "uno" | "draw4" | "skip";
 
+export const SOUND_META: Record<SoundKey, { label: string; description: string }> = {
+  win:     { label: "Win a Round",     description: "Plays when you win a round" },
+  lose:    { label: "Lose a Round",    description: "Plays when someone else wins a round" },
+  victory: { label: "Win the Game",    description: "Plays when you win the whole game" },
+  defeat:  { label: "Lose the Game",   description: "Plays when you lose the whole game" },
+  meta:    { label: "Meta Card",       description: "Plays when a meta card triggers" },
+  stolen:  { label: "Points Stolen",   description: "Plays when your points are stolen by a meta card" },
+  reset:   { label: "Hand Reset",      description: "Plays when your hand gets reset by a meta card" },
+  uno:     { label: "UNO Called",      description: "Plays when someone calls UNO!" },
+  draw4:   { label: "Wild Draw Four",  description: "Plays when a wild draw four is played" },
+  skip:    { label: "Skip Card",       description: "Plays when a skip card is played" },
+};
+
 const URLS: Record<SoundKey, string> = {
   win:     `${BASE}/dj-airhorn-sound-effect-kingbeatz_1.mp3`,
   lose:    `${BASE}/sad-trombone-sound-effect-wah-wah-wah-fail-sound-fail-horns.mp3`,
@@ -39,6 +52,16 @@ export function toggleMute(): boolean {
 export function preloadSounds() {
   if (typeof window === "undefined") return;
   Object.values(URLS).forEach((url) => { new Audio(url); });
+}
+
+export async function playUrl(url: string) {
+  if (muted || typeof window === "undefined") return;
+  try {
+    if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
+    currentAudio = new Audio(url);
+    currentAudio.volume = 0.7;
+    await currentAudio.play();
+  } catch {}
 }
 
 export async function playSound(key: SoundKey) {

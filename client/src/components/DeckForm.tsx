@@ -6,6 +6,8 @@ import { generateCardsAI, generateDeckAI, generateArtPreview, getArtStyles, artL
 import { useAuthStore } from "@/lib/auth";
 import ArtLibraryBrowser from "./ArtLibraryBrowser";
 import CardLibraryBrowser from "./CardLibraryBrowser";
+import SoundPicker from "./SoundPicker";
+import { SOUND_META, SoundKey } from "@/lib/sounds";
 
 // ── 4-Pillar constants ──
 
@@ -151,6 +153,7 @@ interface DeckFormData {
   premiumArt?: boolean;
   artStyle?: string | null;
   voiceId?: string | null;
+  soundOverrides?: Record<string, string | null> | null;
 }
 
 type PackType = "base" | "expansion" | "themed";
@@ -166,7 +169,7 @@ interface CardPack {
 }
 
 interface Props {
-  initial?: DeckFormData & { maturity?: string; flavorThemes?: string[]; chaosLevel?: number; wildcard?: string; voiceId?: string | null };
+  initial?: DeckFormData & { maturity?: string; flavorThemes?: string[]; chaosLevel?: number; wildcard?: string; voiceId?: string | null; soundOverrides?: Record<string, string | null> | null };
   onSubmit: (data: DeckFormData) => Promise<void>;
   onGenerateArt?: (data: DeckFormData) => Promise<void>;
   onDraftCreated?: (draftId: string) => void;
@@ -241,6 +244,9 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
   const [ttsVoices, setTtsVoices] = useState<TtsVoice[]>([]);
   const [voicePreviewing, setVoicePreviewing] = useState(false);
   useEffect(() => { fetchTtsVoices().then((r) => setTtsVoices(r.voices)); }, []);
+  const [soundOverrides, setSoundOverrides] = useState<Record<string, string | null>>(initial?.soundOverrides || {});
+  const [activeSoundSlot, setActiveSoundSlot] = useState<string | null>(null);
+  const [soundPreviewAudio, setSoundPreviewAudio] = useState<HTMLAudioElement | null>(null);
   const previewVoice = async () => {
     setVoicePreviewing(true);
     try {
@@ -420,6 +426,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
       premiumArt,
       artStyle,
       voiceId: voiceId || null,
+      soundOverrides: Object.keys(soundOverrides).length > 0 ? soundOverrides : null,
     };
   };
 
@@ -737,6 +744,70 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
               </button>
             </div>
           </div>
+        )}
+
+        {/* Game Sounds */}
+        <div className="bg-gray-900 rounded-xl p-4">
+          <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">Game Sounds</label>
+          <p className="text-xs text-gray-500 mb-3">Override the default sounds that play during game events. Search MyInstants or pick from your saved sounds.</p>
+          <div className="space-y-2">
+            {(Object.keys(SOUND_META) as SoundKey[]).map((key) => {
+              const meta = SOUND_META[key];
+              const current = soundOverrides[key];
+              return (
+                <div key={key} className="flex items-center gap-2 py-1.5 border-b border-gray-800 last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white font-medium">{meta.label}</p>
+                    <p className="text-xs text-gray-500 truncate">{current ? "Custom sound set" : meta.description}</p>
+                  </div>
+                  {current && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (soundPreviewAudio) { soundPreviewAudio.pause(); setSoundPreviewAudio(null); }
+                        const a = new Audio(current);
+                        a.volume = 0.7;
+                        a.play().catch(() => {});
+                        setSoundPreviewAudio(a);
+                      }}
+                      className="text-gray-400 hover:text-white transition-colors shrink-0"
+                      title="Preview"
+                    >
+                      <Icon icon="mdi:play-circle-outline" className="text-lg" />
+                    </button>
+                  )}
+                  {current && (
+                    <button
+                      type="button"
+                      onClick={() => setSoundOverrides((prev) => { const n = { ...prev }; delete n[key]; return n; })}
+                      className="text-gray-600 hover:text-red-400 transition-colors shrink-0"
+                      title="Clear"
+                    >
+                      <Icon icon="mdi:close-circle-outline" className="text-lg" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setActiveSoundSlot(key)}
+                    className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors shrink-0"
+                  >
+                    {current ? "Change" : "Set"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {activeSoundSlot && (
+          <SoundPicker
+            onPlay={() => {}}
+            onClose={() => setActiveSoundSlot(null)}
+            onSelect={(mp3) => {
+              setSoundOverrides((prev) => ({ ...prev, [activeSoundSlot]: mp3 }));
+              setActiveSoundSlot(null);
+            }}
+          />
         )}
 
         {/* Uno Theme — color names & action names under deck info */}
