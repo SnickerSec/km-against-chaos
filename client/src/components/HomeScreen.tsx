@@ -187,7 +187,7 @@ export default function HomeScreen() {
                 <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="1" strokeWidth="2.5" opacity="0.93"/>
               </g>
               {/* Outlined D on front card */}
-              <text x="93" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="58" fontWeight="bold" fill="none" stroke="#22D3EE" strokeWidth="2.5" textAnchor="middle" dominantBaseline="central" filter="url(#dGlow)" className="logo-sep-pulse">D</text>
+              <text x="93" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="72" fontWeight="bold" fill="none" stroke="#22D3EE" strokeWidth="2.5" textAnchor="middle" dominantBaseline="central" filter="url(#dGlow)" className="logo-sep-pulse">D</text>
             </g>
             {/* "ecked" gradient text with glow */}
             <text x="140" y="70" fontFamily="Arial, Helvetica, sans-serif" fontSize="48" fontWeight="bold" fill="url(#eckedGrad)" letterSpacing="2" dominantBaseline="central" filter="url(#textGlow)">ecked</text>
