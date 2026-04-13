@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGameStore, type KnowledgeCard } from "@/lib/store";
 import ComicPanel from "./ComicPanel";
-import { fetchDeck, API_URL } from "@/lib/api";
+import { fetchDeck, API_URL, ttsSpeak } from "@/lib/api";
 import { Button } from "./ui/Button";
 
 interface Props {
@@ -25,18 +25,40 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
   const showAudiencePick = audiencePick && audiencePick !== winnerInfo.winnerId && audiencePickName;
 
   const [cardBackUrl, setCardBackUrl] = useState<string | null>(null);
+  const [voiceId, setVoiceId] = useState<string | null>(null);
   const [flipped, setFlipped] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const deckId = lobby?.deckId;
   useEffect(() => {
     if (!deckId) return;
     let cancelled = false;
-    fetchDeck(deckId).then((d) => { if (!cancelled) setCardBackUrl(d.cardBackUrl || null); }).catch(() => {});
+    fetchDeck(deckId).then((d) => {
+      if (cancelled) return;
+      setCardBackUrl(d.cardBackUrl || null);
+      setVoiceId(d.voiceId || null);
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [deckId]);
   useEffect(() => {
     const t = setTimeout(() => setFlipped(true), 450);
     return () => clearTimeout(t);
   }, [winnerInfo.winnerId]);
+  useEffect(() => {
+    const ttsMuted = typeof window !== "undefined" && localStorage.getItem("tts_muted") === "1";
+    if (ttsMuted) return;
+    const text = winnerInfo.cards.map((c) => c.text).join(". ");
+    if (!text) return;
+    const t = setTimeout(() => {
+      ttsSpeak(text, voiceId || undefined).then((url) => {
+        if (!url) return;
+        if (audioRef.current) audioRef.current.pause();
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.play().catch(() => {});
+      });
+    }, 1150); // after the flip animation completes (450ms delay + 700ms transition)
+    return () => clearTimeout(t);
+  }, [winnerInfo.winnerId, voiceId]);
   const cardBackSrc = cardBackUrl ? (cardBackUrl.startsWith("http") ? cardBackUrl : `${API_URL}${cardBackUrl}`) : null;
 
   return (
