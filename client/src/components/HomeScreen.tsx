@@ -180,15 +180,17 @@ export default function HomeScreen() {
               </filter>
             </defs>
             {/* Card stack — translucent neon */}
-            <g filter="url(#cardGlow)">
-              <rect x="28" y="18" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.6" strokeWidth="2" transform="rotate(-12 70 75)" opacity="0.2"/>
-              <rect x="38" y="15" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.75" strokeWidth="2" transform="rotate(-6 80 72)" opacity="0.5"/>
-              <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="1" strokeWidth="2.5" opacity="0.93"/>
+            <g transform="translate(13.6 10.7) scale(0.85)">
+              <g filter="url(#cardGlow)">
+                <rect x="28" y="18" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.6" strokeWidth="2" transform="rotate(-12 70 75)" opacity="0.2"/>
+                <rect x="38" y="15" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.75" strokeWidth="2" transform="rotate(-6 80 72)" opacity="0.5"/>
+                <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="1" strokeWidth="2.5" opacity="0.93"/>
+              </g>
+              {/* Outlined D on front card */}
+              <text x="93" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="58" fontWeight="bold" fill="none" stroke="#22D3EE" strokeWidth="2.5" textAnchor="middle" dominantBaseline="central" filter="url(#dGlow)" className="logo-sep-pulse">D</text>
             </g>
-            {/* Outlined D on front card */}
-            <text x="93" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="58" fontWeight="bold" fill="none" stroke="#22D3EE" strokeWidth="2.5" textAnchor="middle" dominantBaseline="central" filter="url(#dGlow)" className="logo-sep-pulse">D</text>
             {/* "ecked" gradient text with glow */}
-            <text x="140" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="48" fontWeight="bold" fill="url(#eckedGrad)" letterSpacing="2" dominantBaseline="central" filter="url(#textGlow)">ecked</text>
+            <text x="140" y="70" fontFamily="Arial, Helvetica, sans-serif" fontSize="48" fontWeight="bold" fill="url(#eckedGrad)" letterSpacing="2" dominantBaseline="central" filter="url(#textGlow)">ecked</text>
             {/* Separator — cyan neon */}
             <line x1="300" y1="42" x2="300" y2="98" stroke="#22D3EE" strokeWidth="3" strokeLinecap="round" filter="url(#sepGlow)" className="logo-sep-pulse"/>
             {/* Subtitle — gold */}
