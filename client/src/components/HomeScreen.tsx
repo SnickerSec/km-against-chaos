@@ -136,11 +136,11 @@ export default function HomeScreen() {
       <div className="flex flex-col items-start mb-8">
         <div className="flex items-center justify-between w-full mb-2">
           <h1>
-            <svg viewBox="0 0 520 160" className="w-80 h-auto block -ml-3" aria-label="Decked" fill="none">
+            <svg viewBox="0 0 540 160" className="w-80 h-auto block -ml-3" aria-label="Decked" fill="none">
             <defs>
               <linearGradient id="cardGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#A855F7" stopOpacity="0.55"/>
-                <stop offset="100%" stopColor="#6D28D9" stopOpacity="0.45"/>
+                <stop offset="0%" stopColor="#A855F7" stopOpacity="0.88"/>
+                <stop offset="100%" stopColor="#6D28D9" stopOpacity="0.78"/>
               </linearGradient>
               <linearGradient id="eckedGrad" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor="#C084FC"/>
@@ -181,18 +181,18 @@ export default function HomeScreen() {
             </defs>
             {/* Card stack — translucent neon */}
             <g filter="url(#cardGlow)">
-              <rect x="28" y="18" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.6" strokeWidth="2" transform="rotate(-12 70 75)"/>
-              <rect x="38" y="15" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.75" strokeWidth="2" transform="rotate(-6 80 72)"/>
-              <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.95" strokeWidth="2.5"/>
+              <rect x="28" y="18" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.6" strokeWidth="2" transform="rotate(-12 70 75)" opacity="0.2"/>
+              <rect x="38" y="15" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="0.75" strokeWidth="2" transform="rotate(-6 80 72)" opacity="0.5"/>
+              <rect x="48" y="14" width="85" height="115" rx="10" fill="url(#cardGrad)" stroke="#A855F7" strokeOpacity="1" strokeWidth="2.5" opacity="0.93"/>
             </g>
             {/* Outlined D on front card */}
-            <text x="90" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="58" fontWeight="bold" fill="none" stroke="#22D3EE" strokeWidth="2.5" textAnchor="middle" dominantBaseline="central" filter="url(#dGlow)" className="logo-sep-pulse">D</text>
+            <text x="93" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="58" fontWeight="bold" fill="none" stroke="#22D3EE" strokeWidth="2.5" textAnchor="middle" dominantBaseline="central" filter="url(#dGlow)" className="logo-sep-pulse">D</text>
             {/* "ecked" gradient text with glow */}
             <text x="140" y="72" fontFamily="Arial, Helvetica, sans-serif" fontSize="48" fontWeight="bold" fill="url(#eckedGrad)" letterSpacing="2" dominantBaseline="central" filter="url(#textGlow)">ecked</text>
             {/* Separator — cyan neon */}
             <line x1="300" y1="42" x2="300" y2="98" stroke="#22D3EE" strokeWidth="3" strokeLinecap="round" filter="url(#sepGlow)" className="logo-sep-pulse"/>
             {/* Subtitle — gold */}
-            <text x="315" y="70" fontFamily="Arial, Helvetica, sans-serif" fontSize="11" fontWeight="400" fill="#D4A84C" letterSpacing="2" dominantBaseline="central">DIGITAL CARD EXPERIENCE</text>
+            <text x="315" y="70" fontFamily="Arial, Helvetica, sans-serif" fontSize="11" fontWeight="700" fill="#D4A84C" letterSpacing="3" dominantBaseline="central">DIGITAL CARD EXPERIENCE</text>
           </svg>
           </h1>
           <div className="flex items-center gap-3">
