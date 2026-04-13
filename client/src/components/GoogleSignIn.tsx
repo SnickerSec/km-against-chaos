@@ -93,6 +93,7 @@ let gsiCallback: ((credential: string) => void) | null = null;
 export default function GoogleSignIn() {
   const { user, loading, login, logout, restore } = useAuthStore();
   const buttonRef = useRef<HTMLDivElement>(null);
+  const iconButtonRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const rendered = useRef(false);
 
@@ -116,7 +117,7 @@ export default function GoogleSignIn() {
     };
 
     const renderButton = () => {
-      if (!window.google || !buttonRef.current || rendered.current) return;
+      if (!window.google || !buttonRef.current || !iconButtonRef.current || rendered.current) return;
       rendered.current = true;
 
       if (!gsiInitialized) {
@@ -131,6 +132,12 @@ export default function GoogleSignIn() {
         theme: "filled_black",
         size: "medium",
         shape: "pill",
+      });
+      window.google.accounts.id.renderButton(iconButtonRef.current, {
+        type: "icon",
+        theme: "filled_black",
+        size: "medium",
+        shape: "circle",
       });
     };
 
@@ -169,7 +176,8 @@ export default function GoogleSignIn() {
 
   return (
     <div>
-      <div ref={buttonRef} />
+      <div ref={buttonRef} className="hidden sm:block" />
+      <div ref={iconButtonRef} className="sm:hidden" />
       {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
     </div>
   );
