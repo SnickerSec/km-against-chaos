@@ -33,19 +33,24 @@ router.use((req, res, next) => {
 // Returns the sound id.
 const ALLOWED_SOUND_HOST = "www.myinstants.com";
 
+const SAFE_SOUND_PATH = /^\/media\/sounds\/[A-Za-z0-9_\-]+\.mp3$/;
+
 async function getOrCreateSound(mp3Url: string, title: string): Promise<string> {
-  // Guard against SSRF — only fetch from myinstants.com
+  // Guard against SSRF — only fetch from myinstants.com with expected path shape
   const parsed = new URL(mp3Url);
   if (parsed.protocol !== "https:" || parsed.hostname !== ALLOWED_SOUND_HOST) {
     throw new Error("Only myinstants.com URLs are allowed");
+  }
+  if (!SAFE_SOUND_PATH.test(parsed.pathname)) {
+    throw new Error("Invalid sound URL path");
   }
 
   const existing = await pool.query("SELECT id FROM sounds WHERE mp3_url = $1", [mp3Url]);
   if (existing.rows.length > 0) return existing.rows[0].id;
 
-  // Build URL from constant origin + validated path to prevent SSRF
-  const safeUrl = new URL(parsed.pathname + parsed.search, `https://${ALLOWED_SOUND_HOST}`);
-  const r = await fetch(safeUrl.href, { headers: { "User-Agent": UA } });
+  // Hard-code host; path has been validated by regex above to prevent SSRF
+  const safeUrl = `https://${ALLOWED_SOUND_HOST}${parsed.pathname}`;
+  const r = await fetch(safeUrl, { headers: { "User-Agent": UA } });
   if (!r.ok) throw new Error("Failed to download sound from MyInstants");
   const buffer = Buffer.from(await r.arrayBuffer());
   if (buffer.length > MAX_FILE_BYTES) throw new Error("Sound file too large (max 5MB)");
