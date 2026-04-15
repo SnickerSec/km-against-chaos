@@ -267,10 +267,23 @@ async function start() {
   httpServer.listen(PORT, () => log.info("server started", { port: PORT }));
 }
 
+let shuttingDown = false;
 function gracefulShutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   log.info("graceful shutdown started", { signal });
+
+  // Fail health checks so Railway/load balancers stop routing new traffic
+  app.get("/health", (_req, res) => res.status(503).json({ status: "shutting_down" }));
+
+  // Notify connected clients so they can show the banner and prepare to reconnect
   io.emit("server_restart", { message: "Server is restarting — you will be reconnected shortly." });
+
+  // Stop accepting new HTTP connections immediately; in-flight requests drain
   httpServer.close(() => log.info("HTTP server closed"));
+
+  // Give in-flight socket events and HTTP requests time to finish before force-disconnecting
+  const DRAIN_MS = 25_000;
   setTimeout(async () => {
     try {
       io.disconnectSockets(true);
@@ -280,8 +293,10 @@ function gracefulShutdown(signal: string) {
       log.error("shutdown error", { error: String(err) });
     }
     process.exit(0);
-  }, 2000);
-  setTimeout(() => { log.error("shutdown timed out, forcing exit"); process.exit(1); }, 10000).unref();
+  }, DRAIN_MS);
+
+  // Hard cap — Railway's default SIGKILL is ~3 min, stay well under it
+  setTimeout(() => { log.error("shutdown timed out, forcing exit"); process.exit(1); }, DRAIN_MS + 10_000).unref();
 }
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
