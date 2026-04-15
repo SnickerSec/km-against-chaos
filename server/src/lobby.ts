@@ -460,6 +460,53 @@ export function getLobbyHouseRules(code: string): { unoStacking?: boolean } | un
   return lobbies.get(code)?.houseRules;
 }
 
+// ── Snapshot / Restore ───────────────────────────────────────────────────────
+// Used by snapshot.ts on graceful shutdown / startup so active lobbies
+// survive redeploys. Socket.ids inside the snapshot are stale; they get
+// remapped through the normal reconnect flow when clients rejoin.
+
+export function exportLobbies(): any[] {
+  return Array.from(lobbies.values()).map(lobby => ({
+    code: lobby.code,
+    players: Array.from(lobby.players.entries()),
+    hostId: lobby.hostId,
+    deckId: lobby.deckId,
+    deckName: lobby.deckName,
+    gameType: lobby.gameType,
+    winCondition: lobby.winCondition,
+    houseRules: lobby.houseRules,
+    status: lobby.status,
+    maxPlayers: lobby.maxPlayers,
+    createdAt: lobby.createdAt.toISOString(),
+    rematchVotes: Array.from(lobby.rematchVotes),
+  }));
+}
+
+export function restoreLobbies(snapshots: any[]): void {
+  for (const s of snapshots) {
+    const lobby: Lobby = {
+      code: s.code,
+      players: new Map(s.players),
+      hostId: s.hostId,
+      deckId: s.deckId,
+      deckName: s.deckName,
+      gameType: s.gameType,
+      winCondition: s.winCondition,
+      houseRules: s.houseRules || {},
+      status: s.status,
+      maxPlayers: s.maxPlayers,
+      createdAt: new Date(s.createdAt),
+      rematchVotes: new Set(s.rematchVotes || []),
+    };
+    // Mark every player disconnected until they reconnect via sessionId
+    for (const p of lobby.players.values()) p.connected = false;
+    lobbies.set(lobby.code, lobby);
+    for (const [socketId, p] of lobby.players) {
+      if (!p.isBot) playerLobby.set(socketId, lobby.code);
+    }
+  }
+}
+
 export function remapPlayer(
   oldSocketId: string,
   newSocketId: string

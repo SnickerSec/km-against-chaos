@@ -33,6 +33,7 @@ import { isCodenamesGame, getCodenamesPlayerView } from "./codenamesGame.js";
 import { registerSession, getSessionId, cancelDisconnectTimer } from "./sessions.js";
 import { removeFromVoice, getChatHistory } from "./socketHelpers.js";
 import { createLogger } from "./logger.js";
+import { snapshotAll, restoreAll } from "./snapshot.js";
 import { registerLobbyHandlers, handleLeave } from "./handlers/lobbyHandlers.js";
 
 const log = createLogger("server");
@@ -258,6 +259,7 @@ async function start() {
     try {
       await initDb();
       await seedBuiltInDecks();
+      await restoreAll();
     } catch (err) {
       log.error("database init failed, continuing without DB", { error: String(err) });
     }
@@ -281,6 +283,10 @@ function gracefulShutdown(signal: string) {
 
   // Stop accepting new HTTP connections immediately; in-flight requests drain
   httpServer.close(() => log.info("HTTP server closed"));
+
+  // Snapshot active lobbies/games to Postgres so they survive the redeploy.
+  // Fire-and-forget: the drain timeout below provides the deadline.
+  snapshotAll().catch(err => log.error("snapshot error", { error: String(err) }));
 
   // Give in-flight socket events and HTTP requests time to finish before force-disconnecting
   const DRAIN_MS = 25_000;

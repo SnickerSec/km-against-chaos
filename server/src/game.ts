@@ -747,6 +747,73 @@ export function getAudiencePick(lobbyCode: string): string | null {
   return audiencePick;
 }
 
+// ── Snapshot / Restore ───────────────────────────────────────────────────────
+
+export function exportGames(): any[] {
+  return Array.from(games.values()).map(g => ({
+    lobbyCode: g.lobbyCode,
+    playerIds: g.playerIds,
+    czarIndex: g.czarIndex,
+    chaosDeck: g.chaosDeck,
+    knowledgeDeck: g.knowledgeDeck,
+    knowledgeDiscard: g.knowledgeDiscard,
+    chaosDiscard: g.chaosDiscard,
+    hands: Array.from(g.hands.entries()),
+    scores: Array.from(g.scores.entries()),
+    roundNumber: g.roundNumber,
+    maxRounds: g.maxRounds,
+    winMode: g.winMode,
+    targetPoints: g.targetPoints,
+    gameOver: g.gameOver,
+    gameType: g.gameType,
+    currentRound: g.currentRound ? {
+      chaosCard: g.currentRound.chaosCard,
+      czarId: g.currentRound.czarId,
+      phase: g.currentRound.phase,
+      submissions: Array.from(g.currentRound.submissions.entries()),
+      winnerId: g.currentRound.winnerId,
+      phaseDeadline: g.currentRound.phaseDeadline,
+      czarSetupCard: g.currentRound.czarSetupCard,
+      spectatorVotes: Array.from(g.currentRound.spectatorVotes.entries()),
+    } : null,
+  }));
+}
+
+export function restoreGames(snapshots: any[]): void {
+  for (const s of snapshots) {
+    const game: InternalGameState = {
+      lobbyCode: s.lobbyCode,
+      playerIds: s.playerIds,
+      czarIndex: s.czarIndex,
+      chaosDeck: s.chaosDeck,
+      knowledgeDeck: s.knowledgeDeck,
+      knowledgeDiscard: s.knowledgeDiscard,
+      chaosDiscard: s.chaosDiscard,
+      hands: new Map(s.hands),
+      scores: new Map(s.scores),
+      roundNumber: s.roundNumber,
+      maxRounds: s.maxRounds,
+      winMode: s.winMode,
+      targetPoints: s.targetPoints,
+      gameOver: s.gameOver,
+      gameType: s.gameType,
+      currentRound: s.currentRound ? {
+        chaosCard: s.currentRound.chaosCard,
+        czarId: s.currentRound.czarId,
+        phase: s.currentRound.phase,
+        submissions: new Map(s.currentRound.submissions),
+        winnerId: s.currentRound.winnerId,
+        // Phase timers don't survive; give the new round a fresh deadline
+        // from now so timers restart cleanly on the new instance.
+        phaseDeadline: Date.now() + (s.currentRound.phase === "judging" ? JUDGE_TIME_MS : s.currentRound.phase === "czar_setup" ? CZAR_SETUP_TIME_MS : SUBMIT_TIME_MS),
+        czarSetupCard: s.currentRound.czarSetupCard,
+        spectatorVotes: new Map(s.currentRound.spectatorVotes || []),
+      } : null,
+    };
+    games.set(game.lobbyCode, game);
+  }
+}
+
 export function remapGamePlayer(
   lobbyCode: string,
   oldPlayerId: string,

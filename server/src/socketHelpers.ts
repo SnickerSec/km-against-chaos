@@ -60,6 +60,14 @@ export function clearChatHistory(code: string) {
   chatHistory.delete(code);
 }
 
+export function exportChatHistory(): Array<{ code: string; messages: ChatMessage[] }> {
+  return Array.from(chatHistory.entries()).map(([code, messages]) => ({ code, messages }));
+}
+
+export function restoreChatHistory(snapshots: Array<{ code: string; messages: ChatMessage[] }>): void {
+  for (const s of snapshots) chatHistory.set(s.code, s.messages);
+}
+
 // ── Broadcast Helpers ────────────────────────────────────────────────────────
 
 export function sendRoundToPlayers(io: Server<ClientEvents, ServerEvents>, code: string) {
