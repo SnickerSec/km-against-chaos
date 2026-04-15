@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { Router } from "express";
 import { listPacks, getPackById } from "./deckStore.js";
 
@@ -8,7 +9,7 @@ router.get("/", async (req, res) => {
   try {
     const type = req.query.type as string | undefined;
     res.json(await listPacks(type));
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -18,7 +19,7 @@ router.get("/:id", async (req, res) => {
     const pack = await getPackById(req.params.id);
     if (!pack) { res.status(404).json({ error: "Pack not found" }); return; }
     res.json(pack);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });

@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { Router } from "express";
 import sharp from "sharp";
 import pool from "./db.js";
@@ -62,7 +63,7 @@ router.get("/browse", async (req, res) => {
       page,
       pages: Math.ceil(total / limit),
     });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     log.error("browse failed", { error: e.message });
     res.status(500).json({ error: e.message });
   }
@@ -78,7 +79,7 @@ router.get("/image/:id", async (req, res) => {
     res.setHeader("Content-Length", buf.length);
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     res.end(buf);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -102,7 +103,7 @@ router.get("/thumb/:id", async (req, res) => {
     res.setHeader("Content-Length", thumb.length);
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     res.end(thumb);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -112,7 +113,7 @@ router.post("/use/:id", async (req, res) => {
   try {
     await pool.query("UPDATE art_library SET use_count = use_count + 1 WHERE id = $1", [req.params.id]);
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });

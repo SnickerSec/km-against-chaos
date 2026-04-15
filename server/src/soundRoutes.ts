@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { Router } from "express";
 import { randomBytes } from "crypto";
 import pool from "./db.js";
@@ -92,7 +93,7 @@ router.get("/search", async (req, res) => {
       results.push({ title: titles[i] || `Sound ${i + 1}`, mp3: `${MYINSTANTS}${mp3s[i]}` });
     }
     res.json({ results });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -107,7 +108,7 @@ router.get("/file/:id", async (req, res) => {
     res.setHeader("Content-Length", buf.length);
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     res.end(buf);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -124,7 +125,7 @@ router.get("/saved", requireAuth, async (req: any, res) => {
       [req.user.id]
     );
     res.json(rows);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -169,7 +170,7 @@ router.post("/saved", requireAuth, async (req: any, res) => {
       [userSoundId]
     );
     res.status(already.length > 0 ? 200 : 201).json(rows[0]);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -183,7 +184,7 @@ router.post("/saved/:id/play", requireAuth, async (req: any, res) => {
     );
     if (!rowCount) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -197,7 +198,7 @@ router.delete("/saved/:id", requireAuth, async (req: any, res) => {
     );
     if (!rowCount) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });

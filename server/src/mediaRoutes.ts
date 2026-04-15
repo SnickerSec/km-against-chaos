@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { Router } from "express";
 
 const router = Router();
@@ -61,7 +62,7 @@ router.get("/find", async (req, res) => {
     const page = body.data || {};
     const results = normalize(page.data || []);
     res.json({ results, next: page.has_next ? String((page.current_page || 1) + 1) : "" });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });

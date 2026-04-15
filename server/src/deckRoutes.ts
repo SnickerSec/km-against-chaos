@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { Router } from "express";
 import { randomBytes } from "crypto";
 import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
@@ -85,7 +86,7 @@ router.get("/", async (req, res) => {
   try {
     const { search, gameType, sort, maturity } = req.query as { search?: string; gameType?: string; sort?: string; maturity?: string };
     res.json(await listDecks({ search, gameType, sort, maturity }));
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -98,7 +99,7 @@ router.get("/user/favorites", requireAuth, async (req: any, res) => {
       [req.user.id]
     );
     res.json(rows.map((r: any) => r.deck_id));
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -113,7 +114,7 @@ router.get("/:id", async (req, res) => {
     }
     const packs = await getPacksForDeck(req.params.id);
     res.json({ ...deck, packs: packs.length > 0 ? packs : undefined });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -134,7 +135,7 @@ router.get("/:id/export", async (req, res) => {
     };
     res.setHeader("Content-Disposition", `attachment; filename="${deck.name.replace(/[^a-z0-9]/gi, "_")}.json"`);
     res.json(exportData);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -144,7 +145,7 @@ router.post("/:id/remix", requireAuth, async (req, res) => {
   try {
     const deck = await remixDeck(req.params.id, (req as any).user.id);
     res.status(201).json(deck);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(e.message === "Source deck not found" ? 404 : 500).json({ error: e.message });
   }
 });
@@ -180,7 +181,7 @@ router.post("/:id/rate", requireAuth, async (req: any, res) => {
     `, [deckId]);
 
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -210,7 +211,7 @@ router.post("/:id/favorite", requireAuth, async (req: any, res) => {
       );
       res.json({ favorited: true });
     }
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -231,7 +232,7 @@ router.post("/from-packs", requireAuth, async (req, res) => {
     const reqUser = (req as any).user;
     const deck = await createDeckFromPacks(packIds, name.trim(), winCondition || { mode: "rounds", value: 10 }, reqUser.id, { isAdmin: isAdmin(reqUser.email, reqUser.role) });
     res.status(201).json(deck);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -260,7 +261,7 @@ router.post("/", requireAuth, async (req, res) => {
       await upsertPacksForDeck(deck.id, body.packs as PackInput[], (req as any).user.id, false);
     }
     res.status(201).json(deck);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -277,7 +278,7 @@ router.post("/import", requireAuth, async (req, res) => {
   try {
     const deck = await createDeck({ ...body, ownerId: (req as any).user.id });
     res.status(201).json(deck);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -347,7 +348,7 @@ router.post("/generate", requireAuth, requireAiRateLimit, async (req, res) => {
       flavorThemes: Array.isArray(flavorThemes) ? flavorThemes.slice(0, 5) : undefined,
       generatedBy: (req as any).user.id,
     }).catch(() => {});
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     log.error("AI generation error", { error: e.message });
     res.status(500).json({
       error: e.message?.includes("API") || e.message?.includes("key")
@@ -439,7 +440,7 @@ router.post("/generate-deck", requireAuth, requireAiRateLimit, async (req, res) 
         generatedBy: ownerId,
       }).catch(() => {});
     }
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     log.error("AI deck generation error", { error: e.message });
     res.status(500).json({
       error: e.message?.includes("API") || e.message?.includes("key")
@@ -476,7 +477,7 @@ router.put("/:id", requireAuth, async (req, res) => {
       await upsertPacksForDeck(deck.id, body.packs as PackInput[], reqUser.id, false);
     }
     res.json(deck);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -533,7 +534,7 @@ router.post("/:id/card-back", requireAuth, async (req: any, res) => {
       const url = `/uploads/card-backs/${filename}?v=${Date.now()}`;
       await pool.query("UPDATE decks SET card_back_url = $1, updated_at = NOW() WHERE id = $2", [url, deck.id]);
       res.json({ cardBackUrl: url });
-    } catch (e: any) {
+    } catch (e: any) { Sentry.captureException(e);
       log.error("card back upload failed", { error: e.message });
       res.status(500).json({ error: "Upload failed" });
     }
@@ -589,7 +590,7 @@ router.post("/:id/card-back/generate", requireAuth, requireAiRateLimit, async (r
     const url = `/uploads/card-backs/${filename}?v=${Date.now()}`;
     await pool.query("UPDATE decks SET card_back_url = $1, updated_at = NOW() WHERE id = $2", [url, deck.id]);
     res.json({ cardBackUrl: url, prompt });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     log.error("card back generation failed", { error: e.message });
     res.status(500).json({ error: "Generation failed. Try again." });
   }
@@ -624,7 +625,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
       return;
     }
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });

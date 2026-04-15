@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { Router } from "express";
 import { requireAuth } from "./auth.js";
 import pool from "./db.js";
@@ -72,7 +73,7 @@ router.get("/api/friends", requireAuth, async (req: any, res) => {
     });
 
     res.json(rows);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -99,7 +100,7 @@ router.get("/api/users/search", requireAuth, async (req: any, res) => {
     `, [userId, `%${q}%`]);
 
     res.json(results.rows);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -149,7 +150,7 @@ router.post("/api/friends/request", requireAuth, async (req: any, res) => {
     await createNotification(friendId, "friend_request", { fromName: senderName, fromUserId: userId });
 
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -174,7 +175,7 @@ router.post("/api/friends/:id/accept", requireAuth, async (req: any, res) => {
     await createNotification(requesterId, "friend_accepted", { fromName: acceptorName, fromUserId: userId });
 
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -191,7 +192,7 @@ router.delete("/api/friends/:id", requireAuth, async (req: any, res) => {
     );
 
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -210,7 +211,7 @@ router.put("/api/friends/:id/nickname", requireAuth, async (req: any, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Friendship not found" });
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -244,7 +245,7 @@ router.get("/api/friends/:friendId/history", requireAuth, async (req: any, res) 
     `, [userId, friendId]);
 
     res.json({ games: result.rows, summary: summary.rows[0] });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -272,7 +273,7 @@ router.get("/api/friends/feed", requireAuth, async (req: any, res) => {
     `, [userId]);
 
     res.json(result.rows);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -300,7 +301,7 @@ router.get("/api/friends/leaderboard", requireAuth, async (req: any, res) => {
     `, [userId]);
 
     res.json(result.rows);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -326,7 +327,7 @@ router.get("/api/users/:userId/mutual-friends", requireAuth, async (req: any, re
     `, [myId, theirId]);
 
     res.json(result.rows);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -354,7 +355,7 @@ router.get("/api/friends/suggestions", requireAuth, async (req: any, res) => {
     `, [userId]);
 
     res.json(result.rows);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -380,7 +381,7 @@ router.get("/api/friends/:friendId/messages", requireAuth, async (req: any, res)
     `, [userId, friendId, before, limit]);
 
     res.json(result.rows.reverse());
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -403,7 +404,7 @@ router.post("/api/friends/:friendId/messages", requireAuth, async (req: any, res
 
     const msg = { id, sender_id: userId, receiver_id: friendId, content: trimmed, created_at: new Date().toISOString(), read_at: null };
     res.json(msg);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -420,7 +421,7 @@ router.post("/api/friends/:friendId/messages/read", requireAuth, async (req: any
       [userId, friendId]
     );
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -440,7 +441,7 @@ router.get("/api/notifications", requireAuth, async (req: any, res) => {
     `, [userId]);
 
     res.json(result.rows);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -449,7 +450,7 @@ router.post("/api/notifications/:id/read", requireAuth, async (req: any, res) =>
   try {
     await pool.query("UPDATE notifications SET read = TRUE WHERE id = $1 AND user_id = $2", [req.params.id, req.user.id]);
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -458,7 +459,7 @@ router.post("/api/notifications/read-all", requireAuth, async (req: any, res) =>
   try {
     await pool.query("UPDATE notifications SET read = TRUE WHERE user_id = $1 AND read = FALSE", [req.user.id]);
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -477,7 +478,7 @@ router.get("/api/friends/unread-counts", requireAuth, async (req: any, res) => {
     const counts: Record<string, number> = {};
     for (const row of result.rows) counts[row.sender_id] = parseInt(row.unread_count);
     res.json(counts);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -503,7 +504,7 @@ router.post("/api/push/subscribe", requireAuth, async (req: any, res) => {
       [genId(), userId, JSON.stringify(subscription)]
     );
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -518,7 +519,7 @@ router.post("/api/push/unsubscribe", requireAuth, async (req: any, res) => {
       await pool.query("DELETE FROM push_subscriptions WHERE user_id = $1", [userId]);
     }
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });

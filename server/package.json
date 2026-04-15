@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.82.0",
     "@fal-ai/serverless-client": "^0.15.0",
     "@google/generative-ai": "^0.24.1",
+    "@sentry/node": "^10.48.0",
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "express-rate-limit": "^8.3.1",

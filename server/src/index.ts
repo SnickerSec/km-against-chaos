@@ -1,3 +1,4 @@
+import { Sentry } from "./instrumentation.js";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -307,5 +308,19 @@ function gracefulShutdown(signal: string) {
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+// Express error handler — must be registered after all routes so it catches
+// anything the route handlers throw or forward via next(err).
+Sentry.setupExpressErrorHandler(app);
+
+// Socket.IO error capture — handler-thrown errors don't bubble to Express
+io.engine.on("connection_error", (err: any) => {
+  Sentry.captureException(err, { tags: { source: "socket.io-engine" } });
+});
+
+process.on("unhandledRejection", (reason) => {
+  Sentry.captureException(reason, { tags: { source: "unhandledRejection" } });
+  log.error("unhandled rejection", { reason: String(reason) });
+});
 
 start().catch((err) => { log.error("failed to start", { error: String(err) }); process.exit(1); });

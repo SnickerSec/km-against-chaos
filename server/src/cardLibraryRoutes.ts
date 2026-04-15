@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { Router } from "express";
 import { randomBytes } from "crypto";
 import pool from "./db.js";
@@ -105,7 +106,7 @@ router.get("/browse", async (req, res) => {
       page,
       pages: Math.ceil(total / limit),
     });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     log.error("browse failed", { error: e.message });
     res.status(500).json({ error: e.message });
   }
@@ -125,7 +126,7 @@ router.post("/use", async (req, res) => {
       ids,
     );
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });

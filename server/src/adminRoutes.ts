@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { Router } from "express";
 import pool from "./db.js";
 import { requireAuth, requireAdmin } from "./auth.js";
@@ -53,7 +54,7 @@ router.get("/settings", async (_req, res) => {
       settings[row.key] = row.value;
     }
     res.json(settings);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -75,7 +76,7 @@ router.put("/settings/:key", async (req, res) => {
       [key, JSON.stringify(value)]
     );
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -187,7 +188,7 @@ router.get("/models", async (_req, res) => {
 
     modelsCache = { data: allModels, fetchedAt: Date.now() };
     res.json(allModels);
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -261,7 +262,7 @@ router.post("/test-provider", async (req, res) => {
     }
 
     res.json({ success: true, response: responseText.trim().slice(0, 100) });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message || "Connection failed" });
   }
 });
@@ -273,7 +274,7 @@ router.get("/users", requireAuth, requireAdmin, async (_req, res) => {
       "SELECT id, name, email, picture, role FROM users ORDER BY name ASC"
     );
     res.json(rows.map((r: any) => ({ id: r.id, name: r.name, email: r.email, picture: r.picture, role: r.role || null })));
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -289,7 +290,7 @@ router.put("/users/:id/role", requireAuth, requireAdmin, async (req, res) => {
     );
     if (rows.length === 0) { res.status(404).json({ error: "User not found" }); return; }
     res.json({ id: rows[0].id, name: rows[0].name, email: rows[0].email, picture: rows[0].picture, role: rows[0].role || null });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -312,7 +313,7 @@ router.get("/decks", async (_req, res) => {
       chaosCount: parseInt(r.chaos_count),
       knowledgeCount: parseInt(r.knowledge_count),
     })));
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -350,7 +351,7 @@ router.post("/card-library/backfill", async (_req, res) => {
       }
     }
     res.json({ decksScanned: rows.length, chaosAdded, knowledgeAdded });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -369,7 +370,7 @@ router.put("/decks/:id/featured", async (req, res) => {
     );
     if (rows.length === 0) { res.status(404).json({ error: "Deck not found" }); return; }
     res.json({ id: rows[0].id, name: rows[0].name, builtIn: rows[0].built_in });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -409,7 +410,7 @@ router.get("/prompt-templates", async (_req, res) => {
       cardEngineRules,
       cardMaturityRules,
     });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -471,7 +472,7 @@ router.put("/prompt-templates", async (req, res) => {
     );
 
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -481,7 +482,7 @@ router.delete("/prompt-templates", async (_req, res) => {
   try {
     await pool.query("DELETE FROM settings WHERE key = 'prompt_templates'");
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -600,7 +601,7 @@ router.get("/image-model", async (_req, res) => {
       models,
       falKeyConfigured: !!process.env.FAL_KEY,
     });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -625,7 +626,7 @@ router.put("/image-model", async (req, res) => {
       [JSON.stringify(settings)]
     );
     res.json({ success: true });
-  } catch (e: any) {
+  } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });

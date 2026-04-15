@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+
+// next/script ScriptProps has a JSX intersection issue with React 19 that
+// rejects `src` at the call site; an untyped alias sidesteps it.
+const NextScript = Script as unknown as (props: any) => any;
 import InviteToast from "@/components/InviteToast";
 import PartyBar from "@/components/PartyBar";
 import "./globals.css";
@@ -34,15 +38,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-gray-950 text-white min-h-screen" suppressHydrationWarning>
-        <Script
-          src="https://accounts.google.com/gsi/client"
-          strategy="afterInteractive"
-        />
-        <Script id="sw-register" strategy="afterInteractive">{`
+        <NextScript src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
+        <NextScript id="sw-register" strategy="afterInteractive">{`
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js').catch(() => {});
           }
-        `}</Script>
+        `}</NextScript>
         <InviteToast />
         <PartyBar />
         {children}
