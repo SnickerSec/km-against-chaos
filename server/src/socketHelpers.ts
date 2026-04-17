@@ -1,7 +1,7 @@
 import type { Server } from "socket.io";
 import type { ClientEvents, ServerEvents } from "./types.js";
 import { getPlayerView, getPlayerIds, getScores, getPhaseDeadline } from "./game.js";
-import { getUnoPlayerView, getUnoPlayerIds, getUnoScores } from "./unoGame.js";
+import { getUnoPlayerView, getUnoPlayerIds, getUnoScores, getUnoTurnDeadline } from "./unoGame.js";
 import { getCodenamesPlayerView } from "./codenamesGame.js";
 import { getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, getLobbyDeckName, getLobbyGameType, isPlayerBot, getActivePlayers, getLobbyPlayers } from "./lobby.js";
 import { getUserIdForSocket } from "./presence.js";
@@ -163,6 +163,21 @@ export async function getPlayerName(code: string, playerId: string): Promise<str
   return getPlayerNameInLobby(code, playerId);
 }
 
+// ── Timer At-Most-Once Locks ─────────────────────────────────────────────────
+// Multiple replicas may each arm a timer for the same lobby (a player action
+// handled on replica A schedules a timer on A; a later action on B schedules
+// a new one on B — A's old timer is still alive). When they fire, both
+// callbacks would run the same transition (auto-submit, bot-pick, etc.).
+// We guard with a Redis SET NX lock keyed to the specific phase deadline, so
+// only the first replica to claim it runs the transition; the others no-op.
+// TTL is short (60s) so a dead replica doesn't block future fires.
+async function claimTimerLock(kind: "cah" | "uno", code: string, deadline: number): Promise<boolean> {
+  if (!redis) return true; // single-replica mode — no cross-replica race
+  const key = `timer-lock:${kind}:${code}:${deadline}`;
+  const ok = await redis.set(key, "1", "EX", 60, "NX");
+  return ok === "OK";
+}
+
 // ── CAH Round Timers ─────────────────────────────────────────────────────────
 
 const roundTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -172,8 +187,9 @@ export async function scheduleRoundTimer(code: string, onExpiry: (code: string) 
   const deadline = await getPhaseDeadline(code);
   if (!deadline) return;
   const delay = Math.max(0, deadline - Date.now());
-  roundTimers.set(code, setTimeout(() => {
+  roundTimers.set(code, setTimeout(async () => {
     roundTimers.delete(code);
+    if (!(await claimTimerLock("cah", code, deadline))) return;
     onExpiry(code);
   }, delay));
 }
@@ -193,8 +209,11 @@ const unoTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function scheduleUnoTurnTimer(code: string, onExpiry: (code: string) => void) {
   clearUnoTurnTimer(code);
-  unoTurnTimers.set(code, setTimeout(() => {
+  unoTurnTimers.set(code, setTimeout(async () => {
     unoTurnTimers.delete(code);
+    const deadline = await getUnoTurnDeadline(code);
+    if (!deadline) return;
+    if (!(await claimTimerLock("uno", code, deadline))) return;
     onExpiry(code);
   }, TURN_TIMER_MS));
 }

@@ -892,6 +892,10 @@ export async function getUnoPhase(lobbyCode: string): Promise<string | undefined
   return (await loadGame(lobbyCode))?.phase;
 }
 
+export async function getUnoTurnDeadline(lobbyCode: string): Promise<number | null> {
+  return (await loadGame(lobbyCode))?.turnDeadline ?? null;
+}
+
 // ── Snapshot / Restore ───────────────────────────────────────────────────────
 
 export async function exportUnoGames(): Promise<any[]> {
