@@ -195,7 +195,7 @@ io.on("connection", async (socket) => {
     cancelDisconnectTimer(sessionId);
     await remapPresenceSocket(oldSocketId, socket.id);
 
-    const lobbyResult = remapPlayer(oldSocketId, socket.id);
+    const lobbyResult = await remapPlayer(oldSocketId, socket.id);
     if (lobbyResult) {
       const { code, lobby } = lobbyResult;
       socket.join(code);
@@ -262,7 +262,7 @@ io.on("connection", async (socket) => {
       }
     }
 
-    const result = disconnectPlayer(socket.id);
+    const result = await disconnectPlayer(socket.id);
     if (result) {
       io.to(result.code).emit("lobby:updated", result.lobby);
       io.to(result.code).emit("lobby:player-disconnecting", socket.id);

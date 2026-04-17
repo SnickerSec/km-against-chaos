@@ -71,8 +71,8 @@ export function triggerBotActions(io: Server<ClientEvents, ServerEvents>, code: 
   triggerBotSubmissions(io, code);
 }
 
-function triggerBotSubmissions(io: Server<ClientEvents, ServerEvents>, code: string) {
-  const botIds = getBotsInLobby(code);
+async function triggerBotSubmissions(io: Server<ClientEvents, ServerEvents>, code: string) {
+  const botIds = await getBotsInLobby(code);
   const czarId = getCzarId(code);
 
   let delay = 1500;
@@ -99,13 +99,13 @@ function triggerBotCzarPick(io: Server<ClientEvents, ServerEvents>, code: string
   const czarId = getCzarId(code);
   if (!czarId?.startsWith("bot-")) return;
 
-  setTimeout(() => {
+  setTimeout(async () => {
     const result = botPickWinner(code, czarId);
     if (!result.winnerId) return;
 
     const scores = getScores(code);
     const winnerCards = getWinnerCards(code);
-    const winnerName = getPlayerNameInLobby(code, result.winnerId);
+    const winnerName = await getPlayerNameInLobby(code, result.winnerId);
 
     const audiencePick = getAudiencePick(code);
     io.to(code).emit("game:round-winner", result.winnerId, winnerName || "Unknown", winnerCards || [], scores || {}, audiencePick);
@@ -119,7 +119,7 @@ function triggerBotCzarPick(io: Server<ClientEvents, ServerEvents>, code: string
 
 // ── Timer Expiry ─────────────────────────────────────────────────────────────
 
-function handleTimerExpiry(io: Server<ClientEvents, ServerEvents>, code: string) {
+async function handleTimerExpiry(io: Server<ClientEvents, ServerEvents>, code: string) {
   const czarId = getCzarId(code);
   const gt = getGameType(code);
 
@@ -150,7 +150,7 @@ function handleTimerExpiry(io: Server<ClientEvents, ServerEvents>, code: string)
     if (result.winnerId) {
       const scores = getScores(code);
       const winnerCards = getWinnerCards(code);
-      const winnerName = getPlayerNameInLobby(code, result.winnerId);
+      const winnerName = await getPlayerNameInLobby(code, result.winnerId);
       const audiencePick = getAudiencePick(code);
       io.to(code).emit("game:round-winner", result.winnerId, winnerName || "Unknown", winnerCards || [], scores || {}, audiencePick);
 
@@ -173,8 +173,8 @@ export function registerCahHandlers(
   io: Server<ClientEvents, ServerEvents>,
   socket: Socket<ClientEvents, ServerEvents>,
 ) {
-  socket.on("game:czar-setup", (cardId, callback) => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("game:czar-setup", async (cardId, callback) => {
+    const code = await findPlayerLobby(socket.id);
     if (!code) { callback({ success: false, error: "Not in a game" }); return; }
 
     clearRoundTimer(code);
@@ -187,8 +187,8 @@ export function registerCahHandlers(
     scheduleRoundTimer(code, (c) => handleTimerExpiry(io, c));
   });
 
-  socket.on("game:submit", (cardIds, callback) => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("game:submit", async (cardIds, callback) => {
+    const code = await findPlayerLobby(socket.id);
     if (!code) { callback({ success: false, error: "Not in a game" }); return; }
 
     const result = submitCards(code, socket.id, cardIds);
@@ -207,8 +207,8 @@ export function registerCahHandlers(
     }
   });
 
-  socket.on("game:pick-winner", (winnerId, callback) => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("game:pick-winner", async (winnerId, callback) => {
+    const code = await findPlayerLobby(socket.id);
     if (!code) { callback({ success: false, error: "Not in a game" }); return; }
 
     clearRoundTimer(code);
@@ -219,7 +219,7 @@ export function registerCahHandlers(
 
     const scores = getScores(code);
     const winnerCards = getWinnerCards(code);
-    const winnerName = getPlayerName(code, winnerId);
+    const winnerName = await getPlayerName(code, winnerId);
     const audiencePick = getAudiencePick(code);
     io.to(code).emit("game:round-winner", winnerId, winnerName || "Unknown", winnerCards || [], scores || {}, audiencePick);
 
@@ -229,16 +229,16 @@ export function registerCahHandlers(
     }
   });
 
-  socket.on("game:spectator-vote", (votedForId, callback) => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("game:spectator-vote", async (votedForId, callback) => {
+    const code = await findPlayerLobby(socket.id);
     if (!code) { callback({ success: false, error: "Not in a game" }); return; }
 
     const result = spectatorVote(code, socket.id, votedForId);
     callback(result);
   });
 
-  socket.on("game:next-round", () => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("game:next-round", async () => {
+    const code = await findPlayerLobby(socket.id);
     if (!code) return;
 
     advanceRound(code);

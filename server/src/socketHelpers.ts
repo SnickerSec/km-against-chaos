@@ -141,8 +141,8 @@ export function sendUnoTurnToPlayers(io: Server<ClientEvents, ServerEvents>, cod
   }
 }
 
-export function sendCodenamesUpdate(io: Server<ClientEvents, ServerEvents>, code: string) {
-  const players = getLobbyPlayers(code);
+export async function sendCodenamesUpdate(io: Server<ClientEvents, ServerEvents>, code: string) {
+  const players = await getLobbyPlayers(code);
   if (!players) return;
   for (const pid of players) {
     const view = getCodenamesPlayerView(code, pid);
@@ -155,11 +155,11 @@ export function sendCodenamesUpdate(io: Server<ClientEvents, ServerEvents>, code
 
 // ── Lookup Aliases ───────────────────────────────────────────────────────────
 
-export function findPlayerLobby(socketId: string): string | undefined {
+export async function findPlayerLobby(socketId: string): Promise<string | undefined> {
   return getLobbyForSocket(socketId);
 }
 
-export function getPlayerName(code: string, playerId: string): string | undefined {
+export async function getPlayerName(code: string, playerId: string): Promise<string | undefined> {
   return getPlayerNameInLobby(code, playerId);
 }
 
@@ -208,21 +208,21 @@ export function clearUnoTurnTimer(code: string) {
 
 export async function recordCahGameResult(code: string, scores: Record<string, number>) {
   try {
-    const playerIds = getActivePlayers(code) || [];
+    const playerIds = (await getActivePlayers(code)) || [];
     const topEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
     const winnerId = topEntry?.[0];
     const players = await Promise.all(playerIds.map(async pid => ({
       userId: (await getUserIdForSocket(pid)) || null,
-      name: getPlayerNameInLobby(code, pid) || pid,
+      name: (await getPlayerNameInLobby(code, pid)) || pid,
       score: scores[pid] || 0,
       isWinner: pid === winnerId,
-      isBot: isPlayerBot(code, pid),
+      isBot: await isPlayerBot(code, pid),
     })));
     recordGameResult({
       lobbyCode: code,
-      deckId: getLobbyDeckId(code) || null,
-      deckName: getLobbyDeckName(code) || "Unknown",
-      gameType: getLobbyGameType(code) || "cah",
+      deckId: (await getLobbyDeckId(code)) || null,
+      deckName: (await getLobbyDeckName(code)) || "Unknown",
+      gameType: (await getLobbyGameType(code)) || "cah",
       playerCount: players.filter(p => !p.isBot).length,
       roundsPlayed: 0,
       players,
@@ -232,21 +232,21 @@ export async function recordCahGameResult(code: string, scores: Record<string, n
 
 export async function recordUnoGameResult(code: string, scores: Record<string, number>) {
   try {
-    const playerIds = getActivePlayers(code) || [];
+    const playerIds = (await getActivePlayers(code)) || [];
     const topEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
     const winnerId = topEntry?.[0];
     const players = await Promise.all(playerIds.map(async pid => ({
       userId: (await getUserIdForSocket(pid)) || null,
-      name: getPlayerNameInLobby(code, pid) || pid,
+      name: (await getPlayerNameInLobby(code, pid)) || pid,
       score: scores[pid] || 0,
       isWinner: pid === winnerId,
-      isBot: isPlayerBot(code, pid),
+      isBot: await isPlayerBot(code, pid),
     })));
     recordGameResult({
       lobbyCode: code,
-      deckId: getLobbyDeckId(code) || null,
-      deckName: getLobbyDeckName(code) || "Unknown",
-      gameType: getLobbyGameType(code) || "uno",
+      deckId: (await getLobbyDeckId(code)) || null,
+      deckName: (await getLobbyDeckName(code)) || "Unknown",
+      gameType: (await getLobbyGameType(code)) || "uno",
       playerCount: players.filter(p => !p.isBot).length,
       roundsPlayed: 0,
       players,

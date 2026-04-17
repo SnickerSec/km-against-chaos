@@ -20,7 +20,7 @@ export function triggerUnoBotTurn(io: Server<ClientEvents, ServerEvents>, code: 
   const phase = getUnoPhase(code);
   if (phase !== "playing") return;
 
-  setTimeout(() => {
+  setTimeout(async () => {
     if (!isUnoGame(code)) return;
     const currentNow = getUnoCurrentPlayer(code);
     if (currentNow !== currentPid) return;
@@ -28,7 +28,7 @@ export function triggerUnoBotTurn(io: Server<ClientEvents, ServerEvents>, code: 
     const result = botPlayUnoTurn(code, currentPid);
     if (!result.success) return;
 
-    const playerName = getPlayerNameInLobby(code, currentPid) || currentPid;
+    const playerName = (await getPlayerNameInLobby(code, currentPid)) || currentPid;
 
     if ("roundOver" in result && result.roundOver) {
       const scores = getUnoScores(code);
@@ -68,8 +68,8 @@ export function registerUnoHandlers(
   io: Server<ClientEvents, ServerEvents>,
   socket: Socket<ClientEvents, ServerEvents>,
 ) {
-  socket.on("uno:play-card", (cardId, chosenColor, callback) => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("uno:play-card", async (cardId, chosenColor, callback) => {
+    const code = await findPlayerLobby(socket.id);
     if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
 
     const result = unoPlayCard(code, socket.id, cardId, chosenColor || undefined);
@@ -77,7 +77,7 @@ export function registerUnoHandlers(
 
     callback({ success: true });
 
-    const playerName = getPlayerNameInLobby(code, socket.id) || "???";
+    const playerName = (await getPlayerNameInLobby(code, socket.id)) || "???";
 
     if (result.roundOver) {
       const scores = getUnoScores(code);
@@ -96,8 +96,8 @@ export function registerUnoHandlers(
     if (!result.roundOver) triggerUnoBotTurn(io, code);
   });
 
-  socket.on("uno:draw-card", (callback) => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("uno:draw-card", async (callback) => {
+    const code = await findPlayerLobby(socket.id);
     if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
 
     const result = unoDrawCard(code, socket.id);
@@ -111,21 +111,21 @@ export function registerUnoHandlers(
     triggerUnoBotTurn(io, code);
   });
 
-  socket.on("uno:call-uno", (callback) => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("uno:call-uno", async (callback) => {
+    const code = await findPlayerLobby(socket.id);
     if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
 
     const ok = callUno(code, socket.id);
     if (!ok) { callback({ success: false, error: "Can't call Uno right now" }); return; }
 
     callback({ success: true });
-    const playerName = getPlayerNameInLobby(code, socket.id) || "???";
+    const playerName = (await getPlayerNameInLobby(code, socket.id)) || "???";
     io.to(code).emit("uno:uno-called", socket.id, playerName);
     sendUnoTurnToPlayers(io, code);
   });
 
-  socket.on("uno:challenge-uno", (targetId, callback) => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("uno:challenge-uno", async (targetId, callback) => {
+    const code = await findPlayerLobby(socket.id);
     if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
 
     const result = challengeUno(code, socket.id, targetId);
@@ -133,14 +133,14 @@ export function registerUnoHandlers(
 
     callback({ success: true, penalized: result.penalized });
     if (result.penalized) {
-      const targetName = getPlayerNameInLobby(code, targetId) || "???";
+      const targetName = (await getPlayerNameInLobby(code, targetId)) || "???";
       io.to(code).emit("uno:uno-penalty", targetId, targetName);
     }
     sendUnoTurnToPlayers(io, code);
   });
 
-  socket.on("uno:next-round", () => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("uno:next-round", async () => {
+    const code = await findPlayerLobby(socket.id);
     if (!code || !isUnoGame(code)) return;
 
     const result = advanceUnoRound(code);

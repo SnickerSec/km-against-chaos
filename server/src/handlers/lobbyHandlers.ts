@@ -5,11 +5,11 @@ import {
   changeLobbyDeck, addBot, removeBot, kickPlayer, voteRematch,
   resetLobbyForRematch, setLobbyHouseRules, setMaxPlayers,
   getLobbyForSocket, getLobbyDeckId, getLobbyDeckName, getLobbyGameType,
-  getLobbyHouseRules, getActivePlayers, getPlayerNameInLobby,
+  getLobbyHouseRules, getActivePlayers, getPlayerNameInLobby, getLobbyPlayers,
 } from "../lobby.js";
 import { getDeck } from "../deckStore.js";
 import { createGame, startRound, getPlayerView, getScores, endGame, cleanupGame, addPlayerToGame, removePlayerFromGame } from "../game.js";
-import { createUnoGame, isUnoGame, cleanupUnoGame, getUnoPlayerView, removePlayerFromUnoGame } from "../unoGame.js";
+import { createUnoGame, isUnoGame, cleanupUnoGame, getUnoPlayerView, removePlayerFromUnoGame, setUnoPlayerNames } from "../unoGame.js";
 import { createCodenamesGame, isCodenamesGame, cleanupCodenamesGame, getCodenamesPlayerView, removePlayerFromCodenamesGame } from "../codenamesGame.js";
 import { setInGame, setNotInGame, getUserIdForSocket } from "../presence.js";
 import pool from "../db.js";
@@ -28,8 +28,8 @@ export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socket
   const leaverUserId = await getUserIdForSocket(socketId);
   if (leaverUserId) await setNotInGame(leaverUserId);
 
-  const code = getLobbyForSocket(socketId);
-  const result = leaveLobby(socketId);
+  const code = await getLobbyForSocket(socketId);
+  const result = await leaveLobby(socketId);
   if (!result) return;
 
   if (code) {
@@ -50,7 +50,7 @@ export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socket
     // from the turn rotation immediately, not on their next action.
     if (code) {
       if (isUnoGame(code)) sendUnoTurnToPlayers(io, code);
-      else if (isCodenamesGame(code)) sendCodenamesUpdate(io, code);
+      else if (isCodenamesGame(code)) await sendCodenamesUpdate(io, code);
     }
   } else {
     cleanupGame(result.code);
@@ -73,7 +73,7 @@ export function registerLobbyHandlers(
       const deck = await getDeck(deckId);
       if (!deck) { callback({ success: false, error: "Deck not found" }); return; }
 
-      const result = createLobby(socket.id, playerName, deckId, deck.name, deck.gameType, deck.winCondition);
+      const result = await createLobby(socket.id, playerName, deckId, deck.name, deck.gameType, deck.winCondition);
       if ("error" in result) { callback({ success: false, error: result.error }); return; }
 
       socket.join(result.lobby.code);
@@ -90,7 +90,7 @@ export function registerLobbyHandlers(
 
   socket.on("lobby:join", async (code, playerName, callback) => {
     playerName = (typeof playerName === "string" ? playerName : "Player").trim().slice(0, 30) || "Player";
-    const result = joinLobby(socket.id, code, playerName);
+    const result = await joinLobby(socket.id, code, playerName);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
 
     socket.join(result.lobby.code);
@@ -116,8 +116,8 @@ export function registerLobbyHandlers(
     log.info("player joined", { code, player: playerName });
   });
 
-  socket.on("lobby:spectate" as any, (code: string, playerName: string, callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
-    const result = joinAsSpectator(socket.id, code, playerName);
+  socket.on("lobby:spectate" as any, async (code: string, playerName: string, callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
+    const result = await joinAsSpectator(socket.id, code, playerName);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
 
     socket.join(result.lobby.code);
@@ -142,7 +142,7 @@ export function registerLobbyHandlers(
       const deck = await getDeck(deckId);
       if (!deck) { callback({ success: false, error: "Deck not found" }); return; }
 
-      const result = changeLobbyDeck(socket.id, deckId, deck.name, deck.gameType || "cah", deck.winCondition);
+      const result = await changeLobbyDeck(socket.id, deckId, deck.name, deck.gameType || "cah", deck.winCondition);
       if ("error" in result) { callback({ success: false, error: result.error }); return; }
 
       callback({ success: true, lobby: result.lobby });
@@ -153,15 +153,15 @@ export function registerLobbyHandlers(
     }
   });
 
-  socket.on("lobby:set-house-rules" as any, (houseRules: { unoStacking?: boolean }, callback: (res: any) => void) => {
-    const result = setLobbyHouseRules(socket.id, houseRules);
+  socket.on("lobby:set-house-rules" as any, async (houseRules: { unoStacking?: boolean }, callback: (res: any) => void) => {
+    const result = await setLobbyHouseRules(socket.id, houseRules);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     callback({ success: true });
     io.to(result.code).emit("lobby:updated", result.lobby);
   });
 
-  socket.on("lobby:set-max-players" as any, (maxPlayers: number, callback: (res: any) => void) => {
-    const result = setMaxPlayers(socket.id, maxPlayers);
+  socket.on("lobby:set-max-players" as any, async (maxPlayers: number, callback: (res: any) => void) => {
+    const result = await setMaxPlayers(socket.id, maxPlayers);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     callback({ success: true });
     io.to(result.code).emit("lobby:updated", result.lobby);
@@ -169,13 +169,13 @@ export function registerLobbyHandlers(
 
   socket.on("lobby:start", async (callback) => {
     try {
-      const result = startGame(socket.id);
+      const result = await startGame(socket.id);
       if ("error" in result) { callback({ success: false, error: result.error }); return; }
 
-      const playerIds = getActivePlayers(result.code);
+      const playerIds = await getActivePlayers(result.code);
       if (!playerIds || playerIds.length < 2) { callback({ success: false, error: "Not enough players" }); return; }
 
-      const deckId = getLobbyDeckId(result.code);
+      const deckId = await getLobbyDeckId(result.code);
       let customChaos = undefined;
       let customKnowledge = undefined;
       let winCondition = undefined;
@@ -211,7 +211,7 @@ export function registerLobbyHandlers(
       io.to(code).emit("lobby:countdown" as any, 3);
       setTimeout(() => io.to(code).emit("lobby:countdown" as any, 2), 1000);
       setTimeout(() => io.to(code).emit("lobby:countdown" as any, 1), 2000);
-      setTimeout(() => {
+      setTimeout(async () => {
         io.to(code).emit("lobby:countdown" as any, 0);
 
         if (gameType === "codenames") {
@@ -231,8 +231,18 @@ export function registerLobbyHandlers(
           }
         } else if (gameType === "uno") {
           const template = unoTemplate || { colorNames: { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" } };
-          const houseRules = getLobbyHouseRules(code);
+          const houseRules = await getLobbyHouseRules(code);
           createUnoGame(code, playerIds, template, winCondition, houseRules);
+          // Push display names into unoGame so its lastAction strings use
+          // real names instead of internal bot-hex IDs. lobby.ts is now
+          // async and we avoid hitting it on every card play from
+          // unoGame.ts (which is a pure engine module).
+          const unoNames: Record<string, string> = {};
+          for (const pid of playerIds) {
+            const n = await getPlayerNameInLobby(code, pid);
+            if (n) unoNames[pid] = n;
+          }
+          setUnoPlayerNames(code, unoNames);
           io.to(code).emit("lobby:started");
           sendUnoTurnToPlayers(io, code);
           triggerUnoBotTurn(io, code);
@@ -259,24 +269,24 @@ export function registerLobbyHandlers(
     }
   });
 
-  socket.on("lobby:add-bot" as any, (callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
-    const result = addBot(socket.id);
+  socket.on("lobby:add-bot" as any, async (callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
+    const result = await addBot(socket.id);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     callback({ success: true, lobby: result.lobby });
     io.to(result.lobby.code).emit("lobby:updated", result.lobby);
     log.info("bot added", { code: result.lobby.code });
   });
 
-  socket.on("lobby:remove-bot" as any, (botId: string, callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
-    const result = removeBot(socket.id, botId);
+  socket.on("lobby:remove-bot" as any, async (botId: string, callback: (response: { success: boolean; lobby?: any; error?: string }) => void) => {
+    const result = await removeBot(socket.id, botId);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     io.to(result.lobby.code).emit("lobby:updated", result.lobby);
     callback({ success: true, lobby: result.lobby });
     log.info("bot removed", { botId });
   });
 
-  socket.on("lobby:kick" as any, (targetId: string, callback: (response: { success: boolean; error?: string }) => void) => {
-    const result = kickPlayer(socket.id, targetId);
+  socket.on("lobby:kick" as any, async (targetId: string, callback: (response: { success: boolean; error?: string }) => void) => {
+    const result = await kickPlayer(socket.id, targetId);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     io.to(targetId).emit("lobby:kicked" as any);
     const targetSocket = io.sockets.sockets.get(targetId);
@@ -286,21 +296,21 @@ export function registerLobbyHandlers(
     log.info("player kicked", { code: result.code, targetId });
   });
 
-  socket.on("lobby:vote-rematch" as any, (callback: (response: any) => void) => {
-    const result = voteRematch(socket.id);
+  socket.on("lobby:vote-rematch" as any, async (callback: (response: any) => void) => {
+    const result = await voteRematch(socket.id);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     callback({ success: true, voteCount: result.voteCount, totalPlayers: result.totalPlayers });
     io.to(result.code).emit("lobby:updated", result.lobby);
     io.to(result.code).emit("lobby:rematch-vote" as any, {
       voterId: socket.id,
-      voterName: getPlayerNameInLobby(result.code, socket.id),
+      voterName: await getPlayerNameInLobby(result.code, socket.id),
       voteCount: result.voteCount,
       totalPlayers: result.totalPlayers,
     });
   });
 
-  socket.on("game:rematch" as any, (callback: (response: { success: boolean; error?: string }) => void) => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("game:rematch" as any, async (callback: (response: { success: boolean; error?: string }) => void) => {
+    const code = await findPlayerLobby(socket.id);
     if (!code) { callback({ success: false, error: "Not in a lobby" }); return; }
 
     clearRoundTimer(code);
@@ -309,7 +319,7 @@ export function registerLobbyHandlers(
     cleanupUnoGame(code);
     cleanupCodenamesGame(code);
 
-    const result = resetLobbyForRematch(socket.id);
+    const result = await resetLobbyForRematch(socket.id);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
 
     callback({ success: true });

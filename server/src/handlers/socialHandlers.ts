@@ -53,12 +53,12 @@ export function registerSocialHandlers(
     );
     if (friendship.rows.length === 0) { callback?.({ success: false, error: "Not friends" }); return; }
 
-    const code = getLobbyForSocket(socket.id);
+    const code = await getLobbyForSocket(socket.id);
     if (!code) { callback?.({ success: false, error: "Not in a lobby" }); return; }
 
-    const deckName = getLobbyDeckName(code) || "Unknown";
-    const gameType = getLobbyGameType(code) || "cah";
-    const senderName = getPlayerNameInLobby(code, socket.id) || "Someone";
+    const deckName = (await getLobbyDeckName(code)) || "Unknown";
+    const gameType = (await getLobbyGameType(code)) || "cah";
+    const senderName = (await getPlayerNameInLobby(code, socket.id)) || "Someone";
 
     const targetSockets = await getSocketIdsForUser(targetUserId);
     for (const sid of targetSockets) {
@@ -188,7 +188,7 @@ export function registerSocialHandlers(
     if (!deck) { callback({ success: false, error: "Deck not found" }); return; }
 
     const leaderName = party.members.find(m => m.userId === userId)?.name || "Player";
-    const lobbyResult = createLobby(socket.id, leaderName, deckId, deck.name, deck.gameType, deck.winCondition);
+    const lobbyResult = await createLobby(socket.id, leaderName, deckId, deck.name, deck.gameType, deck.winCondition);
     if ("error" in lobbyResult) { callback({ success: false, error: lobbyResult.error }); return; }
 
     const lobbyCode = lobbyResult.lobby.code;
@@ -203,41 +203,41 @@ export function registerSocialHandlers(
 
   // ── Voice Chat Signaling ──
 
-  socket.on("voice:join", (callback) => {
-    const code = getLobbyForSocket(socket.id);
+  socket.on("voice:join", async (callback) => {
+    const code = await getLobbyForSocket(socket.id);
     if (!code) return;
 
     const users = getVoiceUsers(code);
     users.add(socket.id);
 
-    const name = getPlayerName(code, socket.id) || "???";
+    const name = (await getPlayerName(code, socket.id)) || "???";
     socket.to(code).emit("voice:user-joined", { id: socket.id, name });
 
-    const existing = Array.from(users)
+    const existing = await Promise.all(Array.from(users)
       .filter(id => id !== socket.id)
-      .map(id => ({ id, name: getPlayerName(code, id) || "???" }));
+      .map(async id => ({ id, name: (await getPlayerName(code, id)) || "???" })));
     callback({ voiceUsers: existing });
   });
 
   socket.on("voice:leave", () => removeFromVoice(io, socket.id));
 
-  socket.on("voice:offer", (targetId, sdp) => {
-    const senderCode = getLobbyForSocket(socket.id);
-    const targetCode = getLobbyForSocket(targetId);
+  socket.on("voice:offer", async (targetId, sdp) => {
+    const senderCode = await getLobbyForSocket(socket.id);
+    const targetCode = await getLobbyForSocket(targetId);
     if (!senderCode || senderCode !== targetCode) return;
     io.to(targetId).emit("voice:offer", socket.id, sdp);
   });
 
-  socket.on("voice:answer", (targetId, sdp) => {
-    const senderCode = getLobbyForSocket(socket.id);
-    const targetCode = getLobbyForSocket(targetId);
+  socket.on("voice:answer", async (targetId, sdp) => {
+    const senderCode = await getLobbyForSocket(socket.id);
+    const targetCode = await getLobbyForSocket(targetId);
     if (!senderCode || senderCode !== targetCode) return;
     io.to(targetId).emit("voice:answer", socket.id, sdp);
   });
 
-  socket.on("voice:ice-candidate", (targetId, candidate) => {
-    const senderCode = getLobbyForSocket(socket.id);
-    const targetCode = getLobbyForSocket(targetId);
+  socket.on("voice:ice-candidate", async (targetId, candidate) => {
+    const senderCode = await getLobbyForSocket(socket.id);
+    const targetCode = await getLobbyForSocket(targetId);
     if (!senderCode || senderCode !== targetCode) return;
     io.to(targetId).emit("voice:ice-candidate", socket.id, candidate);
   });
@@ -246,8 +246,8 @@ export function registerSocialHandlers(
 
   const reactionCooldowns = new Map<string, number>();
 
-  socket.on("reaction:send", (emoji) => {
-    const code = findPlayerLobby(socket.id);
+  socket.on("reaction:send", async (emoji) => {
+    const code = await findPlayerLobby(socket.id);
     if (!code) return;
 
     const now = Date.now();
@@ -256,7 +256,7 @@ export function registerSocialHandlers(
     reactionCooldowns.set(socket.id, now);
 
     if (!emoji || emoji.length > 2) return;
-    const playerName = getPlayerName(code, socket.id) || "???";
+    const playerName = (await getPlayerName(code, socket.id)) || "???";
     io.to(code).emit("reaction:broadcast", emoji, playerName);
   });
 
@@ -265,7 +265,7 @@ export function registerSocialHandlers(
   const chatCooldowns = new Map<string, number>();
 
   socket.on("chat:send", async (message) => {
-    const code = findPlayerLobby(socket.id);
+    const code = await findPlayerLobby(socket.id);
     if (!code) return;
 
     const now = Date.now();
@@ -277,7 +277,7 @@ export function registerSocialHandlers(
     const text = message.trim().slice(0, 200);
     if (text.length === 0) return;
 
-    const playerName = getPlayerName(code, socket.id) || "???";
+    const playerName = (await getPlayerName(code, socket.id)) || "???";
     const msg = { id: `${socket.id}-${now}`, playerName, text, timestamp: now };
     await addChatMessage(code, msg);
     io.to(code).emit("chat:message", msg);
@@ -289,8 +289,8 @@ export function registerSocialHandlers(
     if (now - lastGifTime < 1000) return;
     lastGifTime = now;
     if (typeof gifUrl !== "string" || !isAllowedMediaUrl(gifUrl)) return;
-    const code = getLobbyForSocket(socket.id);
-    const playerName = getPlayerNameInLobby(code || "", socket.id);
+    const code = await getLobbyForSocket(socket.id);
+    const playerName = await getPlayerNameInLobby(code || "", socket.id);
     if (!code || !playerName) return;
     const msg = { id: `${Date.now()}-${Math.random()}`, playerName, text: "", gifUrl, timestamp: Date.now() };
     await addChatMessage(code, msg);
@@ -298,25 +298,25 @@ export function registerSocialHandlers(
   });
 
   let lastStickerTime = 0;
-  socket.on("media:sticker", (url: string) => {
+  socket.on("media:sticker", async (url: string) => {
     const now = Date.now();
     if (now - lastStickerTime < 2000) return;
     lastStickerTime = now;
     if (typeof url !== "string" || !isAllowedMediaUrl(url)) return;
-    const code = getLobbyForSocket(socket.id);
-    const playerName = getPlayerNameInLobby(code || "", socket.id);
+    const code = await getLobbyForSocket(socket.id);
+    const playerName = await getPlayerNameInLobby(code || "", socket.id);
     if (!code || !playerName) return;
     io.to(code).emit("media:sticker", url, playerName);
   });
 
   let lastSoundTime = 0;
-  socket.on("sound:play" as any, ({ mp3, title }: { mp3: string; title: string }) => {
+  socket.on("sound:play" as any, async ({ mp3, title }: { mp3: string; title: string }) => {
     const now = Date.now();
     if (now - lastSoundTime < 3000) return;
     lastSoundTime = now;
     if (typeof mp3 !== "string" || (!mp3.startsWith("https://www.myinstants.com/") && !mp3.startsWith("/api/sounds/file/"))) return;
-    const code = getLobbyForSocket(socket.id);
-    const playerName = getPlayerNameInLobby(code || "", socket.id);
+    const code = await getLobbyForSocket(socket.id);
+    const playerName = await getPlayerNameInLobby(code || "", socket.id);
     if (!code || !playerName) return;
     io.to(code).emit("sound:received" as any, { mp3, title, playerName });
   });

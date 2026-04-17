@@ -1,8 +1,142 @@
 import { randomBytes } from "crypto";
 import type { Lobby, Player, LobbyState, PlayerInfo } from "./types.js";
+import { redis } from "./redis.js";
 
-const lobbies = new Map<string, Lobby>();
-const playerLobby = new Map<string, string>(); // socketId -> lobbyCode
+// ── Storage ──────────────────────────────────────────────────────────────────
+// Lobbies live in Redis (one JSON blob per lobby) when REDIS_URL is set, so
+// every replica reads and writes the same shared state. Without Redis we fall
+// back to local Maps — same behaviour as before, fine for tests and
+// single-replica dev.
+//
+// Atomicity: the current implementation reads → mutates → writes back without
+// explicit locking. Prod is still running a single replica so cross-replica
+// races can't happen yet. When we flip numReplicas > 1 we'll layer Redis
+// locks or Lua scripts on top of this without changing the call sites.
+
+const LOBBY_KEY = (code: string) => `lobby:${code}`;
+const PL_KEY = "player-lobby"; // hash socketId -> code
+
+const localLobbies = new Map<string, Lobby>();
+const localPlayerLobby = new Map<string, string>();
+
+interface SerialisedLobby {
+  code: string;
+  players: Record<string, Player>;
+  hostId: string;
+  deckId: string;
+  deckName: string;
+  gameType: Lobby["gameType"];
+  winCondition: Lobby["winCondition"];
+  houseRules: Lobby["houseRules"];
+  status: Lobby["status"];
+  maxPlayers: number;
+  createdAt: string;
+  rematchVotes: string[];
+}
+
+function serialiseLobby(lobby: Lobby): SerialisedLobby {
+  const players: Record<string, Player> = {};
+  for (const [id, p] of lobby.players) players[id] = p;
+  return {
+    code: lobby.code,
+    players,
+    hostId: lobby.hostId,
+    deckId: lobby.deckId,
+    deckName: lobby.deckName,
+    gameType: lobby.gameType,
+    winCondition: lobby.winCondition,
+    houseRules: lobby.houseRules,
+    status: lobby.status,
+    maxPlayers: lobby.maxPlayers,
+    createdAt: lobby.createdAt.toISOString(),
+    rematchVotes: [...lobby.rematchVotes],
+  };
+}
+
+function deserialiseLobby(s: SerialisedLobby): Lobby {
+  return {
+    code: s.code,
+    players: new Map(Object.entries(s.players)),
+    hostId: s.hostId,
+    deckId: s.deckId,
+    deckName: s.deckName,
+    gameType: s.gameType,
+    winCondition: s.winCondition,
+    houseRules: s.houseRules || {},
+    status: s.status,
+    maxPlayers: s.maxPlayers,
+    createdAt: new Date(s.createdAt),
+    rematchVotes: new Set(s.rematchVotes || []),
+  };
+}
+
+async function getLobby(code: string): Promise<Lobby | undefined> {
+  if (redis) {
+    const json = await redis.get(LOBBY_KEY(code));
+    return json ? deserialiseLobby(JSON.parse(json)) : undefined;
+  }
+  return localLobbies.get(code);
+}
+
+async function saveLobby(lobby: Lobby): Promise<void> {
+  if (redis) {
+    await redis.set(LOBBY_KEY(lobby.code), JSON.stringify(serialiseLobby(lobby)));
+    return;
+  }
+  localLobbies.set(lobby.code, lobby);
+}
+
+async function deleteLobby(code: string): Promise<void> {
+  if (redis) {
+    await redis.del(LOBBY_KEY(code));
+    return;
+  }
+  localLobbies.delete(code);
+}
+
+async function lobbyExists(code: string): Promise<boolean> {
+  if (redis) return (await redis.exists(LOBBY_KEY(code))) === 1;
+  return localLobbies.has(code);
+}
+
+async function getAllLobbies(): Promise<Lobby[]> {
+  if (redis) {
+    const keys: string[] = [];
+    let cursor = "0";
+    do {
+      const [next, batch] = await redis.scan(cursor, "MATCH", "lobby:*", "COUNT", 200);
+      cursor = next;
+      keys.push(...batch);
+    } while (cursor !== "0");
+    if (keys.length === 0) return [];
+    const raws = await redis.mget(...keys);
+    return raws
+      .filter((r): r is string => !!r)
+      .map(r => deserialiseLobby(JSON.parse(r)));
+  }
+  return Array.from(localLobbies.values());
+}
+
+async function getPlayerLobbyCode(socketId: string): Promise<string | undefined> {
+  if (redis) return (await redis.hget(PL_KEY, socketId)) ?? undefined;
+  return localPlayerLobby.get(socketId);
+}
+
+async function setPlayerLobbyCode(socketId: string, code: string): Promise<void> {
+  if (redis) {
+    await redis.hset(PL_KEY, socketId, code);
+    return;
+  }
+  localPlayerLobby.set(socketId, code);
+}
+
+async function deletePlayerLobbyCode(socketId: string): Promise<void> {
+  if (redis) {
+    await redis.hdel(PL_KEY, socketId);
+    return;
+  }
+  localPlayerLobby.delete(socketId);
+}
 
 /** Return a uniform random index in [0, max) using rejection sampling. */
 function uniformRandom(max: number): number {
@@ -12,12 +146,12 @@ function uniformRandom(max: number): number {
   return b % max;
 }
 
-function generateCode(): string {
+async function generateCode(): Promise<string> {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I or O to avoid confusion
   let code: string;
   do {
     code = Array.from({ length: 4 }, () => chars[uniformRandom(chars.length)]).join("");
-  } while (lobbies.has(code));
+  } while (await lobbyExists(code));
   return code;
 }
 
@@ -50,12 +184,14 @@ function playerToInfo(player: Player): PlayerInfo {
   };
 }
 
-export function createLobby(socketId: string, playerName: string, deckId: string, deckName: string, gameType?: string, winCondition?: { mode: string; value: number }): { lobby: LobbyState } | { error: string } {
-  if (playerLobby.has(socketId)) {
+// ── Public API ───────────────────────────────────────────────────────────────
+
+export async function createLobby(socketId: string, playerName: string, deckId: string, deckName: string, gameType?: string, winCondition?: { mode: string; value: number }): Promise<{ lobby: LobbyState } | { error: string }> {
+  if (await getPlayerLobbyCode(socketId)) {
     return { error: "You are already in a lobby" };
   }
 
-  const code = generateCode();
+  const code = await generateCode();
   const player: Player = {
     id: socketId,
     name: playerName,
@@ -79,23 +215,23 @@ export function createLobby(socketId: string, playerName: string, deckId: string
     rematchVotes: new Set(),
   };
 
-  lobbies.set(code, lobby);
-  playerLobby.set(socketId, code);
+  await saveLobby(lobby);
+  await setPlayerLobbyCode(socketId, code);
 
   return { lobby: lobbyToState(lobby) };
 }
 
-export function joinLobby(
+export async function joinLobby(
   socketId: string,
   code: string,
   playerName: string
-): { lobby: LobbyState; player: PlayerInfo } | { error: string } {
-  if (playerLobby.has(socketId)) {
+): Promise<{ lobby: LobbyState; player: PlayerInfo } | { error: string }> {
+  if (await getPlayerLobbyCode(socketId)) {
     return { error: "You are already in a lobby" };
   }
 
   const upperCode = code.toUpperCase();
-  const lobby = lobbies.get(upperCode);
+  const lobby = await getLobby(upperCode);
 
   if (!lobby) {
     return { error: "Lobby not found" };
@@ -114,22 +250,23 @@ export function joinLobby(
   };
 
   lobby.players.set(socketId, player);
-  playerLobby.set(socketId, upperCode);
+  await saveLobby(lobby);
+  await setPlayerLobbyCode(socketId, upperCode);
 
   return { lobby: lobbyToState(lobby), player: playerToInfo(player) };
 }
 
-export function joinAsSpectator(
+export async function joinAsSpectator(
   socketId: string,
   code: string,
   playerName: string
-): { lobby: LobbyState; player: PlayerInfo } | { error: string } {
-  if (playerLobby.has(socketId)) {
+): Promise<{ lobby: LobbyState; player: PlayerInfo } | { error: string }> {
+  if (await getPlayerLobbyCode(socketId)) {
     return { error: "You are already in a lobby" };
   }
 
   const upperCode = code.toUpperCase();
-  const lobby = lobbies.get(upperCode);
+  const lobby = await getLobby(upperCode);
 
   if (!lobby) {
     return { error: "Lobby not found" };
@@ -145,13 +282,14 @@ export function joinAsSpectator(
   };
 
   lobby.players.set(socketId, player);
-  playerLobby.set(socketId, upperCode);
+  await saveLobby(lobby);
+  await setPlayerLobbyCode(socketId, upperCode);
 
   return { lobby: lobbyToState(lobby), player: playerToInfo(player) };
 }
 
-export function getActivePlayers(code: string): string[] | null {
-  const lobby = lobbies.get(code);
+export async function getActivePlayers(code: string): Promise<string[] | null> {
+  const lobby = await getLobby(code);
   if (!lobby) return null;
   return Array.from(lobby.players.values())
     .filter(p => !p.isSpectator)
@@ -159,26 +297,26 @@ export function getActivePlayers(code: string): string[] | null {
 }
 
 // Explicit leave — actually removes the player from the lobby
-export function leaveLobby(socketId: string): {
+export async function leaveLobby(socketId: string): Promise<{
   code: string;
   lobby: LobbyState | null;
   newHostId?: string;
-} | null {
-  const code = playerLobby.get(socketId);
+} | null> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return null;
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) {
-    playerLobby.delete(socketId);
+    await deletePlayerLobbyCode(socketId);
     return null;
   }
 
   lobby.players.delete(socketId);
-  playerLobby.delete(socketId);
+  await deletePlayerLobbyCode(socketId);
 
   // If lobby is empty, delete it
   if (lobby.players.size === 0) {
-    lobbies.delete(code);
+    await deleteLobby(code);
     return { code, lobby: null };
   }
 
@@ -192,37 +330,41 @@ export function leaveLobby(socketId: string): {
     newHostId = nextPlayer.id;
   }
 
+  await saveLobby(lobby);
+
   return { code, lobby: lobbyToState(lobby), newHostId };
 }
 
 // Mark player as disconnected but keep them in the lobby
-export function disconnectPlayer(socketId: string): { code: string; lobby: LobbyState } | null {
-  const code = playerLobby.get(socketId);
+export async function disconnectPlayer(socketId: string): Promise<{ code: string; lobby: LobbyState } | null> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return null;
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return null;
 
   const player = lobby.players.get(socketId);
   if (!player) return null;
 
   player.connected = false;
+  await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
 }
 
 // Mark player as connected again
-export function reconnectPlayer(socketId: string): { code: string; lobby: LobbyState } | null {
-  const code = playerLobby.get(socketId);
+export async function reconnectPlayer(socketId: string): Promise<{ code: string; lobby: LobbyState } | null> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return null;
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return null;
 
   const player = lobby.players.get(socketId);
   if (!player) return null;
 
   player.connected = true;
+  await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
 }
@@ -233,11 +375,11 @@ const BOT_NAMES = [
   "NeonNinja", "LaserLlama", "TurboTron", "MegaBot",
 ];
 
-export function addBot(socketId: string): { lobby: LobbyState; botId: string } | { error: string } {
-  const code = playerLobby.get(socketId);
+export async function addBot(socketId: string): Promise<{ lobby: LobbyState; botId: string } | { error: string }> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
   if (lobby.hostId !== socketId) {
@@ -263,16 +405,17 @@ export function addBot(socketId: string): { lobby: LobbyState; botId: string } |
   };
 
   lobby.players.set(botId, player);
+  await saveLobby(lobby);
   // Don't add to playerLobby — bots don't have real sockets
 
   return { lobby: lobbyToState(lobby), botId };
 }
 
-export function removeBot(socketId: string, botId: string): { lobby: LobbyState } | { error: string } {
-  const code = playerLobby.get(socketId);
+export async function removeBot(socketId: string, botId: string): Promise<{ lobby: LobbyState } | { error: string }> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
   if (lobby.hostId !== socketId) {
@@ -283,14 +426,15 @@ export function removeBot(socketId: string, botId: string): { lobby: LobbyState 
   if (!player?.isBot) return { error: "Not a bot" };
 
   lobby.players.delete(botId);
+  await saveLobby(lobby);
   return { lobby: lobbyToState(lobby) };
 }
 
-export function kickPlayer(socketId: string, targetId: string): { lobby: LobbyState; code: string } | { error: string } {
-  const code = playerLobby.get(socketId);
+export async function kickPlayer(socketId: string, targetId: string): Promise<{ lobby: LobbyState; code: string } | { error: string }> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
   if (lobby.hostId !== socketId) {
@@ -305,24 +449,25 @@ export function kickPlayer(socketId: string, targetId: string): { lobby: LobbySt
   if (!target) return { error: "Player not found" };
 
   lobby.players.delete(targetId);
-  playerLobby.delete(targetId);
+  await saveLobby(lobby);
+  await deletePlayerLobbyCode(targetId);
 
   return { lobby: lobbyToState(lobby), code };
 }
 
-export function getBotsInLobby(code: string): string[] {
-  const lobby = lobbies.get(code);
+export async function getBotsInLobby(code: string): Promise<string[]> {
+  const lobby = await getLobby(code);
   if (!lobby) return [];
   return Array.from(lobby.players.values())
     .filter(p => p.isBot)
     .map(p => p.id);
 }
 
-export function startGame(socketId: string): { code: string } | { error: string } {
-  const code = playerLobby.get(socketId);
+export async function startGame(socketId: string): Promise<{ code: string } | { error: string }> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
   if (lobby.hostId !== socketId) {
@@ -335,14 +480,15 @@ export function startGame(socketId: string): { code: string } | { error: string 
   }
 
   lobby.status = "playing";
+  await saveLobby(lobby);
   return { code };
 }
 
-export function changeLobbyDeck(socketId: string, deckId: string, deckName: string, gameType: string, winCondition: { mode: string; value: number }): { code: string; lobby: LobbyState } | { error: string } {
-  const code = playerLobby.get(socketId);
+export async function changeLobbyDeck(socketId: string, deckId: string, deckName: string, gameType: string, winCondition: { mode: string; value: number }): Promise<{ code: string; lobby: LobbyState } | { error: string }> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
   if (lobby.hostId !== socketId) return { error: "Only the host can change the deck" };
@@ -352,27 +498,29 @@ export function changeLobbyDeck(socketId: string, deckId: string, deckName: stri
   lobby.deckName = deckName;
   lobby.gameType = (gameType as any) || "cah";
   lobby.winCondition = winCondition || { mode: "rounds", value: 10 };
+  await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
 }
 
-export function voteRematch(socketId: string): { code: string; lobby: LobbyState; voteCount: number; totalPlayers: number } | { error: string } {
-  const code = playerLobby.get(socketId);
+export async function voteRematch(socketId: string): Promise<{ code: string; lobby: LobbyState; voteCount: number; totalPlayers: number } | { error: string }> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
   lobby.rematchVotes.add(socketId);
+  await saveLobby(lobby);
   const activePlayers = Array.from(lobby.players.values()).filter(p => !p.isSpectator && !p.isBot);
   return { code, lobby: lobbyToState(lobby), voteCount: lobby.rematchVotes.size, totalPlayers: activePlayers.length };
 }
 
-export function resetLobbyForRematch(socketId: string): { code: string; lobby: LobbyState } | { error: string } {
-  const code = playerLobby.get(socketId);
+export async function resetLobbyForRematch(socketId: string): Promise<{ code: string; lobby: LobbyState } | { error: string }> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
   if (lobby.hostId !== socketId) {
@@ -387,63 +535,66 @@ export function resetLobbyForRematch(socketId: string): { code: string; lobby: L
     player.score = 0;
   }
 
+  await saveLobby(lobby);
+
   return { code, lobby: lobbyToState(lobby) };
 }
 
-export function getLobbyForSocket(socketId: string): string | undefined {
-  return playerLobby.get(socketId);
+export async function getLobbyForSocket(socketId: string): Promise<string | undefined> {
+  return getPlayerLobbyCode(socketId);
 }
 
-export function getLobbyPlayers(code: string): string[] | null {
-  const lobby = lobbies.get(code);
+export async function getLobbyPlayers(code: string): Promise<string[] | null> {
+  const lobby = await getLobby(code);
   if (!lobby) return null;
   return Array.from(lobby.players.keys());
 }
 
-export function getPlayerNameInLobby(code: string, playerId: string): string | undefined {
-  const lobby = lobbies.get(code);
+export async function getPlayerNameInLobby(code: string, playerId: string): Promise<string | undefined> {
+  const lobby = await getLobby(code);
   if (!lobby) return undefined;
   return lobby.players.get(playerId)?.name;
 }
 
-export function getLobbyDeckId(code: string): string | undefined {
-  return lobbies.get(code)?.deckId;
+export async function getLobbyDeckId(code: string): Promise<string | undefined> {
+  return (await getLobby(code))?.deckId;
 }
 
-export function getLobbyDeckName(code: string): string | undefined {
-  return lobbies.get(code)?.deckName;
+export async function getLobbyDeckName(code: string): Promise<string | undefined> {
+  return (await getLobby(code))?.deckName;
 }
 
-export function getLobbyGameType(code: string): string | undefined {
-  return lobbies.get(code)?.gameType;
+export async function getLobbyGameType(code: string): Promise<string | undefined> {
+  return (await getLobby(code))?.gameType;
 }
 
-export function isPlayerBot(code: string, playerId: string): boolean {
-  const lobby = lobbies.get(code);
+export async function isPlayerBot(code: string, playerId: string): Promise<boolean> {
+  const lobby = await getLobby(code);
   if (!lobby) return false;
   return lobby.players.get(playerId)?.isBot || false;
 }
 
-export function setLobbyHouseRules(socketId: string, houseRules: { unoStacking?: boolean }): { code: string; lobby: LobbyState } | { error: string } {
-  const code = playerLobby.get(socketId);
+export async function setLobbyHouseRules(socketId: string, houseRules: { unoStacking?: boolean }): Promise<{ code: string; lobby: LobbyState } | { error: string }> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
   if (lobby.hostId !== socketId) return { error: "Only the host can change house rules" };
   if (lobby.status !== "waiting") return { error: "Cannot change rules while playing" };
 
   lobby.houseRules = houseRules;
+  await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
 }
 
-export function setMaxPlayers(socketId: string, maxPlayers: number): { code: string; lobby: LobbyState } | { error: string } {
-  const code = playerLobby.get(socketId);
+export async function setMaxPlayers(socketId: string, maxPlayers: number): Promise<{ code: string; lobby: LobbyState } | { error: string }> {
+  const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
   if (lobby.hostId !== socketId) return { error: "Only the host can change player limit" };
@@ -452,12 +603,13 @@ export function setMaxPlayers(socketId: string, maxPlayers: number): { code: str
   if (lobby.players.size > maxPlayers) return { error: "Cannot set limit below current player count" };
 
   lobby.maxPlayers = maxPlayers;
+  await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
 }
 
-export function getLobbyHouseRules(code: string): { unoStacking?: boolean } | undefined {
-  return lobbies.get(code)?.houseRules;
+export async function getLobbyHouseRules(code: string): Promise<{ unoStacking?: boolean } | undefined> {
+  return (await getLobby(code))?.houseRules;
 }
 
 // ── Snapshot / Restore ───────────────────────────────────────────────────────
@@ -465,8 +617,9 @@ export function getLobbyHouseRules(code: string): { unoStacking?: boolean } | un
 // survive redeploys. Socket.ids inside the snapshot are stale; they get
 // remapped through the normal reconnect flow when clients rejoin.
 
-export function exportLobbies(): any[] {
-  return Array.from(lobbies.values()).map(lobby => ({
+export async function exportLobbies(): Promise<any[]> {
+  const lobbies = await getAllLobbies();
+  return lobbies.map(lobby => ({
     code: lobby.code,
     players: Array.from(lobby.players.entries()),
     hostId: lobby.hostId,
@@ -482,7 +635,7 @@ export function exportLobbies(): any[] {
   }));
 }
 
-export function restoreLobbies(snapshots: any[]): void {
+export async function restoreLobbies(snapshots: any[]): Promise<void> {
   for (const s of snapshots) {
     const lobby: Lobby = {
       code: s.code,
@@ -500,21 +653,21 @@ export function restoreLobbies(snapshots: any[]): void {
     };
     // Mark every player disconnected until they reconnect via sessionId
     for (const p of lobby.players.values()) p.connected = false;
-    lobbies.set(lobby.code, lobby);
+    await saveLobby(lobby);
     for (const [socketId, p] of lobby.players) {
-      if (!p.isBot) playerLobby.set(socketId, lobby.code);
+      if (!p.isBot) await setPlayerLobbyCode(socketId, lobby.code);
     }
   }
 }
 
-export function remapPlayer(
+export async function remapPlayer(
   oldSocketId: string,
   newSocketId: string
-): { code: string; lobby: LobbyState } | null {
-  const code = playerLobby.get(oldSocketId);
+): Promise<{ code: string; lobby: LobbyState } | null> {
+  const code = await getPlayerLobbyCode(oldSocketId);
   if (!code) return null;
 
-  const lobby = lobbies.get(code);
+  const lobby = await getLobby(code);
   if (!lobby) return null;
 
   const player = lobby.players.get(oldSocketId);
@@ -531,9 +684,9 @@ export function remapPlayer(
     lobby.hostId = newSocketId;
   }
 
-  // Update playerLobby mapping
-  playerLobby.delete(oldSocketId);
-  playerLobby.set(newSocketId, code);
+  await saveLobby(lobby);
+  await deletePlayerLobbyCode(oldSocketId);
+  await setPlayerLobbyCode(newSocketId, code);
 
   return { code, lobby: lobbyToState(lobby) };
 }

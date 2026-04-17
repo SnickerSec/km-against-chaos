@@ -1,13 +1,22 @@
 import { UnoCard, UnoColor, UnoCardType, UnoTurnState, UnoPlayerView, UnoDeckTemplate } from "./types";
-import { getPlayerNameInLobby } from "./lobby.js";
 
 const HAND_SIZE = 7;
 const TURN_TIME_MS = 30_000;
 
-// Resolve the display name for a player in a given lobby, falling back to a
-// generic label if the lobby is gone (e.g., in unit tests without a lobby).
+// Resolve the display name for a player. Uno names are pushed onto the
+// engine via setPlayerNames() at game creation so we avoid an async
+// cross-module call to lobby.ts on every playCard/drawCard mutation.
+// Falls back to a generic label for tests or when a name wasn't pushed.
+const playerNameOverrides = new Map<string, Map<string, string>>();
+
+export function setUnoPlayerNames(lobbyCode: string, names: Record<string, string>): void {
+  const map = new Map<string, string>();
+  for (const [id, name] of Object.entries(names)) map.set(id, name);
+  playerNameOverrides.set(lobbyCode, map);
+}
+
 function displayName(lobbyCode: string, playerId: string): string {
-  const name = getPlayerNameInLobby(lobbyCode, playerId);
+  const name = playerNameOverrides.get(lobbyCode)?.get(playerId);
   if (name) return name;
   return playerId.startsWith("bot-") ? "Bot" : "Someone";
 }
@@ -680,6 +689,7 @@ export function isUnoGame(lobbyCode: string): boolean {
 
 export function cleanupUnoGame(lobbyCode: string): void {
   games.delete(lobbyCode);
+  playerNameOverrides.delete(lobbyCode);
 }
 
 /**

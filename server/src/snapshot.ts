@@ -25,12 +25,12 @@ const SNAPSHOT_TABLES =
   "lobby_snapshots, cah_game_snapshots, uno_game_snapshots, codenames_game_snapshots, chat_snapshots";
 
 export async function snapshotAll(): Promise<void> {
-  const lobbies = exportLobbies();
+  const lobbies = await exportLobbies();
   const cahGames = exportGames().filter(g => g.gameType === "cah");
   const unoGames = exportUnoGames();
   const codenamesGames = exportCodenamesGames();
   const allChats = await exportChatHistory();
-  const chats = allChats.filter(c => lobbies.some(l => l.code === c.code));
+  const chats = allChats.filter(c => lobbies.some((l: any) => l.code === c.code));
 
   const client = await pool.connect();
   try {
@@ -103,7 +103,7 @@ export async function restoreAll(
       `SELECT code, messages FROM chat_snapshots WHERE created_at > ${cutoff}`
     );
 
-    restoreLobbies(lobbies.rows.map(r => r.state));
+    await restoreLobbies(lobbies.rows.map(r => r.state));
     restoreGames(cahGames.rows.map(r => r.state));
     restoreUnoGames(unoGames.rows.map(r => r.state));
     restoreCodenamesGames(codenamesGames.rows.map(r => r.state));
