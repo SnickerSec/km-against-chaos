@@ -56,7 +56,7 @@ export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socket
     cleanupGame(result.code);
     cleanupUnoGame(result.code);
     cleanupCodenamesGame(result.code);
-    clearChatHistory(result.code);
+    await clearChatHistory(result.code);
   }
 }
 

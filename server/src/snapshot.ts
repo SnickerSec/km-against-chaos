@@ -29,9 +29,8 @@ export async function snapshotAll(): Promise<void> {
   const cahGames = exportGames().filter(g => g.gameType === "cah");
   const unoGames = exportUnoGames();
   const codenamesGames = exportCodenamesGames();
-  const chats = exportChatHistory().filter(c =>
-    lobbies.some(l => l.code === c.code)
-  );
+  const allChats = await exportChatHistory();
+  const chats = allChats.filter(c => lobbies.some(l => l.code === c.code));
 
   const client = await pool.connect();
   try {
@@ -108,7 +107,7 @@ export async function restoreAll(
     restoreGames(cahGames.rows.map(r => r.state));
     restoreUnoGames(unoGames.rows.map(r => r.state));
     restoreCodenamesGames(codenamesGames.rows.map(r => r.state));
-    restoreChatHistory(chats.rows.map(r => ({ code: r.code, messages: r.messages })));
+    await restoreChatHistory(chats.rows.map(r => ({ code: r.code, messages: r.messages })));
 
     // Snapshots are one-shot — clear after restoring so a later crash
     // cannot revive long-dead state.

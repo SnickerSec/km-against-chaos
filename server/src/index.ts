@@ -210,7 +210,7 @@ io.on("connection", async (socket) => {
       socket.emit("session:reconnected", {
         lobby,
         gameView,
-        chatHistory: getChatHistory(code),
+        chatHistory: await getChatHistory(code),
         screen: lobby.status === "playing" ? "game" : "lobby",
       });
 

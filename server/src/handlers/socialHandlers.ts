@@ -264,7 +264,7 @@ export function registerSocialHandlers(
 
   const chatCooldowns = new Map<string, number>();
 
-  socket.on("chat:send", (message) => {
+  socket.on("chat:send", async (message) => {
     const code = findPlayerLobby(socket.id);
     if (!code) return;
 
@@ -279,12 +279,12 @@ export function registerSocialHandlers(
 
     const playerName = getPlayerName(code, socket.id) || "???";
     const msg = { id: `${socket.id}-${now}`, playerName, text, timestamp: now };
-    addChatMessage(code, msg);
+    await addChatMessage(code, msg);
     io.to(code).emit("chat:message", msg);
   });
 
   let lastGifTime = 0;
-  socket.on("chat:gif", (gifUrl: string) => {
+  socket.on("chat:gif", async (gifUrl: string) => {
     const now = Date.now();
     if (now - lastGifTime < 1000) return;
     lastGifTime = now;
@@ -293,7 +293,7 @@ export function registerSocialHandlers(
     const playerName = getPlayerNameInLobby(code || "", socket.id);
     if (!code || !playerName) return;
     const msg = { id: `${Date.now()}-${Math.random()}`, playerName, text: "", gifUrl, timestamp: Date.now() };
-    addChatMessage(code, msg);
+    await addChatMessage(code, msg);
     io.to(code).emit("chat:message", msg);
   });
 

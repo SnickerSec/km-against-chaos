@@ -7,6 +7,7 @@ import { getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, getLobbyDeckNa
 import { getUserIdForSocket } from "./presence.js";
 import { recordGameResult } from "./statsStore.js";
 import { createLogger } from "./logger.js";
+import { redis } from "./redis.js";
 
 const log = createLogger("game");
 
@@ -31,6 +32,10 @@ export function removeFromVoice(io: Server<ClientEvents, ServerEvents>, socketId
 }
 
 // ── Chat History ─────────────────────────────────────────────────────────────
+// Backed by Redis lists when REDIS_URL is set; falls back to a local Map for
+// tests and single-replica dev without Redis. Messages are trimmed to the
+// most recent 100 and the key expires after 24h so abandoned lobbies don't
+// leave chat debris behind.
 
 interface ChatMessage {
   id: string;
@@ -40,32 +45,82 @@ interface ChatMessage {
   timestamp: number;
 }
 
-const chatHistory = new Map<string, ChatMessage[]>();
+const CHAT_MAX = 100;
+const CHAT_TTL_SECONDS = 24 * 60 * 60; // 24h
+const CHAT_KEY_PREFIX = "chat:";
+const chatKey = (code: string) => `${CHAT_KEY_PREFIX}${code}`;
 
-export function addChatMessage(code: string, msg: ChatMessage) {
-  let history = chatHistory.get(code);
+const localChatHistory = new Map<string, ChatMessage[]>();
+
+export async function addChatMessage(code: string, msg: ChatMessage): Promise<void> {
+  if (redis) {
+    const pipe = redis.pipeline();
+    pipe.rpush(chatKey(code), JSON.stringify(msg));
+    pipe.ltrim(chatKey(code), -CHAT_MAX, -1);
+    pipe.expire(chatKey(code), CHAT_TTL_SECONDS);
+    await pipe.exec();
+    return;
+  }
+  let history = localChatHistory.get(code);
   if (!history) {
     history = [];
-    chatHistory.set(code, history);
+    localChatHistory.set(code, history);
   }
   history.push(msg);
-  if (history.length > 100) history.shift();
+  if (history.length > CHAT_MAX) history.shift();
 }
 
-export function getChatHistory(code: string): ChatMessage[] {
-  return chatHistory.get(code) || [];
+export async function getChatHistory(code: string): Promise<ChatMessage[]> {
+  if (redis) {
+    const raw = await redis.lrange(chatKey(code), 0, -1);
+    return raw.map(s => JSON.parse(s) as ChatMessage);
+  }
+  return localChatHistory.get(code) || [];
 }
 
-export function clearChatHistory(code: string) {
-  chatHistory.delete(code);
+export async function clearChatHistory(code: string): Promise<void> {
+  if (redis) {
+    await redis.del(chatKey(code));
+    return;
+  }
+  localChatHistory.delete(code);
 }
 
-export function exportChatHistory(): Array<{ code: string; messages: ChatMessage[] }> {
-  return Array.from(chatHistory.entries()).map(([code, messages]) => ({ code, messages }));
+export async function exportChatHistory(): Promise<Array<{ code: string; messages: ChatMessage[] }>> {
+  if (redis) {
+    const keys: string[] = [];
+    let cursor = "0";
+    do {
+      const [next, batch] = await redis.scan(cursor, "MATCH", `${CHAT_KEY_PREFIX}*`, "COUNT", 200);
+      cursor = next;
+      keys.push(...batch);
+    } while (cursor !== "0");
+    const out: Array<{ code: string; messages: ChatMessage[] }> = [];
+    for (const key of keys) {
+      const raw = await redis.lrange(key, 0, -1);
+      const messages = raw.map(s => JSON.parse(s) as ChatMessage);
+      out.push({ code: key.slice(CHAT_KEY_PREFIX.length), messages });
+    }
+    return out;
+  }
+  return Array.from(localChatHistory.entries()).map(([code, messages]) => ({ code, messages }));
 }
 
-export function restoreChatHistory(snapshots: Array<{ code: string; messages: ChatMessage[] }>): void {
-  for (const s of snapshots) chatHistory.set(s.code, s.messages);
+export async function restoreChatHistory(
+  snapshots: Array<{ code: string; messages: ChatMessage[] }>
+): Promise<void> {
+  if (redis) {
+    for (const s of snapshots) {
+      if (s.messages.length === 0) continue;
+      const pipe = redis.pipeline();
+      pipe.del(chatKey(s.code));
+      pipe.rpush(chatKey(s.code), ...s.messages.map(m => JSON.stringify(m)));
+      pipe.expire(chatKey(s.code), CHAT_TTL_SECONDS);
+      await pipe.exec();
+    }
+    return;
+  }
+  for (const s of snapshots) localChatHistory.set(s.code, s.messages);
 }
 
 // ── Broadcast Helpers ────────────────────────────────────────────────────────
