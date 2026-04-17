@@ -57,7 +57,7 @@ export async function createNotification(
 
   // Emit real-time socket event
   if (io) {
-    const sockets = getSocketIdsForUser(userId);
+    const sockets = await getSocketIdsForUser(userId);
     for (const sid of sockets) {
       io.to(sid).emit("notification:new" as any, notification);
     }

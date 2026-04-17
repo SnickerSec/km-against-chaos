@@ -193,7 +193,7 @@ io.on("connection", async (socket) => {
 
   if (isReconnect && oldSocketId) {
     cancelDisconnectTimer(sessionId);
-    remapPresenceSocket(oldSocketId, socket.id);
+    await remapPresenceSocket(oldSocketId, socket.id);
 
     const lobbyResult = remapPlayer(oldSocketId, socket.id);
     if (lobbyResult) {
@@ -244,9 +244,9 @@ io.on("connection", async (socket) => {
   socket.on("disconnect", async () => {
     removeFromVoice(io, socket.id);
 
-    const userId = getUserIdForSocket(socket.id);
+    const userId = await getUserIdForSocket(socket.id);
     if (userId) {
-      const fullyOffline = setOffline(userId, socket.id);
+      const fullyOffline = await setOffline(userId, socket.id);
       if (fullyOffline) {
         try {
           const friends = await pool.query(
@@ -255,7 +255,7 @@ io.on("connection", async (socket) => {
             [userId]
           );
           for (const row of friends.rows) {
-            const friendSockets = getSocketIdsForUser(row.friend_id);
+            const friendSockets = await getSocketIdsForUser(row.friend_id);
             for (const sid of friendSockets) io.to(sid).emit("friend:offline" as any, { userId });
           }
         } catch {}

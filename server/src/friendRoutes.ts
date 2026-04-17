@@ -66,7 +66,7 @@ router.get("/api/friends", requireAuth, async (req: any, res) => {
 
     // Attach presence info
     const friendIds = friends.rows.map((f: any) => f.id);
-    const presenceMap = getPresenceBulk(friendIds);
+    const presenceMap = await getPresenceBulk(friendIds);
     const rows = friends.rows.map((f: any) => {
       const presence = presenceMap.get(f.id) || { status: "offline" };
       return { ...f, presence };

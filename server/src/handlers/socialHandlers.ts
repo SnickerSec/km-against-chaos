@@ -22,7 +22,7 @@ export function registerSocialHandlers(
   socket.on("auth:identify" as any, async (token: string, callback?: (res: any) => void) => {
     try {
       const user = verifyJwt(token);
-      setOnline(user.id, socket.id);
+      await setOnline(user.id, socket.id);
 
       const friends = await pool.query(
         `SELECT CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END as friend_id
@@ -30,7 +30,7 @@ export function registerSocialHandlers(
         [user.id]
       );
       for (const row of friends.rows) {
-        const friendSockets = getSocketIdsForUser(row.friend_id);
+        const friendSockets = await getSocketIdsForUser(row.friend_id);
         for (const sid of friendSockets) {
           io.to(sid).emit("friend:online" as any, { userId: user.id, name: user.name });
         }
@@ -43,8 +43,8 @@ export function registerSocialHandlers(
 
   // ── Friends Real-time Events ──
 
-  socket.on("invite:send" as any, async (targetUserId: string, callback?: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
+  socket.on("invite:send" as any, async (targetUserId: string, callback?: (res: any) => void): Promise<void> => {
+    const userId = await getUserIdForSocket(socket.id);
     if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
 
     const friendship = await pool.query(
@@ -60,7 +60,7 @@ export function registerSocialHandlers(
     const gameType = getLobbyGameType(code) || "cah";
     const senderName = getPlayerNameInLobby(code, socket.id) || "Someone";
 
-    const targetSockets = getSocketIdsForUser(targetUserId);
+    const targetSockets = await getSocketIdsForUser(targetUserId);
     for (const sid of targetSockets) {
       io.to(sid).emit("invite:received" as any, {
         fromUserId: userId, fromName: senderName, lobbyCode: code, deckName, gameType,
@@ -74,7 +74,7 @@ export function registerSocialHandlers(
   });
 
   socket.on("dm:send" as any, async (targetUserId: string, content: string, callback?: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
+    const userId = await getUserIdForSocket(socket.id);
     if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
     if (!content?.trim()) { callback?.({ success: false, error: "Empty message" }); return; }
 
@@ -96,7 +96,7 @@ export function registerSocialHandlers(
       const senderName = senderRow.rows[0]?.name || "Someone";
 
       const msg = { id, sender_id: userId, senderName, receiver_id: targetUserId, content: trimmed, created_at: new Date().toISOString(), read_at: null };
-      const targetSockets = getSocketIdsForUser(targetUserId);
+      const targetSockets = await getSocketIdsForUser(targetUserId);
       for (const sid of targetSockets) io.to(sid).emit("dm:received" as any, msg);
       callback?.({ success: true, message: msg });
     } catch (e: any) {
@@ -104,17 +104,17 @@ export function registerSocialHandlers(
     }
   });
 
-  socket.on("dm:typing" as any, (targetUserId: string) => {
-    const userId = getUserIdForSocket(socket.id);
+  socket.on("dm:typing" as any, async (targetUserId: string) => {
+    const userId = await getUserIdForSocket(socket.id);
     if (!userId) return;
-    const targetSockets = getSocketIdsForUser(targetUserId);
+    const targetSockets = await getSocketIdsForUser(targetUserId);
     for (const sid of targetSockets) io.to(sid).emit("dm:typing" as any, { userId });
   });
 
   // ── Party Events ──
 
   socket.on("party:create" as any, async (callback: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
+    const userId = await getUserIdForSocket(socket.id);
     if (!userId) { callback({ success: false, error: "Not authenticated" }); return; }
 
     const userRow = await pool.query("SELECT name, picture FROM users WHERE id = $1", [userId]);
@@ -127,8 +127,8 @@ export function registerSocialHandlers(
     callback({ success: true, party: result });
   });
 
-  socket.on("party:invite" as any, (targetUserId: string, callback?: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
+  socket.on("party:invite" as any, async (targetUserId: string, callback?: (res: any) => void) => {
+    const userId = await getUserIdForSocket(socket.id);
     if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
 
     const party = getPartyForUser(userId);
@@ -136,7 +136,7 @@ export function registerSocialHandlers(
     if (party.leaderId !== userId) { callback?.({ success: false, error: "Only the leader can invite" }); return; }
 
     const leaderName = party.members.find(m => m.userId === userId)?.name || "Someone";
-    const targetSockets = getSocketIdsForUser(targetUserId);
+    const targetSockets = await getSocketIdsForUser(targetUserId);
     for (const sid of targetSockets) {
       io.to(sid).emit("party:invite" as any, { partyId: party.id, fromName: leaderName, fromUserId: userId });
     }
@@ -144,7 +144,7 @@ export function registerSocialHandlers(
   });
 
   socket.on("party:join" as any, async (partyId: string, callback: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
+    const userId = await getUserIdForSocket(socket.id);
     if (!userId) { callback({ success: false, error: "Not authenticated" }); return; }
 
     const userRow = await pool.query("SELECT name, picture FROM users WHERE id = $1", [userId]);
@@ -159,8 +159,8 @@ export function registerSocialHandlers(
     callback({ success: true, party: result });
   });
 
-  socket.on("party:leave" as any, (callback?: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
+  socket.on("party:leave" as any, async (callback?: (res: any) => void) => {
+    const userId = await getUserIdForSocket(socket.id);
     if (!userId) { callback?.({ success: false, error: "Not authenticated" }); return; }
 
     const result = leaveParty(userId);
@@ -177,7 +177,7 @@ export function registerSocialHandlers(
   });
 
   socket.on("party:start-game" as any, async (deckId: string, callback: (res: any) => void) => {
-    const userId = getUserIdForSocket(socket.id);
+    const userId = await getUserIdForSocket(socket.id);
     if (!userId) { callback({ success: false, error: "Not authenticated" }); return; }
 
     const party = getPartyForUser(userId);
@@ -193,7 +193,7 @@ export function registerSocialHandlers(
 
     const lobbyCode = lobbyResult.lobby.code;
     socket.join(lobbyCode);
-    if (userId) setInGame(userId, lobbyCode, deck.name);
+    if (userId) await setInGame(userId, lobbyCode, deck.name);
 
     const room = getPartySocketRoom(party.id);
     io.to(room).emit("party:game-starting" as any, { lobbyCode, deckName: deck.name });

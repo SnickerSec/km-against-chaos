@@ -151,18 +151,18 @@ export function clearUnoTurnTimer(code: string) {
 
 // ── Game Result Recording ────────────────────────────────────────────────────
 
-export function recordCahGameResult(code: string, scores: Record<string, number>) {
+export async function recordCahGameResult(code: string, scores: Record<string, number>) {
   try {
     const playerIds = getActivePlayers(code) || [];
     const topEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
     const winnerId = topEntry?.[0];
-    const players = playerIds.map(pid => ({
-      userId: getUserIdForSocket(pid) || null,
+    const players = await Promise.all(playerIds.map(async pid => ({
+      userId: (await getUserIdForSocket(pid)) || null,
       name: getPlayerNameInLobby(code, pid) || pid,
       score: scores[pid] || 0,
       isWinner: pid === winnerId,
       isBot: isPlayerBot(code, pid),
-    }));
+    })));
     recordGameResult({
       lobbyCode: code,
       deckId: getLobbyDeckId(code) || null,
@@ -175,18 +175,18 @@ export function recordCahGameResult(code: string, scores: Record<string, number>
   } catch {}
 }
 
-export function recordUnoGameResult(code: string, scores: Record<string, number>) {
+export async function recordUnoGameResult(code: string, scores: Record<string, number>) {
   try {
     const playerIds = getActivePlayers(code) || [];
     const topEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
     const winnerId = topEntry?.[0];
-    const players = playerIds.map(pid => ({
-      userId: getUserIdForSocket(pid) || null,
+    const players = await Promise.all(playerIds.map(async pid => ({
+      userId: (await getUserIdForSocket(pid)) || null,
       name: getPlayerNameInLobby(code, pid) || pid,
       score: scores[pid] || 0,
       isWinner: pid === winnerId,
       isBot: isPlayerBot(code, pid),
-    }));
+    })));
     recordGameResult({
       lobbyCode: code,
       deckId: getLobbyDeckId(code) || null,

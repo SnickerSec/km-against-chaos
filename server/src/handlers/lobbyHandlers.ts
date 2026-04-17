@@ -24,9 +24,9 @@ import { triggerUnoBotTurn, createUnoTimerCallback } from "./unoHandlers.js";
 
 const log = createLogger("lobby");
 
-export function handleLeave(io: Server<ClientEvents, ServerEvents>, socketId: string) {
-  const leaverUserId = getUserIdForSocket(socketId);
-  if (leaverUserId) setNotInGame(leaverUserId);
+export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socketId: string) {
+  const leaverUserId = await getUserIdForSocket(socketId);
+  if (leaverUserId) await setNotInGame(leaverUserId);
 
   const code = getLobbyForSocket(socketId);
   const result = leaveLobby(socketId);
@@ -79,8 +79,8 @@ export function registerLobbyHandlers(
       socket.join(result.lobby.code);
       callback({ success: true, lobby: result.lobby });
 
-      const creatorUserId = getUserIdForSocket(socket.id);
-      if (creatorUserId) setInGame(creatorUserId, result.lobby.code, deck.name);
+      const creatorUserId = await getUserIdForSocket(socket.id);
+      if (creatorUserId) await setInGame(creatorUserId, result.lobby.code, deck.name);
 
       log.info("created", { code: result.lobby.code, host: playerName, deck: deck.name });
     } catch {
@@ -88,7 +88,7 @@ export function registerLobbyHandlers(
     }
   });
 
-  socket.on("lobby:join", (code, playerName, callback) => {
+  socket.on("lobby:join", async (code, playerName, callback) => {
     playerName = (typeof playerName === "string" ? playerName : "Player").trim().slice(0, 30) || "Player";
     const result = joinLobby(socket.id, code, playerName);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
@@ -111,8 +111,8 @@ export function registerLobbyHandlers(
       socket.to(result.lobby.code).emit("lobby:updated", result.lobby);
     }
 
-    const joinerUserId = getUserIdForSocket(socket.id);
-    if (joinerUserId) setInGame(joinerUserId, result.lobby.code, result.lobby.deckName);
+    const joinerUserId = await getUserIdForSocket(socket.id);
+    if (joinerUserId) await setInGame(joinerUserId, result.lobby.code, result.lobby.deckName);
     log.info("player joined", { code, player: playerName });
   });
 
