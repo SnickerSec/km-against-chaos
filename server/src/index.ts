@@ -260,7 +260,7 @@ async function start() {
     try {
       await initDb();
       await seedBuiltInDecks();
-      await restoreAll();
+      await restoreAll(io);
     } catch (err) {
       log.error("database init failed, continuing without DB", { error: String(err) });
     }

@@ -1,10 +1,19 @@
+import type { Server } from "socket.io";
 import pool from "./db.js";
 import { createLogger } from "./logger.js";
 import { exportLobbies, restoreLobbies } from "./lobby.js";
 import { exportGames, restoreGames } from "./game.js";
 import { exportUnoGames, restoreUnoGames } from "./unoGame.js";
 import { exportCodenamesGames, restoreCodenamesGames } from "./codenamesGame.js";
-import { exportChatHistory, restoreChatHistory } from "./socketHelpers.js";
+import {
+  exportChatHistory,
+  restoreChatHistory,
+  scheduleRoundTimer,
+  scheduleUnoTurnTimer,
+} from "./socketHelpers.js";
+import { createCahTimerCallback } from "./handlers/cahHandlers.js";
+import { createUnoTimerCallback } from "./handlers/unoHandlers.js";
+import type { ClientEvents, ServerEvents } from "./types.js";
 
 const log = createLogger("snapshot");
 
@@ -74,7 +83,9 @@ export async function snapshotAll(): Promise<void> {
   }
 }
 
-export async function restoreAll(): Promise<void> {
+export async function restoreAll(
+  io: Server<ClientEvents, ServerEvents>
+): Promise<void> {
   try {
     const cutoff = `NOW() - INTERVAL '${MAX_SNAPSHOT_AGE_MINUTES} minutes'`;
     const lobbies = await pool.query(
@@ -103,12 +114,36 @@ export async function restoreAll(): Promise<void> {
     // cannot revive long-dead state.
     await pool.query(`TRUNCATE ${SNAPSHOT_TABLES}`);
 
+    // Re-arm phase timers for games that were mid-play when the server went
+    // down. Without this, the restored deadline is only advisory — the server
+    // would never auto-advance on idle players, leaving the game stuck.
+    let rearmedCah = 0;
+    let rearmedUno = 0;
+    const cahCallback = createCahTimerCallback(io);
+    for (const row of cahGames.rows) {
+      const state = row.state;
+      if (state?.currentRound && !state.gameOver) {
+        scheduleRoundTimer(state.lobbyCode, cahCallback);
+        rearmedCah++;
+      }
+    }
+    const unoCallback = createUnoTimerCallback(io);
+    for (const row of unoGames.rows) {
+      const state = row.state;
+      if (state?.phase === "playing" && !state.gameOver) {
+        scheduleUnoTurnTimer(state.lobbyCode, unoCallback);
+        rearmedUno++;
+      }
+    }
+
     log.info("snapshot restored", {
       lobbies: lobbies.rowCount,
       cahGames: cahGames.rowCount,
       unoGames: unoGames.rowCount,
       codenamesGames: codenamesGames.rowCount,
       chats: chats.rowCount,
+      rearmedCah,
+      rearmedUno,
     });
   } catch (err) {
     log.error("restore failed", { error: String(err) });
