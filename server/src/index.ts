@@ -87,6 +87,28 @@ const io = new Server<ClientEvents, ServerEvents>(httpServer, {
   pingTimeout: 5_000,
 });
 
+// Cross-replica Socket.IO broadcasting. When REDIS_URL is set, attach the
+// Redis adapter so io.to(room).emit(...) fans out to clients connected to
+// other replicas. Without REDIS_URL we stay on the in-memory adapter —
+// fine for single-replica deploys (current prod), lets us ship the code
+// before provisioning Redis.
+if (process.env.REDIS_URL) {
+  // Lazy-require so tests and envs without the env var don't need the
+  // packages loaded.
+  (async () => {
+    try {
+      const { Redis } = await import("ioredis");
+      const { createAdapter } = await import("@socket.io/redis-adapter");
+      const pub = new Redis(process.env.REDIS_URL!);
+      const sub = pub.duplicate();
+      io.adapter(createAdapter(pub, sub));
+      log.info("socket.io redis adapter attached");
+    } catch (err) {
+      log.error("failed to attach redis adapter — falling back to in-memory", { error: String(err) });
+    }
+  })();
+}
+
 setNotificationIO(io);
 
 // ── Rate Limiters ────────────────────────────────────────────────────────────
