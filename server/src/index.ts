@@ -276,24 +276,35 @@ function gracefulShutdown(signal: string) {
   shuttingDown = true;
   log.info("graceful shutdown started", { signal });
 
-  // Fail health checks so Railway/load balancers stop routing new traffic
+  // Fail health checks so Railway/load balancers stop routing NEW traffic
+  // here. Existing connections keep working.
   app.get("/health", (_req, res) => res.status(503).json({ status: "shutting_down" }));
 
-  // Notify connected clients so they can show the banner and prepare to reconnect
-  io.emit("server_restart", { message: "Server is restarting — you will be reconnected shortly." });
-
-  // Stop accepting new HTTP connections immediately; in-flight requests drain
-  httpServer.close(() => log.info("HTTP server closed"));
-
-  // Snapshot active lobbies/games to Postgres so they survive the redeploy.
-  // Fire-and-forget: the drain timeout below provides the deadline.
+  // Snapshot active lobbies/games to Postgres so the new container can pick
+  // them up. Fire-and-forget; the drain timeout below provides the deadline.
   snapshotAll().catch(err => log.error("snapshot error", { error: String(err) }));
 
-  // Give in-flight socket events and HTTP requests time to finish before force-disconnecting
+  // IMPORTANT: we do *not* call httpServer.close() here. Closing the HTTP
+  // server immediately on SIGTERM stops accepting new connections, but the
+  // new Railway container typically takes ~10–15s to come up and pass its
+  // health check — during that gap the load balancer has no upstream and
+  // returns 502 to every client retry. Keeping the HTTP server open lets
+  // old keep serving existing clients (and any Railway-routed traffic)
+  // until we actually exit. Railway's health-check failure is enough to
+  // steer new traffic to the new container once it's ready.
+
+  // Give in-flight socket events and HTTP requests time to finish. The new
+  // container should be up well before this elapses.
   const DRAIN_MS = 25_000;
   setTimeout(async () => {
     try {
+      // Last-moment heads-up to connected clients, emitted just before the
+      // socket drops. Clients arm a 2s grace timer; Socket.IO's reconnect
+      // (now 250ms first retry) normally wins that race → no banner shown.
+      io.emit("server_restart", { message: "Server is restarting — you will be reconnected shortly." });
+      await new Promise(r => setTimeout(r, 200));
       io.disconnectSockets(true);
+      httpServer.close();
       await pool.end();
       log.info("database pool closed");
     } catch (err) {
