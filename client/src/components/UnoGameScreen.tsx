@@ -159,13 +159,6 @@ export default function UnoGameScreen() {
         <div className="flex items-center gap-3">
           <ScoreBar />
           <button
-            onClick={() => setSoundPickerOpen(true)}
-            className="text-gray-500 hover:text-purple-400 transition-colors"
-            title="Play a sound"
-          >
-            <Icon icon="mdi:music-note" className="text-base" />
-          </button>
-          <button
             onClick={() => { if (confirm("Leave the game?")) leaveLobby(); }}
             className="text-gray-500 hover:text-red-400 text-xs transition-colors"
           >
@@ -173,6 +166,14 @@ export default function UnoGameScreen() {
           </button>
         </div>
       </div>
+      {/* Floating soundboard button — same pattern as CAH GameScreen */}
+      <button
+        onClick={() => setSoundPickerOpen(true)}
+        className="fixed bottom-20 right-4 z-40 w-12 h-12 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center shadow-lg transition-colors"
+        title="Soundboard"
+      >
+        <Icon icon="entypo:sound-mix" className="text-xl" />
+      </button>
       {soundPickerOpen && (
         <SoundPicker
           onPlay={(mp3, title) => playLobbySound(mp3, title)}

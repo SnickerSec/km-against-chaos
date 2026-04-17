@@ -48,6 +48,9 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
     if (ttsMuted) return;
     const text = winnerInfo.cards.map((c) => c.text).join(". ");
     if (!text) return;
+    // Wait for the card flip animation (1150ms) *and* the win/lose sound
+    // effect (airhorn/trombone, ~2–3s) to finish before the TTS starts —
+    // otherwise ElevenLabs narration steps on the sound effects.
     const t = setTimeout(() => {
       ttsSpeak(text, voiceId || undefined).then((url) => {
         if (!url) return;
@@ -56,7 +59,7 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
         audioRef.current = audio;
         audio.play().catch(() => {});
       });
-    }, 1150); // after the flip animation completes (450ms delay + 700ms transition)
+    }, 3500);
     return () => clearTimeout(t);
   }, [winnerInfo.winnerId, voiceId]);
   const cardBackSrc = cardBackUrl ? (cardBackUrl.startsWith("http") ? cardBackUrl : `${API_URL}${cardBackUrl}`) : null;
