@@ -9,10 +9,10 @@ import {
   cleanupSession,
 } from "../sessions.js";
 
-beforeEach(() => {
+beforeEach(async () => {
   // Clean up known sessions between tests
   for (const sid of ["sess1", "sess2", "sess3"]) {
-    cleanupSession(sid);
+    await cleanupSession(sid);
   }
   vi.useRealTimers();
 });
@@ -20,29 +20,29 @@ beforeEach(() => {
 // ── registerSession ──────────────────────────────────────────────────────────
 
 describe("registerSession", () => {
-  it("registers a new session", () => {
-    const result = registerSession("sess1", "sock1");
+  it("registers a new session", async () => {
+    const result = await registerSession("sess1", "sock1");
     expect(result.isReconnect).toBe(false);
     expect(result.oldSocketId).toBeNull();
-    expect(getSocketId("sess1")).toBe("sock1");
-    expect(getSessionId("sock1")).toBe("sess1");
+    expect(await getSocketId("sess1")).toBe("sock1");
+    expect(await getSessionId("sock1")).toBe("sess1");
   });
 
-  it("detects reconnect when session already has a different socket", () => {
-    registerSession("sess1", "sock1");
-    const result = registerSession("sess1", "sock2");
+  it("detects reconnect when session already has a different socket", async () => {
+    await registerSession("sess1", "sock1");
+    const result = await registerSession("sess1", "sock2");
     expect(result.isReconnect).toBe(true);
     expect(result.oldSocketId).toBe("sock1");
     // Old socket mapping cleaned up
-    expect(getSessionId("sock1")).toBeUndefined();
+    expect(await getSessionId("sock1")).toBeUndefined();
     // New mapping active
-    expect(getSocketId("sess1")).toBe("sock2");
-    expect(getSessionId("sock2")).toBe("sess1");
+    expect(await getSocketId("sess1")).toBe("sock2");
+    expect(await getSessionId("sock2")).toBe("sess1");
   });
 
-  it("same socket re-registering is not a reconnect", () => {
-    registerSession("sess1", "sock1");
-    const result = registerSession("sess1", "sock1");
+  it("same socket re-registering is not a reconnect", async () => {
+    await registerSession("sess1", "sock1");
+    const result = await registerSession("sess1", "sock1");
     expect(result.isReconnect).toBe(false);
   });
 });
@@ -50,13 +50,13 @@ describe("registerSession", () => {
 // ── unregisterSocket ─────────────────────────────────────────────────────────
 
 describe("unregisterSocket", () => {
-  it("returns session ID for known socket", () => {
-    registerSession("sess1", "sock1");
-    expect(unregisterSocket("sock1")).toBe("sess1");
+  it("returns session ID for known socket", async () => {
+    await registerSession("sess1", "sock1");
+    expect(await unregisterSocket("sock1")).toBe("sess1");
   });
 
-  it("returns undefined for unknown socket", () => {
-    expect(unregisterSocket("unknown")).toBeUndefined();
+  it("returns undefined for unknown socket", async () => {
+    expect(await unregisterSocket("unknown")).toBeUndefined();
   });
 });
 
@@ -101,16 +101,16 @@ describe("startDisconnectTimer / cancelDisconnectTimer", () => {
 // ── cleanupSession ───────────────────────────────────────────────────────────
 
 describe("cleanupSession", () => {
-  it("removes all mappings and cancels timer", () => {
+  it("removes all mappings and cancels timer", async () => {
     vi.useFakeTimers();
-    registerSession("sess1", "sock1");
+    await registerSession("sess1", "sock1");
     const cb = vi.fn();
     startDisconnectTimer("sess1", cb, 5000);
 
-    cleanupSession("sess1");
+    await cleanupSession("sess1");
 
-    expect(getSocketId("sess1")).toBeUndefined();
-    expect(getSessionId("sock1")).toBeUndefined();
+    expect(await getSocketId("sess1")).toBeUndefined();
+    expect(await getSessionId("sock1")).toBeUndefined();
     vi.advanceTimersByTime(10000);
     expect(cb).not.toHaveBeenCalled();
   });

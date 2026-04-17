@@ -187,9 +187,9 @@ if (clientDir) {
 
 // ── Socket.IO Connection Handler ─────────────────────────────────────────────
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   const sessionId: string = socket.handshake.auth?.sessionId || socket.id;
-  const { isReconnect, oldSocketId } = registerSession(sessionId, socket.id);
+  const { isReconnect, oldSocketId } = await registerSession(sessionId, socket.id);
 
   if (isReconnect && oldSocketId) {
     cancelDisconnectTimer(sessionId);

@@ -1,43 +1,55 @@
 // Session management: maps persistent session IDs to transient socket IDs
 // so players can reconnect after a page refresh within a grace period.
+//
+// Backed by Redis when REDIS_URL is set (multi-replica safe) and by local
+// Maps otherwise (tests, single-replica dev). Disconnect timers always stay
+// local — setTimeout handles can't be serialised across replicas. If a
+// player disconnects on replica A and reconnects on replica B, the timer on
+// A will fire and run cleanup against the shared Redis state, which is
+// idempotent.
+
+import { redis } from "./redis.js";
 
 const GRACE_PERIOD_MS = 120_000; // 2 minutes — mobile browsers kill sockets when backgrounded
 
-// sessionId -> current socketId
-const sessionToSocket = new Map<string, string>();
-// socketId -> sessionId
-const socketToSession = new Map<string, string>();
-// sessionId -> pending cleanup timer
+const KEY_S2SOCK = "sessions:s2sock"; // hash sessionId -> socketId
+const KEY_SOCK2S = "sessions:sock2s"; // hash socketId -> sessionId
+
+// Local fallback when REDIS_URL is unset.
+const localS2Sock = new Map<string, string>();
+const localSock2S = new Map<string, string>();
+
+// Disconnect timers are always local — they hold setTimeout handles.
 const disconnectTimers = new Map<string, NodeJS.Timeout>();
 
-export function registerSession(
+export async function registerSession(
   sessionId: string,
   socketId: string
-): { isReconnect: boolean; oldSocketId: string | null } {
-  const oldSocketId = sessionToSocket.get(sessionId) ?? null;
+): Promise<{ isReconnect: boolean; oldSocketId: string | null }> {
+  const oldSocketId = (await hget(KEY_S2SOCK, sessionId)) ?? null;
   const isReconnect = oldSocketId !== null && oldSocketId !== socketId;
 
-  // Clean up old socket mapping
+  // Clean up the old socket -> session mapping, if any.
   if (oldSocketId) {
-    socketToSession.delete(oldSocketId);
+    await hdel(KEY_SOCK2S, oldSocketId);
   }
 
-  sessionToSocket.set(sessionId, socketId);
-  socketToSession.set(socketId, sessionId);
+  await hset(KEY_S2SOCK, sessionId, socketId);
+  await hset(KEY_SOCK2S, socketId, sessionId);
 
   return { isReconnect, oldSocketId };
 }
 
-export function unregisterSocket(socketId: string): string | undefined {
-  return socketToSession.get(socketId);
+export async function unregisterSocket(socketId: string): Promise<string | undefined> {
+  return (await hget(KEY_SOCK2S, socketId)) ?? undefined;
 }
 
-export function getSocketId(sessionId: string): string | undefined {
-  return sessionToSocket.get(sessionId);
+export async function getSocketId(sessionId: string): Promise<string | undefined> {
+  return (await hget(KEY_S2SOCK, sessionId)) ?? undefined;
 }
 
-export function getSessionId(socketId: string): string | undefined {
-  return socketToSession.get(socketId);
+export async function getSessionId(socketId: string): Promise<string | undefined> {
+  return (await hget(KEY_SOCK2S, socketId)) ?? undefined;
 }
 
 export function startDisconnectTimer(
@@ -45,7 +57,6 @@ export function startDisconnectTimer(
   callback: () => void,
   delayMs: number = GRACE_PERIOD_MS
 ): void {
-  // Clear any existing timer first
   cancelDisconnectTimer(sessionId);
   const timer = setTimeout(() => {
     disconnectTimers.delete(sessionId);
@@ -64,11 +75,41 @@ export function cancelDisconnectTimer(sessionId: string): boolean {
   return false;
 }
 
-export function cleanupSession(sessionId: string): void {
-  const socketId = sessionToSocket.get(sessionId);
+export async function cleanupSession(sessionId: string): Promise<void> {
+  const socketId = await hget(KEY_S2SOCK, sessionId);
   if (socketId) {
-    socketToSession.delete(socketId);
+    await hdel(KEY_SOCK2S, socketId);
   }
-  sessionToSocket.delete(sessionId);
+  await hdel(KEY_S2SOCK, sessionId);
   cancelDisconnectTimer(sessionId);
+}
+
+// ── KV helpers — Redis when available, local Maps otherwise ──────────────────
+
+async function hget(key: string, field: string): Promise<string | null> {
+  if (redis) return redis.hget(key, field);
+  const map = localMapFor(key);
+  return map.get(field) ?? null;
+}
+
+async function hset(key: string, field: string, value: string): Promise<void> {
+  if (redis) {
+    await redis.hset(key, field, value);
+    return;
+  }
+  localMapFor(key).set(field, value);
+}
+
+async function hdel(key: string, field: string): Promise<void> {
+  if (redis) {
+    await redis.hdel(key, field);
+    return;
+  }
+  localMapFor(key).delete(field);
+}
+
+function localMapFor(key: string): Map<string, string> {
+  if (key === KEY_S2SOCK) return localS2Sock;
+  if (key === KEY_SOCK2S) return localSock2S;
+  throw new Error(`unknown local map key: ${key}`);
 }
