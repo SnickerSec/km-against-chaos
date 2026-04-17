@@ -24,9 +24,16 @@ export function getSocket(): Socket {
     socket = io(SERVER_URL, {
       autoConnect: true,
       auth: { sessionId: getSessionId() },
+      // WebSocket-only. Socket.IO's polling fallback requires sticky
+      // sessions (sid from the handshake POST has to route back to the
+      // same replica), which Railway doesn't provide. Going straight to
+      // WebSocket means each connection is a single TCP stream to one
+      // replica, sticky by construction. The Redis adapter handles
+      // cross-replica broadcasting; we don't need polling.
+      transports: ["websocket"],
       // Retry fast on the first attempt so typical Railway redeploys
-      // (~500ms gap once the new container is healthy) reconnect before the
-      // restart banner timer fires.
+      // (~500ms gap once the new container is healthy) reconnect before
+      // the restart banner timer fires.
       reconnectionDelay: 250,
       reconnectionDelayMax: 5000,
     });
