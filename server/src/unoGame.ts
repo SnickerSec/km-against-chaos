@@ -709,3 +709,64 @@ export function isUnoGameOver(lobbyCode: string): boolean {
 export function getUnoPhase(lobbyCode: string): string | undefined {
   return games.get(lobbyCode)?.phase;
 }
+
+// ── Snapshot / Restore ───────────────────────────────────────────────────────
+
+export function exportUnoGames(): any[] {
+  return Array.from(games.values()).map(g => ({
+    lobbyCode: g.lobbyCode,
+    playerIds: g.playerIds,
+    hands: Array.from(g.hands.entries()),
+    drawPile: g.drawPile,
+    discardPile: g.discardPile,
+    scores: Array.from(g.scores.entries()),
+    currentPlayerIndex: g.currentPlayerIndex,
+    direction: g.direction,
+    activeColor: g.activeColor,
+    phase: g.phase,
+    roundNumber: g.roundNumber,
+    maxRounds: g.maxRounds,
+    winMode: g.winMode,
+    targetPoints: g.targetPoints,
+    gameOver: g.gameOver,
+    pendingDraw: g.pendingDraw,
+    unoCalledPlayers: Array.from(g.unoCalledPlayers),
+    turnDeadline: g.turnDeadline,
+    lastAction: g.lastAction,
+    deckTemplate: g.deckTemplate,
+    stackingEnabled: g.stackingEnabled,
+    vulnerablePlayer: g.vulnerablePlayer,
+  }));
+}
+
+export function restoreUnoGames(snapshots: any[]): void {
+  for (const s of snapshots) {
+    const game: InternalUnoGame = {
+      lobbyCode: s.lobbyCode,
+      playerIds: s.playerIds,
+      hands: new Map(s.hands),
+      drawPile: s.drawPile,
+      discardPile: s.discardPile,
+      scores: new Map(s.scores),
+      currentPlayerIndex: s.currentPlayerIndex,
+      direction: s.direction,
+      activeColor: s.activeColor,
+      phase: s.phase,
+      roundNumber: s.roundNumber,
+      maxRounds: s.maxRounds,
+      winMode: s.winMode,
+      targetPoints: s.targetPoints,
+      gameOver: s.gameOver,
+      pendingDraw: s.pendingDraw,
+      unoCalledPlayers: new Set(s.unoCalledPlayers || []),
+      // Turn timers don't survive; give the restored turn a fresh deadline
+      // so the client sees a clean countdown on the new instance.
+      turnDeadline: Date.now() + TURN_TIME_MS,
+      lastAction: s.lastAction,
+      deckTemplate: s.deckTemplate,
+      stackingEnabled: s.stackingEnabled,
+      vulnerablePlayer: s.vulnerablePlayer,
+    };
+    games.set(game.lobbyCode, game);
+  }
+}

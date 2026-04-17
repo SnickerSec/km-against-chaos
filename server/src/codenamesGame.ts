@@ -322,3 +322,17 @@ export function getCodenamesScores(lobbyCode: string): Record<string, number> | 
   }
   return scores;
 }
+
+// ── Snapshot / Restore ───────────────────────────────────────────────────────
+// State is entirely primitives/plain objects (no Maps or Sets), so the whole
+// game object round-trips through JSON cleanly.
+
+export function exportCodenamesGames(): any[] {
+  return Array.from(games.values());
+}
+
+export function restoreCodenamesGames(snapshots: any[]): void {
+  for (const s of snapshots) {
+    games.set(s.lobbyCode, s as InternalCodenamesGame);
+  }
+}

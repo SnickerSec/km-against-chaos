@@ -2,6 +2,8 @@ import pool from "./db.js";
 import { createLogger } from "./logger.js";
 import { exportLobbies, restoreLobbies } from "./lobby.js";
 import { exportGames, restoreGames } from "./game.js";
+import { exportUnoGames, restoreUnoGames } from "./unoGame.js";
+import { exportCodenamesGames, restoreCodenamesGames } from "./codenamesGame.js";
 import { exportChatHistory, restoreChatHistory } from "./socketHelpers.js";
 
 const log = createLogger("snapshot");
@@ -10,29 +12,43 @@ const log = createLogger("snapshot");
 // a crash hours ago should not revive dead lobbies.
 const MAX_SNAPSHOT_AGE_MINUTES = 15;
 
+const SNAPSHOT_TABLES =
+  "lobby_snapshots, cah_game_snapshots, uno_game_snapshots, codenames_game_snapshots, chat_snapshots";
+
 export async function snapshotAll(): Promise<void> {
   const lobbies = exportLobbies();
-  // Scope: only snapshot CAH-playable lobbies. Uno/Codenames playing-state
-  // is not persisted yet, so dropping those lobbies is the honest outcome.
-  const keepLobbies = lobbies.filter(l => l.gameType === "cah" || l.status === "waiting");
-  const games = exportGames().filter(g => g.gameType === "cah");
+  const cahGames = exportGames().filter(g => g.gameType === "cah");
+  const unoGames = exportUnoGames();
+  const codenamesGames = exportCodenamesGames();
   const chats = exportChatHistory().filter(c =>
-    keepLobbies.some(l => l.code === c.code)
+    lobbies.some(l => l.code === c.code)
   );
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query("TRUNCATE lobby_snapshots, cah_game_snapshots, chat_snapshots");
-    for (const l of keepLobbies) {
+    await client.query(`TRUNCATE ${SNAPSHOT_TABLES}`);
+    for (const l of lobbies) {
       await client.query(
         "INSERT INTO lobby_snapshots (code, state) VALUES ($1, $2)",
         [l.code, JSON.stringify(l)]
       );
     }
-    for (const g of games) {
+    for (const g of cahGames) {
       await client.query(
         "INSERT INTO cah_game_snapshots (lobby_code, state) VALUES ($1, $2)",
+        [g.lobbyCode, JSON.stringify(g)]
+      );
+    }
+    for (const g of unoGames) {
+      await client.query(
+        "INSERT INTO uno_game_snapshots (lobby_code, state) VALUES ($1, $2)",
+        [g.lobbyCode, JSON.stringify(g)]
+      );
+    }
+    for (const g of codenamesGames) {
+      await client.query(
+        "INSERT INTO codenames_game_snapshots (lobby_code, state) VALUES ($1, $2)",
         [g.lobbyCode, JSON.stringify(g)]
       );
     }
@@ -44,8 +60,10 @@ export async function snapshotAll(): Promise<void> {
     }
     await client.query("COMMIT");
     log.info("snapshot written", {
-      lobbies: keepLobbies.length,
-      games: games.length,
+      lobbies: lobbies.length,
+      cahGames: cahGames.length,
+      unoGames: unoGames.length,
+      codenamesGames: codenamesGames.length,
       chats: chats.length,
     });
   } catch (err) {
@@ -62,24 +80,34 @@ export async function restoreAll(): Promise<void> {
     const lobbies = await pool.query(
       `SELECT state FROM lobby_snapshots WHERE created_at > ${cutoff}`
     );
-    const games = await pool.query(
+    const cahGames = await pool.query(
       `SELECT state FROM cah_game_snapshots WHERE created_at > ${cutoff}`
+    );
+    const unoGames = await pool.query(
+      `SELECT state FROM uno_game_snapshots WHERE created_at > ${cutoff}`
+    );
+    const codenamesGames = await pool.query(
+      `SELECT state FROM codenames_game_snapshots WHERE created_at > ${cutoff}`
     );
     const chats = await pool.query(
       `SELECT code, messages FROM chat_snapshots WHERE created_at > ${cutoff}`
     );
 
     restoreLobbies(lobbies.rows.map(r => r.state));
-    restoreGames(games.rows.map(r => r.state));
+    restoreGames(cahGames.rows.map(r => r.state));
+    restoreUnoGames(unoGames.rows.map(r => r.state));
+    restoreCodenamesGames(codenamesGames.rows.map(r => r.state));
     restoreChatHistory(chats.rows.map(r => ({ code: r.code, messages: r.messages })));
 
     // Snapshots are one-shot — clear after restoring so a later crash
     // cannot revive long-dead state.
-    await pool.query("TRUNCATE lobby_snapshots, cah_game_snapshots, chat_snapshots");
+    await pool.query(`TRUNCATE ${SNAPSHOT_TABLES}`);
 
     log.info("snapshot restored", {
       lobbies: lobbies.rowCount,
-      games: games.rowCount,
+      cahGames: cahGames.rowCount,
+      unoGames: unoGames.rowCount,
+      codenamesGames: codenamesGames.rowCount,
       chats: chats.rowCount,
     });
   } catch (err) {
