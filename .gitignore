@@ -4,6 +4,7 @@ dist/
 client/out/
 .env
 .env.local
+.env.sentry-build-plugin
 *.log
 CLAUDE.md
 server/data/
