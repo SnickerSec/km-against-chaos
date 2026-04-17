@@ -204,8 +204,8 @@ io.on("connection", async (socket) => {
       if (uno) await remapUnoGamePlayer(code, oldSocketId, socket.id);
       else remapGamePlayer(code, oldSocketId, socket.id);
 
-      const gameView = lobby.status === "playing"
-        ? (uno ? null : getPlayerView(code, socket.id))
+      const gameView = lobby.status === "playing" && !uno
+        ? await getPlayerView(code, socket.id)
         : null;
 
       socket.emit("session:reconnected", {

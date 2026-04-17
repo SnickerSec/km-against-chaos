@@ -125,10 +125,10 @@ export async function restoreChatHistory(
 
 // ── Broadcast Helpers ────────────────────────────────────────────────────────
 
-export function sendRoundToPlayers(io: Server<ClientEvents, ServerEvents>, code: string) {
-  const playerIds = getPlayerIds(code);
+export async function sendRoundToPlayers(io: Server<ClientEvents, ServerEvents>, code: string) {
+  const playerIds = await getPlayerIds(code);
   for (const pid of playerIds) {
-    const view = getPlayerView(code, pid);
+    const view = await getPlayerView(code, pid);
     if (view) io.to(pid).emit("game:round-start", view);
   }
 }
@@ -167,9 +167,9 @@ export async function getPlayerName(code: string, playerId: string): Promise<str
 
 const roundTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-export function scheduleRoundTimer(code: string, onExpiry: (code: string) => void) {
+export async function scheduleRoundTimer(code: string, onExpiry: (code: string) => void) {
   clearRoundTimer(code);
-  const deadline = getPhaseDeadline(code);
+  const deadline = await getPhaseDeadline(code);
   if (!deadline) return;
   const delay = Math.max(0, deadline - Date.now());
   roundTimers.set(code, setTimeout(() => {

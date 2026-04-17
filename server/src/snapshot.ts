@@ -26,7 +26,7 @@ const SNAPSHOT_TABLES =
 
 export async function snapshotAll(): Promise<void> {
   const lobbies = await exportLobbies();
-  const cahGames = exportGames().filter(g => g.gameType === "cah");
+  const cahGames = (await exportGames()).filter((g: any) => g.gameType === "cah");
   const unoGames = await exportUnoGames();
   const codenamesGames = await exportCodenamesGames();
   const allChats = await exportChatHistory();
@@ -104,7 +104,7 @@ export async function restoreAll(
     );
 
     await restoreLobbies(lobbies.rows.map(r => r.state));
-    restoreGames(cahGames.rows.map(r => r.state));
+    await restoreGames(cahGames.rows.map(r => r.state));
     await restoreUnoGames(unoGames.rows.map(r => r.state));
     await restoreCodenamesGames(codenamesGames.rows.map(r => r.state));
     await restoreChatHistory(chats.rows.map(r => ({ code: r.code, messages: r.messages })));

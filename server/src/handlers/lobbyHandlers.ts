@@ -36,8 +36,8 @@ export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socket
     // Remove from whichever game engine owns this lobby so the leaver stops
     // receiving turn/round updates (which would otherwise force them back
     // onto the game screen via the client's uno:turn-update handler).
-    removePlayerFromGame(code, socketId);
-    removePlayerFromUnoGame(code, socketId);
+    await removePlayerFromGame(code, socketId);
+    await removePlayerFromUnoGame(code, socketId);
     await removePlayerFromCodenamesGame(code, socketId);
   }
 
@@ -53,8 +53,8 @@ export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socket
       else if (await isCodenamesGame(code)) await sendCodenamesUpdate(io, code);
     }
   } else {
-    cleanupGame(result.code);
-    cleanupUnoGame(result.code);
+    await cleanupGame(result.code);
+    await cleanupUnoGame(result.code);
     await cleanupCodenamesGame(result.code);
     await clearChatHistory(result.code);
   }
@@ -96,8 +96,8 @@ export function registerLobbyHandlers(
     socket.join(result.lobby.code);
 
     if (result.lobby.status === "playing") {
-      addPlayerToGame(result.lobby.code, socket.id);
-      const gameView = getPlayerView(result.lobby.code, socket.id);
+      await addPlayerToGame(result.lobby.code, socket.id);
+      const gameView = await getPlayerView(result.lobby.code, socket.id);
       callback({ success: true, lobby: result.lobby });
       socket.to(result.lobby.code).emit("lobby:player-joined", result.player);
       io.to(result.lobby.code).emit("lobby:updated", result.lobby);
@@ -126,7 +126,7 @@ export function registerLobbyHandlers(
     io.to(result.lobby.code).emit("lobby:updated", result.lobby);
 
     if (result.lobby.status === "playing") {
-      const spectatorView = getPlayerView(result.lobby.code, socket.id);
+      const spectatorView = await getPlayerView(result.lobby.code, socket.id);
       if (spectatorView) {
         socket.emit("game:round-start", { ...spectatorView, hand: [] });
         socket.emit("lobby:started");
@@ -244,20 +244,20 @@ export function registerLobbyHandlers(
           }
           setUnoPlayerNames(code, unoNames);
           io.to(code).emit("lobby:started");
-          sendUnoTurnToPlayers(io, code);
-          triggerUnoBotTurn(io, code);
+          await sendUnoTurnToPlayers(io, code);
+          await triggerUnoBotTurn(io, code);
           scheduleUnoTurnTimer(code, createUnoTimerCallback(io));
         } else {
-          createGame(code, playerIds, customChaos, customKnowledge, winCondition, gameType);
-          const round = startRound(code);
+          await createGame(code, playerIds, customChaos, customKnowledge, winCondition, gameType);
+          const round = await startRound(code);
           if (round) {
             io.to(code).emit("lobby:started");
-            sendRoundToPlayers(io, code);
-            triggerBotActions(io, code);
-            scheduleRoundTimer(code, createCahTimerCallback(io));
+            await sendRoundToPlayers(io, code);
+            await triggerBotActions(io, code);
+            await scheduleRoundTimer(code, createCahTimerCallback(io));
           } else {
-            const scores = getScores(code) || {};
-            endGame(code);
+            const scores = (await getScores(code)) || {};
+            await endGame(code);
             io.to(code).emit("game:over", scores);
           }
         }
@@ -315,8 +315,8 @@ export function registerLobbyHandlers(
 
     clearRoundTimer(code);
     clearUnoTurnTimer(code);
-    cleanupGame(code);
-    cleanupUnoGame(code);
+    await cleanupGame(code);
+    await cleanupUnoGame(code);
     await cleanupCodenamesGame(code);
 
     const result = await resetLobbyForRematch(socket.id);

@@ -117,19 +117,19 @@ function playFullRound(): string {
 
 // ── Setup / teardown ──────────────────────────────────────────────────────────
 
-beforeEach(() => {
+beforeEach(async () => {
   cleanupGame(LOBBY);
   createGame(LOBBY, PLAYERS, CHAOS, KNOWLEDGE, { mode: "rounds", value: 3 });
 });
 
-afterEach(() => {
+afterEach(async () => {
   cleanupGame(LOBBY);
 });
 
 // ── Round lifecycle (existing tests preserved) ───────────────────────────────
 
 describe("startRound", () => {
-  it("returns a valid round state", () => {
+  it("returns a valid round state", async () => {
     const round = startRound(LOBBY);
     expect(round).not.toBeNull();
     expect(PLAYERS).toContain(round!.czarId);
@@ -137,14 +137,14 @@ describe("startRound", () => {
     expect(round!.phase).toBe("submitting");
   });
 
-  it("czar rotates each round", () => {
+  it("czar rotates each round", async () => {
     const r1 = startRound(LOBBY)!;
     advanceRound(LOBBY);
     const r2 = startRound(LOBBY)!;
     expect(r2.czarId).not.toBe(r1.czarId);
   });
 
-  it("returns null after max rounds exceeded", () => {
+  it("returns null after max rounds exceeded", async () => {
     for (let i = 0; i < 3; i++) {
       playFullRound();
       advanceRound(LOBBY);
@@ -154,7 +154,7 @@ describe("startRound", () => {
 });
 
 describe("submitCards", () => {
-  it("non-czar player can submit a card", () => {
+  it("non-czar player can submit a card", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
     const view = getPlayerView(LOBBY, player)!;
@@ -165,7 +165,7 @@ describe("submitCards", () => {
     expect(result.error).toBeUndefined();
   });
 
-  it("czar cannot submit", () => {
+  it("czar cannot submit", async () => {
     const round = startRound(LOBBY)!;
     const czarView = getPlayerView(LOBBY, round.czarId)!;
     const cardId = czarView.hand[0].id;
@@ -175,7 +175,7 @@ describe("submitCards", () => {
     expect(result.error).toMatch(/czar/i);
   });
 
-  it("player cannot submit twice", () => {
+  it("player cannot submit twice", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
     const view = getPlayerView(LOBBY, player)!;
@@ -186,13 +186,13 @@ describe("submitCards", () => {
     expect(second.error).toMatch(/already/i);
   });
 
-  it("all players submitted triggers judging phase", () => {
+  it("all players submitted triggers judging phase", async () => {
     const round = startRound(LOBBY)!;
     const result = submitAll(round.czarId);
     expect(result.allSubmitted).toBe(true);
   });
 
-  it("card not in hand is rejected", () => {
+  it("card not in hand is rejected", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
     const result = submitCards(LOBBY, player, ["fake-id"]);
@@ -200,7 +200,7 @@ describe("submitCards", () => {
     expect(result.error).toMatch(/not in your hand/i);
   });
 
-  it("wrong number of cards is rejected", () => {
+  it("wrong number of cards is rejected", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
     const view = getPlayerView(LOBBY, player)!;
@@ -212,7 +212,7 @@ describe("submitCards", () => {
 });
 
 describe("pickWinner + scoring", () => {
-  it("winner gains a point", () => {
+  it("winner gains a point", async () => {
     const round = startRound(LOBBY)!;
     const czar = round.czarId;
     const submitters = allNonCzar(czar);
@@ -231,7 +231,7 @@ describe("pickWinner + scoring", () => {
     expect(scores[submitters[1]]).toBe(0);
   });
 
-  it("only czar can pick the winner", () => {
+  it("only czar can pick the winner", async () => {
     const round = startRound(LOBBY)!;
     const czar = round.czarId;
     const submitters = allNonCzar(czar);
@@ -245,7 +245,7 @@ describe("pickWinner + scoring", () => {
     expect(result.success).toBe(false);
   });
 
-  it("invalid winner ID is rejected", () => {
+  it("invalid winner ID is rejected", async () => {
     const round = startRound(LOBBY)!;
     submitAll(round.czarId);
     const result = pickWinner(LOBBY, round.czarId, "nonexistent");
@@ -257,11 +257,11 @@ describe("pickWinner + scoring", () => {
 // ── Game over detection ───────────────────────────────────────────────────────
 
 describe("isGameOver", () => {
-  it("not over after 0 rounds", () => {
+  it("not over after 0 rounds", async () => {
     expect(isGameOver(LOBBY)).toBe(false);
   });
 
-  it("over after maxRounds rounds", () => {
+  it("over after maxRounds rounds", async () => {
     for (let i = 0; i < 3; i++) {
       playFullRound();
       advanceRound(LOBBY);
@@ -273,12 +273,12 @@ describe("isGameOver", () => {
 // ── Pick-2 cards ──────────────────────────────────────────────────────────────
 
 describe("pick-2 chaos cards", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     cleanupGame(LOBBY);
     createGame(LOBBY, PLAYERS, CHAOS_PICK2, KNOWLEDGE, { mode: "rounds", value: 3 });
   });
 
-  it("player must submit exactly 2 cards", () => {
+  it("player must submit exactly 2 cards", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
     const view = getPlayerView(LOBBY, player)!;
@@ -293,7 +293,7 @@ describe("pick-2 chaos cards", () => {
     expect(r2.success).toBe(true);
   });
 
-  it("hand replenished after submitting 2 cards", () => {
+  it("hand replenished after submitting 2 cards", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
     const handBefore = getPlayerView(LOBBY, player)!.hand.length;
@@ -318,12 +318,12 @@ describe("depleted hand with pick-2", () => {
     text: `Tiny answer ${i}`,
   }));
 
-  beforeEach(() => {
+  beforeEach(async () => {
     cleanupGame(LOBBY);
     createGame(LOBBY, PLAYERS, CHAOS_PICK2, TINY_KNOWLEDGE, { mode: "rounds", value: 10 });
   });
 
-  it("hands stay full thanks to mid-round reshuffling with a tiny deck", () => {
+  it("hands stay full thanks to mid-round reshuffling with a tiny deck", async () => {
     // With immediate discarding, played cards are recycled into the deck
     // so hands should never deplete even with a very small card pool.
     for (let i = 0; i < 6; i++) {
@@ -343,7 +343,7 @@ describe("depleted hand with pick-2", () => {
     }
   });
 
-  it("player can submit fewer cards if deck is truly exhausted", () => {
+  it("player can submit fewer cards if deck is truly exhausted", async () => {
     // With only 8 total cards and 3 players (7 each = would need 21),
     // some players start with fewer than 7 cards
     const MICRO_KNOWLEDGE: KnowledgeCard[] = Array.from({ length: 8 }, (_, i) => ({
@@ -377,7 +377,7 @@ describe("depleted hand with pick-2", () => {
 // ── Hand replenishment ���───────────────────────────────────────────────────────
 
 describe("hand replenishment", () => {
-  it("hand stays at 7 after submitting", () => {
+  it("hand stays at 7 after submitting", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
     const view = getPlayerView(LOBBY, player)!;
@@ -394,26 +394,26 @@ describe("botSubmitCards", () => {
   const BOT_LOBBY = "test-bot";
   const BOT_PLAYERS = ["bot-a", "bot-b", "bot-c"];
 
-  beforeEach(() => {
+  beforeEach(async () => {
     cleanupGame(BOT_LOBBY);
     createGame(BOT_LOBBY, BOT_PLAYERS, CHAOS, KNOWLEDGE, { mode: "rounds", value: 3 });
   });
-  afterEach(() => cleanupGame(BOT_LOBBY));
+  afterEach(async () => cleanupGame(BOT_LOBBY));
 
-  it("bot can submit cards", () => {
+  it("bot can submit cards", async () => {
     const round = startRound(BOT_LOBBY)!;
     const bot = BOT_PLAYERS.find((p) => p !== round.czarId)!;
     const result = botSubmitCards(BOT_LOBBY, bot);
     expect(result.success).toBe(true);
   });
 
-  it("czar bot cannot submit", () => {
+  it("czar bot cannot submit", async () => {
     const round = startRound(BOT_LOBBY)!;
     const result = botSubmitCards(BOT_LOBBY, round.czarId);
     expect(result.success).toBe(false);
   });
 
-  it("bot cannot submit twice", () => {
+  it("bot cannot submit twice", async () => {
     const round = startRound(BOT_LOBBY)!;
     const bot = BOT_PLAYERS.find((p) => p !== round.czarId)!;
     botSubmitCards(BOT_LOBBY, bot);
@@ -421,7 +421,7 @@ describe("botSubmitCards", () => {
     expect(result.success).toBe(false);
   });
 
-  it("all bots submitting triggers judging", () => {
+  it("all bots submitting triggers judging", async () => {
     const round = startRound(BOT_LOBBY)!;
     const submitters = BOT_PLAYERS.filter((p) => p !== round.czarId);
     let result = { success: false, allSubmitted: false };
@@ -436,13 +436,13 @@ describe("botPickWinner", () => {
   const BOT_LOBBY = "test-bot-pick";
   const BOT_PLAYERS = ["bot-a", "bot-b", "bot-c"];
 
-  beforeEach(() => {
+  beforeEach(async () => {
     cleanupGame(BOT_LOBBY);
     createGame(BOT_LOBBY, BOT_PLAYERS, CHAOS, KNOWLEDGE, { mode: "rounds", value: 3 });
   });
-  afterEach(() => cleanupGame(BOT_LOBBY));
+  afterEach(async () => cleanupGame(BOT_LOBBY));
 
-  it("bot czar can pick a winner", () => {
+  it("bot czar can pick a winner", async () => {
     const round = startRound(BOT_LOBBY)!;
     const submitters = BOT_PLAYERS.filter((p) => p !== round.czarId);
     for (const bot of submitters) botSubmitCards(BOT_LOBBY, bot);
@@ -452,7 +452,7 @@ describe("botPickWinner", () => {
     expect(submitters).toContain(result.winnerId);
   });
 
-  it("non-czar bot cannot pick winner", () => {
+  it("non-czar bot cannot pick winner", async () => {
     const round = startRound(BOT_LOBBY)!;
     const submitters = BOT_PLAYERS.filter((p) => p !== round.czarId);
     for (const bot of submitters) botSubmitCards(BOT_LOBBY, bot);
@@ -465,26 +465,26 @@ describe("botPickWinner", () => {
 // ── Meta card effects ─────────────────────────────────────────────────────────
 
 describe("resolveMetaTargets", () => {
-  it("winner target returns only winner", () => {
+  it("winner target returns only winner", async () => {
     expect(resolveMetaTargets("winner", "p1", "p2", PLAYERS)).toEqual(["p1"]);
   });
 
-  it("czar target returns only czar", () => {
+  it("czar target returns only czar", async () => {
     expect(resolveMetaTargets("czar", "p1", "p2", PLAYERS)).toEqual(["p2"]);
   });
 
-  it("all target returns all players", () => {
+  it("all target returns all players", async () => {
     expect(resolveMetaTargets("all", "p1", "p2", PLAYERS)).toEqual(PLAYERS);
   });
 
-  it("all_others excludes winner", () => {
+  it("all_others excludes winner", async () => {
     const result = resolveMetaTargets("all_others", "p1", "p2", PLAYERS);
     expect(result).not.toContain("p1");
     expect(result).toContain("p2");
     expect(result).toContain("p3");
   });
 
-  it("loser returns non-winner non-czar players", () => {
+  it("loser returns non-winner non-czar players", async () => {
     const result = resolveMetaTargets("loser", "p1", "p2", PLAYERS);
     expect(result).not.toContain("p1"); // winner excluded
     expect(result).not.toContain("p2"); // czar excluded
@@ -493,12 +493,12 @@ describe("resolveMetaTargets", () => {
 });
 
 describe("meta effect scoring", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     cleanupGame(LOBBY);
     createGame(LOBBY, PLAYERS, CHAOS_META, KNOWLEDGE, { mode: "rounds", value: 10 });
   });
 
-  it("score_add meta effect awards extra points", () => {
+  it("score_add meta effect awards extra points", async () => {
     // First chaos card in CHAOS_META has score_add +2 for winner
     const round = startRound(LOBBY)!;
     // If we got the meta card, winner gets 1 (normal) + 2 (meta) = 3
@@ -529,7 +529,7 @@ describe("meta effect scoring", () => {
 // ── forceSubmitForMissing ─────────────────────────────────────────────────────
 
 describe("forceSubmitForMissing", () => {
-  it("auto-submits for players who haven't submitted", () => {
+  it("auto-submits for players who haven't submitted", async () => {
     const round = startRound(LOBBY)!;
     const czar = round.czarId;
     const submitters = allNonCzar(czar);
@@ -544,7 +544,7 @@ describe("forceSubmitForMissing", () => {
     expect(getCurrentPhase(LOBBY)).toBe("judging");
   });
 
-  it("returns empty array when no one is missing", () => {
+  it("returns empty array when no one is missing", async () => {
     const round = startRound(LOBBY)!;
     submitAll(round.czarId);
     const forced = forceSubmitForMissing(LOBBY);
@@ -563,18 +563,18 @@ describe("czarSetup (Joking Hazard)", () => {
     pick: 1,
   }));
 
-  beforeEach(() => {
+  beforeEach(async () => {
     cleanupGame(JH_LOBBY);
     createGame(JH_LOBBY, PLAYERS, JH_CHAOS, KNOWLEDGE, { mode: "rounds", value: 3 }, "joking_hazard");
   });
-  afterEach(() => cleanupGame(JH_LOBBY));
+  afterEach(async () => cleanupGame(JH_LOBBY));
 
-  it("round starts in czar_setup phase", () => {
+  it("round starts in czar_setup phase", async () => {
     const round = startRound(JH_LOBBY)!;
     expect(round.phase).toBe("czar_setup");
   });
 
-  it("czar can play a setup card", () => {
+  it("czar can play a setup card", async () => {
     const round = startRound(JH_LOBBY)!;
     const czarView = getPlayerView(JH_LOBBY, round.czarId)!;
     const cardId = czarView.hand[0].id;
@@ -585,7 +585,7 @@ describe("czarSetup (Joking Hazard)", () => {
     expect(getCurrentPhase(JH_LOBBY)).toBe("submitting");
   });
 
-  it("non-czar cannot play setup card", () => {
+  it("non-czar cannot play setup card", async () => {
     const round = startRound(JH_LOBBY)!;
     const other = nonCzar(round.czarId);
     const view = getPlayerView(JH_LOBBY, other)!;
@@ -595,14 +595,14 @@ describe("czarSetup (Joking Hazard)", () => {
     expect(result.error).toMatch(/judge/i);
   });
 
-  it("botCzarSetup plays a card automatically", () => {
+  it("botCzarSetup plays a card automatically", async () => {
     const round = startRound(JH_LOBBY)!;
     const result = botCzarSetup(JH_LOBBY, round.czarId);
     expect(result.success).toBe(true);
     expect(result.czarSetupCard).toBeDefined();
   });
 
-  it("forceCzarSetup auto-plays when czar times out", () => {
+  it("forceCzarSetup auto-plays when czar times out", async () => {
     startRound(JH_LOBBY);
     const card = forceCzarSetup(JH_LOBBY);
     expect(card).not.toBeNull();
@@ -613,12 +613,12 @@ describe("czarSetup (Joking Hazard)", () => {
 // ── Points-mode game over ─────────────────────────────────────────────────────
 
 describe("points-mode game over", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     cleanupGame(LOBBY);
     createGame(LOBBY, PLAYERS, CHAOS, KNOWLEDGE, { mode: "points", value: 2 });
   });
 
-  it("game ends when a player reaches target points", () => {
+  it("game ends when a player reaches target points", async () => {
     // Play rounds until someone hits 2 points
     let winner = playFullRound();
     advanceRound(LOBBY);
@@ -632,7 +632,7 @@ describe("points-mode game over", () => {
     }
   });
 
-  it("getWinInfo reports points mode", () => {
+  it("getWinInfo reports points mode", async () => {
     const info = getWinInfo(LOBBY);
     expect(info).toEqual({ mode: "points", value: 2 });
   });
@@ -641,7 +641,7 @@ describe("points-mode game over", () => {
 // ── addPlayerToGame / removePlayerFromGame ────────────────────────────────────
 
 describe("addPlayerToGame", () => {
-  it("adds a new player mid-game", () => {
+  it("adds a new player mid-game", async () => {
     startRound(LOBBY);
     const added = addPlayerToGame(LOBBY, "p4");
     expect(added).toBe(true);
@@ -652,7 +652,7 @@ describe("addPlayerToGame", () => {
     expect(view.scores["p4"]).toBe(0);
   });
 
-  it("adding an existing player is idempotent", () => {
+  it("adding an existing player is idempotent", async () => {
     const result = addPlayerToGame(LOBBY, "p1");
     expect(result).toBe(true);
     expect(getPlayerIds(LOBBY).filter((id) => id === "p1")).toHaveLength(1);
@@ -660,7 +660,7 @@ describe("addPlayerToGame", () => {
 });
 
 describe("removePlayerFromGame", () => {
-  it("removes player and their submission", () => {
+  it("removes player and their submission", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
     const view = getPlayerView(LOBBY, player)!;
@@ -675,7 +675,7 @@ describe("removePlayerFromGame", () => {
 // ── remapGamePlayer ───────────────────────────────────────────────────────────
 
 describe("remapGamePlayer", () => {
-  it("moves player to new ID preserving hand and score", () => {
+  it("moves player to new ID preserving hand and score", async () => {
     const handBefore = getPlayerView(LOBBY, "p1")!.hand.length;
     remapGamePlayer(LOBBY, "p1", "p1-new");
 
@@ -687,13 +687,13 @@ describe("remapGamePlayer", () => {
     expect(view.scores["p1-new"]).toBe(0);
   });
 
-  it("remaps czar during a round", () => {
+  it("remaps czar during a round", async () => {
     const round = startRound(LOBBY)!;
     remapGamePlayer(LOBBY, round.czarId, "czar-new");
     expect(getCzarId(LOBBY)).toBe("czar-new");
   });
 
-  it("remaps submission during a round", () => {
+  it("remaps submission during a round", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
     const view = getPlayerView(LOBBY, player)!;
@@ -715,7 +715,7 @@ describe("remapGamePlayer", () => {
 // ── resetPlayerHand ───────────────────────────────────────────────────────────
 
 describe("resetPlayerHand", () => {
-  it("replaces hand with 7 new cards", () => {
+  it("replaces hand with 7 new cards", async () => {
     const oldHand = getPlayerView(LOBBY, "p1")!.hand.map((c) => c.id);
     const newHand = resetPlayerHand(LOBBY, "p1");
     expect(newHand).toHaveLength(7);
@@ -728,12 +728,12 @@ describe("resetPlayerHand", () => {
 // ── getWinnerCards ────────────────────────────────────────────────────────────
 
 describe("getWinnerCards", () => {
-  it("returns null before winner is picked", () => {
+  it("returns null before winner is picked", async () => {
     startRound(LOBBY);
     expect(getWinnerCards(LOBBY)).toBeNull();
   });
 
-  it("returns winning cards after pick", () => {
+  it("returns winning cards after pick", async () => {
     const round = startRound(LOBBY)!;
     const czar = round.czarId;
     submitAll(czar);
@@ -749,7 +749,7 @@ describe("getWinnerCards", () => {
 // ── getJudgingData ────────────────────────────────────────────────────────────
 
 describe("getJudgingData", () => {
-  it("returns submissions and chaos card during judging", () => {
+  it("returns submissions and chaos card during judging", async () => {
     const round = startRound(LOBBY)!;
     submitAll(round.czarId);
 
@@ -759,7 +759,7 @@ describe("getJudgingData", () => {
     expect(data.chaosCard.id).toBe(round.chaosCard.id);
   });
 
-  it("returns null when not in judging phase", () => {
+  it("returns null when not in judging phase", async () => {
     startRound(LOBBY);
     expect(getJudgingData(LOBBY)).toBeNull();
   });
@@ -768,7 +768,7 @@ describe("getJudgingData", () => {
 // ── getPlayerView ─────────────────────────────────────────────────────────────
 
 describe("getPlayerView", () => {
-  it("shows submissions only during judging/revealing", () => {
+  it("shows submissions only during judging/revealing", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
 
@@ -783,7 +783,7 @@ describe("getPlayerView", () => {
     expect(viewJudging.round!.submissions.length).toBeGreaterThan(0);
   });
 
-  it("hasSubmitted tracks player's submission status", () => {
+  it("hasSubmitted tracks player's submission status", async () => {
     const round = startRound(LOBBY)!;
     const player = nonCzar(round.czarId);
 
@@ -793,7 +793,7 @@ describe("getPlayerView", () => {
     expect(getPlayerView(LOBBY, player)!.hasSubmitted).toBe(true);
   });
 
-  it("reports gameType", () => {
+  it("reports gameType", async () => {
     const view = getPlayerView(LOBBY, "p1")!;
     expect(view.gameType).toBe("cah");
   });
@@ -802,26 +802,26 @@ describe("getPlayerView", () => {
 // ── Utility exports ───────────────────────────────────────────────────────────
 
 describe("utility exports", () => {
-  it("endGame sets gameOver", () => {
+  it("endGame sets gameOver", async () => {
     expect(isGameOver(LOBBY)).toBe(false);
     endGame(LOBBY);
     expect(isGameOver(LOBBY)).toBe(true);
   });
 
-  it("getGameType returns game type", () => {
+  it("getGameType returns game type", async () => {
     expect(getGameType(LOBBY)).toBe("cah");
   });
 
-  it("getPhaseDeadline returns deadline during round", () => {
+  it("getPhaseDeadline returns deadline during round", async () => {
     startRound(LOBBY);
     expect(getPhaseDeadline(LOBBY)).toBeGreaterThan(0);
   });
 
-  it("getPhaseDeadline returns null when no round", () => {
+  it("getPhaseDeadline returns null when no round", async () => {
     expect(getPhaseDeadline(LOBBY)).toBeNull();
   });
 
-  it("getCzarId returns null when no round", () => {
+  it("getCzarId returns null when no round", async () => {
     expect(getCzarId(LOBBY)).toBeUndefined();
   });
 });
@@ -829,7 +829,7 @@ describe("utility exports", () => {
 // ── Edge cases ───────────────────────────────────────────────────────────────
 
 describe("edge cases", () => {
-  it("operations on nonexistent game", () => {
+  it("operations on nonexistent game", async () => {
     expect(getPlayerView("nope", "p1")).toBeNull();
     expect(getScores("nope")).toBeNull();
     expect(isGameOver("nope")).toBe(true); // no game = game over
@@ -842,7 +842,7 @@ describe("edge cases", () => {
     expect(resetPlayerHand("nope", "p1")).toEqual([]);
   });
 
-  it("cleanup removes game", () => {
+  it("cleanup removes game", async () => {
     expect(isGameOver(LOBBY)).toBe(false);
     cleanupGame(LOBBY);
     expect(isGameOver(LOBBY)).toBe(true);

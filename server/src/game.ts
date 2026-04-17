@@ -10,6 +10,7 @@ import type {
   GameType,
 } from "./types.js";
 import { CHAOS_CARDS, KNOWLEDGE_CARDS, shuffled } from "./deck.js";
+import { redis } from "./redis.js";
 
 const HAND_SIZE = 7;
 const DEFAULT_MAX_ROUNDS = 10;
@@ -20,8 +21,8 @@ interface InternalGameState {
   czarIndex: number;
   chaosDeck: ChaosCard[];
   knowledgeDeck: KnowledgeCard[];
-  knowledgeDiscard: KnowledgeCard[]; // played cards waiting to be reshuffled
-  chaosDiscard: ChaosCard[];         // used chaos cards for reshuffling
+  knowledgeDiscard: KnowledgeCard[];
+  chaosDiscard: ChaosCard[];
   hands: Map<string, KnowledgeCard[]>;
   currentRound: InternalRound | null;
   scores: Map<string, number>;
@@ -33,9 +34,9 @@ interface InternalGameState {
   gameType: GameType;
 }
 
-const SUBMIT_TIME_MS = 60_000;      // 60s for submissions
-const JUDGE_TIME_MS = 30_000;       // 30s for czar to pick
-const CZAR_SETUP_TIME_MS = 30_000;  // 30s for czar to play setup card (Joking Hazard)
+const SUBMIT_TIME_MS = 60_000;
+const JUDGE_TIME_MS = 30_000;
+const CZAR_SETUP_TIME_MS = 30_000;
 
 interface InternalRound {
   chaosCard: ChaosCard;
@@ -43,14 +44,148 @@ interface InternalRound {
   phase: "czar_setup" | "submitting" | "judging" | "revealing";
   submissions: Map<string, KnowledgeCard[]>;
   winnerId: string | null;
-  phaseDeadline: number; // Date.now() + time limit
-  czarSetupCard: KnowledgeCard | null; // Joking Hazard: card played by czar as panel 2
-  spectatorVotes: Map<string, string>; // spectatorId -> votedForPlayerId
+  phaseDeadline: number;
+  czarSetupCard: KnowledgeCard | null;
+  spectatorVotes: Map<string, string>;
 }
 
-const games = new Map<string, InternalGameState>();
+// ── Storage ──────────────────────────────────────────────────────────────────
+// One JSON blob per lobby (cah:{code}) in Redis when REDIS_URL is set.
+// Falls back to in-memory Map. Maps get serialised to arrays of entries.
 
-// Reshuffle discard pile back into draw pile when it runs out
+const KEY = (code: string) => `cah:${code}`;
+const local = new Map<string, InternalGameState>();
+
+interface SerialisedGame {
+  lobbyCode: string;
+  playerIds: string[];
+  czarIndex: number;
+  chaosDeck: ChaosCard[];
+  knowledgeDeck: KnowledgeCard[];
+  knowledgeDiscard: KnowledgeCard[];
+  chaosDiscard: ChaosCard[];
+  hands: [string, KnowledgeCard[]][];
+  scores: [string, number][];
+  roundNumber: number;
+  maxRounds: number;
+  winMode: "rounds" | "points";
+  targetPoints: number;
+  gameOver: boolean;
+  gameType: GameType;
+  currentRound: {
+    chaosCard: ChaosCard;
+    czarId: string;
+    phase: InternalRound["phase"];
+    submissions: [string, KnowledgeCard[]][];
+    winnerId: string | null;
+    phaseDeadline: number;
+    czarSetupCard: KnowledgeCard | null;
+    spectatorVotes: [string, string][];
+  } | null;
+}
+
+function serialise(g: InternalGameState): SerialisedGame {
+  return {
+    lobbyCode: g.lobbyCode,
+    playerIds: g.playerIds,
+    czarIndex: g.czarIndex,
+    chaosDeck: g.chaosDeck,
+    knowledgeDeck: g.knowledgeDeck,
+    knowledgeDiscard: g.knowledgeDiscard,
+    chaosDiscard: g.chaosDiscard,
+    hands: Array.from(g.hands.entries()),
+    scores: Array.from(g.scores.entries()),
+    roundNumber: g.roundNumber,
+    maxRounds: g.maxRounds,
+    winMode: g.winMode,
+    targetPoints: g.targetPoints,
+    gameOver: g.gameOver,
+    gameType: g.gameType,
+    currentRound: g.currentRound ? {
+      chaosCard: g.currentRound.chaosCard,
+      czarId: g.currentRound.czarId,
+      phase: g.currentRound.phase,
+      submissions: Array.from(g.currentRound.submissions.entries()),
+      winnerId: g.currentRound.winnerId,
+      phaseDeadline: g.currentRound.phaseDeadline,
+      czarSetupCard: g.currentRound.czarSetupCard,
+      spectatorVotes: Array.from(g.currentRound.spectatorVotes.entries()),
+    } : null,
+  };
+}
+
+function deserialise(s: SerialisedGame): InternalGameState {
+  return {
+    lobbyCode: s.lobbyCode,
+    playerIds: s.playerIds,
+    czarIndex: s.czarIndex,
+    chaosDeck: s.chaosDeck,
+    knowledgeDeck: s.knowledgeDeck,
+    knowledgeDiscard: s.knowledgeDiscard,
+    chaosDiscard: s.chaosDiscard,
+    hands: new Map(s.hands),
+    scores: new Map(s.scores),
+    roundNumber: s.roundNumber,
+    maxRounds: s.maxRounds,
+    winMode: s.winMode,
+    targetPoints: s.targetPoints,
+    gameOver: s.gameOver,
+    gameType: s.gameType,
+    currentRound: s.currentRound ? {
+      chaosCard: s.currentRound.chaosCard,
+      czarId: s.currentRound.czarId,
+      phase: s.currentRound.phase,
+      submissions: new Map(s.currentRound.submissions),
+      winnerId: s.currentRound.winnerId,
+      phaseDeadline: s.currentRound.phaseDeadline,
+      czarSetupCard: s.currentRound.czarSetupCard,
+      spectatorVotes: new Map(s.currentRound.spectatorVotes || []),
+    } : null,
+  };
+}
+
+async function loadGame(code: string): Promise<InternalGameState | undefined> {
+  if (redis) {
+    const json = await redis.get(KEY(code));
+    return json ? deserialise(JSON.parse(json)) : undefined;
+  }
+  return local.get(code);
+}
+
+async function saveGame(g: InternalGameState): Promise<void> {
+  if (redis) {
+    await redis.set(KEY(g.lobbyCode), JSON.stringify(serialise(g)));
+    return;
+  }
+  local.set(g.lobbyCode, g);
+}
+
+async function deleteGame(code: string): Promise<void> {
+  if (redis) {
+    await redis.del(KEY(code));
+    return;
+  }
+  local.delete(code);
+}
+
+async function getAllGames(): Promise<InternalGameState[]> {
+  if (redis) {
+    const keys: string[] = [];
+    let cursor = "0";
+    do {
+      const [next, batch] = await redis.scan(cursor, "MATCH", "cah:*", "COUNT", 200);
+      cursor = next;
+      keys.push(...batch);
+    } while (cursor !== "0");
+    if (keys.length === 0) return [];
+    const raws = await redis.mget(...keys);
+    return raws.filter((r): r is string => !!r).map(r => deserialise(JSON.parse(r)));
+  }
+  return Array.from(local.values());
+}
+
+// ── Deck shuffling helpers ──
+
 function reshuffleKnowledge(game: InternalGameState): void {
   if (game.knowledgeDiscard.length === 0) return;
   game.knowledgeDeck.push(...shuffled(game.knowledgeDiscard));
@@ -63,39 +198,37 @@ function reshuffleChaos(game: InternalGameState): void {
   game.chaosDiscard = [];
 }
 
-// Draw a knowledge card, reshuffling if needed
 function drawKnowledge(game: InternalGameState): KnowledgeCard | null {
   if (game.knowledgeDeck.length === 0) reshuffleKnowledge(game);
   if (game.knowledgeDeck.length === 0) return null;
   return game.knowledgeDeck.pop()!;
 }
 
-// Draw a chaos card, reshuffling if needed
 function drawChaos(game: InternalGameState): ChaosCard | null {
   if (game.chaosDeck.length === 0) reshuffleChaos(game);
   if (game.chaosDeck.length === 0) return null;
   return game.chaosDeck.pop()!;
 }
 
-export function createGame(
+// ── Public API ───────────────────────────────────────────────────────────────
+
+export async function createGame(
   lobbyCode: string,
   playerIds: string[],
   customChaos?: ChaosCard[],
   customKnowledge?: KnowledgeCard[],
   winCondition?: { mode: "rounds" | "points"; value: number },
   gameType?: GameType
-): void {
+): Promise<void> {
   let chaosDeck: ChaosCard[];
   let knowledgeDeck: KnowledgeCard[];
 
   if (gameType === "superfight") {
-    // Merge character cards (chaos) into the knowledge deck so players get a mixed hand
     const characterCards: KnowledgeCard[] = (customChaos || CHAOS_CARDS).map((c) => ({
       id: c.id,
       text: c.text,
     }));
     knowledgeDeck = shuffled([...characterCards, ...(customKnowledge || KNOWLEDGE_CARDS)]);
-    // Superfight uses a synthetic prompt each round — no chaos deck needed
     chaosDeck = [{ id: "sf-prompt", text: "Who would win in a fight?", pick: 2 }];
   } else {
     chaosDeck = shuffled(customChaos || CHAOS_CARDS);
@@ -104,7 +237,6 @@ export function createGame(
 
   const wc = winCondition || { mode: "rounds" as const, value: DEFAULT_MAX_ROUNDS };
 
-  // Deal hands
   const hands = new Map<string, KnowledgeCard[]>();
   const scores = new Map<string, number>();
   for (const pid of playerIds) {
@@ -131,33 +263,28 @@ export function createGame(
     gameType: gameType || "cah",
   };
 
-  games.set(lobbyCode, game);
+  await saveGame(game);
 }
 
-export function startRound(lobbyCode: string): RoundState | null {
-  const game = games.get(lobbyCode);
+export async function startRound(lobbyCode: string): Promise<RoundState | null> {
+  const game = await loadGame(lobbyCode);
   if (!game || game.gameOver) return null;
 
   game.roundNumber++;
   if (game.roundNumber > game.maxRounds) {
     game.gameOver = true;
+    await saveGame(game);
     return null;
   }
 
-  // Discard the previous round's chaos card and submissions
   if (game.currentRound) {
-    // Superfight reuses the same synthetic prompt — don't discard it
     if (game.gameType !== "superfight") {
       game.chaosDiscard.push(game.currentRound.chaosCard);
     }
-    // Submissions are already discarded at submit time (for mid-round reshuffling),
-    // so we don't re-discard them here.
-    // czarSetupCard is already discarded at setup time (for mid-round reshuffling)
   }
 
   const czarId = game.playerIds[game.czarIndex % game.playerIds.length];
 
-  // Superfight: reuse the synthetic prompt every round
   let chaosCard: ChaosCard | null;
   if (game.gameType === "superfight") {
     chaosCard = { id: "sf-prompt", text: "Who would win in a fight?", pick: 2 };
@@ -165,6 +292,7 @@ export function startRound(lobbyCode: string): RoundState | null {
     chaosCard = drawChaos(game);
     if (!chaosCard) {
       game.gameOver = true;
+      await saveGame(game);
       return null;
     }
   }
@@ -172,9 +300,6 @@ export function startRound(lobbyCode: string): RoundState | null {
   const isJH = game.gameType === "joking_hazard";
   const isBonus = isJH && !!chaosCard.bonus;
 
-  // Bonus round: red card = Panel 3 (fixed), skip czar setup, players submit 2 cards
-  // Regular JH: czar plays Panel 2, players submit 1 card
-  // CAH: straight to submitting
   let initialPhase: "czar_setup" | "submitting";
   if (isJH && !isBonus) {
     initialPhase = "czar_setup";
@@ -183,7 +308,6 @@ export function startRound(lobbyCode: string): RoundState | null {
   }
   const phaseDeadline = Date.now() + (initialPhase === "czar_setup" ? CZAR_SETUP_TIME_MS : SUBMIT_TIME_MS);
 
-  // For bonus rounds, override pick to 2 (players submit 2 cards for Panels 1+2)
   if (isBonus) {
     chaosCard.pick = 2;
   }
@@ -199,6 +323,8 @@ export function startRound(lobbyCode: string): RoundState | null {
     spectatorVotes: new Map(),
   };
 
+  await saveGame(game);
+
   return {
     roundNumber: game.roundNumber,
     czarId,
@@ -211,8 +337,8 @@ export function startRound(lobbyCode: string): RoundState | null {
   };
 }
 
-export function getPlayerView(lobbyCode: string, playerId: string): PlayerGameView | null {
-  const game = games.get(lobbyCode);
+export async function getPlayerView(lobbyCode: string, playerId: string): Promise<PlayerGameView | null> {
+  const game = await loadGame(lobbyCode);
   if (!game) return null;
 
   const hand = game.hands.get(playerId) || [];
@@ -251,14 +377,13 @@ export function getPlayerView(lobbyCode: string, playerId: string): PlayerGameVi
   };
 }
 
-export function czarSetup(
-  lobbyCode: string,
+// ── Czar Setup ───────────────────────────────────────────────────────────────
+
+function czarSetupOn(
+  game: InternalGameState,
   czarId: string,
   cardId: string
 ): { success: boolean; error?: string; czarSetupCard?: KnowledgeCard } {
-  const game = games.get(lobbyCode);
-  if (!game) return { success: false, error: "Game not found" };
-
   const round = game.currentRound;
   if (!round || round.phase !== "czar_setup") {
     return { success: false, error: "Not in czar setup phase" };
@@ -285,8 +410,20 @@ export function czarSetup(
   return { success: true, czarSetupCard: playedCard };
 }
 
-export function botCzarSetup(lobbyCode: string, botCzarId: string): { success: boolean; czarSetupCard?: KnowledgeCard } {
-  const game = games.get(lobbyCode);
+export async function czarSetup(
+  lobbyCode: string,
+  czarId: string,
+  cardId: string
+): Promise<{ success: boolean; error?: string; czarSetupCard?: KnowledgeCard }> {
+  const game = await loadGame(lobbyCode);
+  if (!game) return { success: false, error: "Game not found" };
+  const result = czarSetupOn(game, czarId, cardId);
+  if (result.success) await saveGame(game);
+  return result;
+}
+
+export async function botCzarSetup(lobbyCode: string, botCzarId: string): Promise<{ success: boolean; czarSetupCard?: KnowledgeCard }> {
+  const game = await loadGame(lobbyCode);
   if (!game?.currentRound || game.currentRound.phase !== "czar_setup") return { success: false };
   if (game.currentRound.czarId !== botCzarId) return { success: false };
 
@@ -294,11 +431,13 @@ export function botCzarSetup(lobbyCode: string, botCzarId: string): { success: b
   if (!hand || hand.length === 0) return { success: false };
 
   const randomIdx = Math.floor(Math.random() * hand.length);
-  return czarSetup(lobbyCode, botCzarId, hand[randomIdx].id);
+  const result = czarSetupOn(game, botCzarId, hand[randomIdx].id);
+  if (result.success) await saveGame(game);
+  return result;
 }
 
-export function forceCzarSetup(lobbyCode: string): KnowledgeCard | null {
-  const game = games.get(lobbyCode);
+export async function forceCzarSetup(lobbyCode: string): Promise<KnowledgeCard | null> {
+  const game = await loadGame(lobbyCode);
   if (!game?.currentRound || game.currentRound.phase !== "czar_setup") return null;
 
   const czarId = game.currentRound.czarId;
@@ -306,26 +445,26 @@ export function forceCzarSetup(lobbyCode: string): KnowledgeCard | null {
   if (!hand || hand.length === 0) return null;
 
   const randomIdx = Math.floor(Math.random() * hand.length);
-  const result = czarSetup(lobbyCode, czarId, hand[randomIdx].id);
+  const result = czarSetupOn(game, czarId, hand[randomIdx].id);
+  if (result.success) await saveGame(game);
   return result.czarSetupCard || null;
 }
 
-export function getGameType(lobbyCode: string): GameType | undefined {
-  return games.get(lobbyCode)?.gameType;
+export async function getGameType(lobbyCode: string): Promise<GameType | undefined> {
+  return (await loadGame(lobbyCode))?.gameType;
 }
 
-export function getCurrentPhase(lobbyCode: string): string | undefined {
-  return games.get(lobbyCode)?.currentRound?.phase;
+export async function getCurrentPhase(lobbyCode: string): Promise<string | undefined> {
+  return (await loadGame(lobbyCode))?.currentRound?.phase;
 }
 
-export function submitCards(
-  lobbyCode: string,
+// ── Submit ───────────────────────────────────────────────────────────────────
+
+function submitCardsOn(
+  game: InternalGameState,
   playerId: string,
   cardIds: string[]
 ): { success: boolean; allSubmitted: boolean; error?: string } {
-  const game = games.get(lobbyCode);
-  if (!game) return { success: false, allSubmitted: false, error: "Game not found" };
-
   const round = game.currentRound;
   if (!round || round.phase !== "submitting") {
     return { success: false, allSubmitted: false, error: "Not in submission phase" };
@@ -342,13 +481,11 @@ export function submitCards(
   const hand = game.hands.get(playerId);
   if (!hand) return { success: false, allSubmitted: false, error: "Player not in game" };
 
-  // Allow submitting fewer cards if hand is depleted (deck exhausted)
   const requiredCards = Math.min(round.chaosCard.pick, hand.length);
   if (cardIds.length !== requiredCards) {
     return { success: false, allSubmitted: false, error: `Must submit exactly ${requiredCards} card(s)` };
   }
 
-  // Remove cards from hand
   const playedCards: KnowledgeCard[] = [];
   for (const cid of cardIds) {
     const idx = hand.findIndex((c) => c.id === cid);
@@ -358,19 +495,14 @@ export function submitCards(
     playedCards.push(hand.splice(idx, 1)[0]);
   }
 
-  // Draw replacements
   for (let i = 0; i < playedCards.length; i++) {
     const drawn = drawKnowledge(game);
     if (drawn) hand.push(drawn);
   }
 
   round.submissions.set(playerId, playedCards);
-
-  // Immediately discard played cards so they're available for reshuffling
-  // (the submissions Map still holds references for judging display)
   game.knowledgeDiscard.push(...playedCards);
 
-  // Check if all non-czar players have submitted
   const expectedCount = game.playerIds.filter((id) => id !== round.czarId).length;
   const allSubmitted = round.submissions.size >= expectedCount;
 
@@ -382,15 +514,26 @@ export function submitCards(
   return { success: true, allSubmitted };
 }
 
-export function getJudgingData(lobbyCode: string): {
+export async function submitCards(
+  lobbyCode: string,
+  playerId: string,
+  cardIds: string[]
+): Promise<{ success: boolean; allSubmitted: boolean; error?: string }> {
+  const game = await loadGame(lobbyCode);
+  if (!game) return { success: false, allSubmitted: false, error: "Game not found" };
+  const result = submitCardsOn(game, playerId, cardIds);
+  if (result.success) await saveGame(game);
+  return result;
+}
+
+export async function getJudgingData(lobbyCode: string): Promise<{
   submissions: Submission[];
   chaosCard: ChaosCard;
-} | null {
-  const game = games.get(lobbyCode);
+} | null> {
+  const game = await loadGame(lobbyCode);
   if (!game?.currentRound || game.currentRound.phase !== "judging") return null;
 
   const round = game.currentRound;
-  // Shuffle submissions so czar can't guess by order
   const submissions = shuffled(
     Array.from(round.submissions.entries()).map(([playerId, cards]) => ({
       playerId,
@@ -413,19 +556,16 @@ export function resolveMetaTargets(
     case "all": return playerIds;
     case "all_others": return playerIds.filter((id) => id !== winnerId);
     case "loser": {
-      // Find the player with the lowest score who isn't the winner or czar
-      // Falls back to all non-winners if no clear loser
       return playerIds.filter((id) => id !== winnerId && id !== czarId);
     }
     default: return [];
   }
 }
 
-export function resetPlayerHand(lobbyCode: string, playerId: string): KnowledgeCard[] {
-  const game = games.get(lobbyCode);
+export async function resetPlayerHand(lobbyCode: string, playerId: string): Promise<KnowledgeCard[]> {
+  const game = await loadGame(lobbyCode);
   if (!game) return [];
 
-  // Discard old hand before drawing a new one
   const oldHand = game.hands.get(playerId);
   if (oldHand) game.knowledgeDiscard.push(...oldHand);
 
@@ -435,11 +575,14 @@ export function resetPlayerHand(lobbyCode: string, playerId: string): KnowledgeC
     if (drawn) newHand.push(drawn);
   }
   game.hands.set(playerId, newHand);
+  await saveGame(game);
   return newHand;
 }
 
-export function pickWinner(
-  lobbyCode: string,
+// ── Pick Winner ──────────────────────────────────────────────────────────────
+
+function pickWinnerOn(
+  game: InternalGameState,
   czarId: string,
   winnerId: string
 ): {
@@ -452,9 +595,6 @@ export function pickWinner(
     playerIds: string[];
   };
 } {
-  const game = games.get(lobbyCode);
-  if (!game) return { success: false, error: "Game not found" };
-
   const round = game.currentRound;
   if (!round || round.phase !== "judging") {
     return { success: false, error: "Not in judging phase" };
@@ -474,12 +614,10 @@ export function pickWinner(
   const newScore = (game.scores.get(winnerId) || 0) + pointsAwarded;
   game.scores.set(winnerId, newScore);
 
-  // Check point-based win
   if (game.winMode === "points" && newScore >= game.targetPoints) {
     game.gameOver = true;
   }
 
-  // Handle meta card effects
   const metaEffect = round.chaosCard.metaEffect;
   if (metaEffect) {
     const targets = resolveMetaTargets(metaEffect.target, winnerId, czarId, game.playerIds);
@@ -494,7 +632,6 @@ export function pickWinner(
         game.scores.set(pid, Math.max(0, current - metaEffect.value!));
       }
     }
-    // hand_reset and ui effects are handled in the socket layer
 
     return {
       success: true,
@@ -510,67 +647,90 @@ export function pickWinner(
   return { success: true };
 }
 
-export function getWinnerCards(lobbyCode: string): KnowledgeCard[] | null {
-  const game = games.get(lobbyCode);
+export async function pickWinner(
+  lobbyCode: string,
+  czarId: string,
+  winnerId: string
+): Promise<{
+  success: boolean;
+  error?: string;
+  metaEffect?: {
+    effect: MetaEffect;
+    winnerId: string;
+    czarId: string;
+    playerIds: string[];
+  };
+}> {
+  const game = await loadGame(lobbyCode);
+  if (!game) return { success: false, error: "Game not found" };
+  const result = pickWinnerOn(game, czarId, winnerId);
+  if (result.success) await saveGame(game);
+  return result;
+}
+
+export async function getWinnerCards(lobbyCode: string): Promise<KnowledgeCard[] | null> {
+  const game = await loadGame(lobbyCode);
   if (!game?.currentRound) return null;
   const winnerId = game.currentRound.winnerId;
   if (!winnerId) return null;
   return game.currentRound.submissions.get(winnerId) || null;
 }
 
-export function advanceRound(lobbyCode: string): void {
-  const game = games.get(lobbyCode);
+export async function advanceRound(lobbyCode: string): Promise<void> {
+  const game = await loadGame(lobbyCode);
   if (!game) return;
   game.czarIndex++;
   game.currentRound = null;
+  await saveGame(game);
 }
 
-export function getScores(lobbyCode: string): Record<string, number> | null {
-  const game = games.get(lobbyCode);
+export async function getScores(lobbyCode: string): Promise<Record<string, number> | null> {
+  const game = await loadGame(lobbyCode);
   if (!game) return null;
   return Object.fromEntries(game.scores);
 }
 
-export function isGameOver(lobbyCode: string): boolean {
-  const game = games.get(lobbyCode);
+export async function isGameOver(lobbyCode: string): Promise<boolean> {
+  const game = await loadGame(lobbyCode);
   if (!game) return true;
   return game.gameOver || game.roundNumber >= game.maxRounds;
 }
 
-export function getWinInfo(lobbyCode: string): { mode: "rounds" | "points"; value: number } | null {
-  const game = games.get(lobbyCode);
+export async function getWinInfo(lobbyCode: string): Promise<{ mode: "rounds" | "points"; value: number } | null> {
+  const game = await loadGame(lobbyCode);
   if (!game) return null;
   return { mode: game.winMode, value: game.winMode === "points" ? game.targetPoints : game.maxRounds };
 }
 
-export function endGame(lobbyCode: string): void {
-  const game = games.get(lobbyCode);
-  if (game) game.gameOver = true;
+export async function endGame(lobbyCode: string): Promise<void> {
+  const game = await loadGame(lobbyCode);
+  if (game) {
+    game.gameOver = true;
+    await saveGame(game);
+  }
 }
 
-export function cleanupGame(lobbyCode: string): void {
-  games.delete(lobbyCode);
+export async function cleanupGame(lobbyCode: string): Promise<void> {
+  await deleteGame(lobbyCode);
 }
 
-export function getPlayerIds(lobbyCode: string): string[] {
-  return games.get(lobbyCode)?.playerIds || [];
+export async function getPlayerIds(lobbyCode: string): Promise<string[]> {
+  return (await loadGame(lobbyCode))?.playerIds || [];
 }
 
-export function getCzarId(lobbyCode: string): string | undefined {
-  return games.get(lobbyCode)?.currentRound?.czarId;
+export async function getCzarId(lobbyCode: string): Promise<string | undefined> {
+  return (await loadGame(lobbyCode))?.currentRound?.czarId;
 }
 
-export function addPlayerToGame(lobbyCode: string, playerId: string): boolean {
-  const game = games.get(lobbyCode);
+export async function addPlayerToGame(lobbyCode: string, playerId: string): Promise<boolean> {
+  const game = await loadGame(lobbyCode);
   if (!game || game.gameOver) return false;
 
-  // Already in the game
   if (game.playerIds.includes(playerId)) return true;
 
   game.playerIds.push(playerId);
   game.scores.set(playerId, 0);
 
-  // Deal a hand from the remaining deck
   const hand: KnowledgeCard[] = [];
   for (let i = 0; i < HAND_SIZE; i++) {
     const drawn = drawKnowledge(game);
@@ -578,14 +738,14 @@ export function addPlayerToGame(lobbyCode: string, playerId: string): boolean {
   }
   game.hands.set(playerId, hand);
 
+  await saveGame(game);
   return true;
 }
 
-export function removePlayerFromGame(lobbyCode: string, playerId: string): void {
-  const game = games.get(lobbyCode);
+export async function removePlayerFromGame(lobbyCode: string, playerId: string): Promise<void> {
+  const game = await loadGame(lobbyCode);
   if (!game) return;
 
-  // Return the player's hand to the discard pile
   const hand = game.hands.get(playerId);
   if (hand) game.knowledgeDiscard.push(...hand);
 
@@ -593,15 +753,15 @@ export function removePlayerFromGame(lobbyCode: string, playerId: string): void 
   game.hands.delete(playerId);
   game.scores.delete(playerId);
 
-  // If they had a submission this round, remove it
-  // (cards already discarded at submit time)
   if (game.currentRound) {
     game.currentRound.submissions.delete(playerId);
   }
+
+  await saveGame(game);
 }
 
-export function botSubmitCards(lobbyCode: string, botId: string): { success: boolean; allSubmitted: boolean } {
-  const game = games.get(lobbyCode);
+export async function botSubmitCards(lobbyCode: string, botId: string): Promise<{ success: boolean; allSubmitted: boolean }> {
+  const game = await loadGame(lobbyCode);
   if (!game) return { success: false, allSubmitted: false };
 
   const round = game.currentRound;
@@ -612,23 +772,22 @@ export function botSubmitCards(lobbyCode: string, botId: string): { success: boo
   const hand = game.hands.get(botId);
   if (!hand || hand.length === 0) return { success: false, allSubmitted: false };
 
-  // Pick random cards from hand
   const pickCount = Math.min(round.chaosCard.pick, hand.length);
   const indices = shuffled(hand.map((_, i) => i)).slice(0, pickCount);
-  indices.sort((a, b) => b - a); // reverse sort so splicing doesn't shift indices
+  indices.sort((a, b) => b - a);
 
   const playedCards: KnowledgeCard[] = [];
   for (const idx of indices) {
     playedCards.push(hand.splice(idx, 1)[0]);
   }
 
-  // Draw replacements
   for (let i = 0; i < playedCards.length; i++) {
     const drawn = drawKnowledge(game);
     if (drawn) hand.push(drawn);
   }
 
   round.submissions.set(botId, playedCards);
+  game.knowledgeDiscard.push(...playedCards);
 
   const expectedCount = game.playerIds.filter(id => id !== round.czarId).length;
   const allSubmitted = round.submissions.size >= expectedCount;
@@ -637,11 +796,12 @@ export function botSubmitCards(lobbyCode: string, botId: string): { success: boo
     round.phaseDeadline = Date.now() + JUDGE_TIME_MS;
   }
 
+  await saveGame(game);
   return { success: true, allSubmitted };
 }
 
-export function forceSubmitForMissing(lobbyCode: string): string[] {
-  const game = games.get(lobbyCode);
+export async function forceSubmitForMissing(lobbyCode: string): Promise<string[]> {
+  const game = await loadGame(lobbyCode);
   if (!game?.currentRound || game.currentRound.phase !== "submitting") return [];
 
   const round = game.currentRound;
@@ -670,38 +830,39 @@ export function forceSubmitForMissing(lobbyCode: string): string[] {
 
   round.phase = "judging";
   round.phaseDeadline = Date.now() + JUDGE_TIME_MS;
+  await saveGame(game);
   return missing;
 }
 
-export function getPhaseDeadline(lobbyCode: string): number | null {
-  const game = games.get(lobbyCode);
+export async function getPhaseDeadline(lobbyCode: string): Promise<number | null> {
+  const game = await loadGame(lobbyCode);
   return game?.currentRound?.phaseDeadline ?? null;
 }
 
-export function botPickWinner(lobbyCode: string, botCzarId: string): { winnerId: string | null; metaEffect?: any } {
-  const game = games.get(lobbyCode);
+export async function botPickWinner(lobbyCode: string, botCzarId: string): Promise<{ winnerId: string | null; metaEffect?: any }> {
+  const game = await loadGame(lobbyCode);
   if (!game?.currentRound || game.currentRound.phase !== "judging") return { winnerId: null };
   if (game.currentRound.czarId !== botCzarId) return { winnerId: null };
 
-  // Pick a random submission
   const submitters = Array.from(game.currentRound.submissions.keys());
   if (submitters.length === 0) return { winnerId: null };
 
   const winnerId = submitters[Math.floor(Math.random() * submitters.length)];
-  const result = pickWinner(lobbyCode, botCzarId, winnerId);
+  const result = pickWinnerOn(game, botCzarId, winnerId);
 
   if (result.success) {
+    await saveGame(game);
     return { winnerId, metaEffect: result.metaEffect };
   }
   return { winnerId: null };
 }
 
-export function spectatorVote(
+export async function spectatorVote(
   lobbyCode: string,
   spectatorId: string,
   votedForId: string
-): { success: boolean; error?: string } {
-  const game = games.get(lobbyCode);
+): Promise<{ success: boolean; error?: string }> {
+  const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
 
   const round = game.currentRound;
@@ -718,23 +879,22 @@ export function spectatorVote(
   }
 
   round.spectatorVotes.set(spectatorId, votedForId);
+  await saveGame(game);
   return { success: true };
 }
 
-export function getAudiencePick(lobbyCode: string): string | null {
-  const game = games.get(lobbyCode);
+export async function getAudiencePick(lobbyCode: string): Promise<string | null> {
+  const game = await loadGame(lobbyCode);
   if (!game?.currentRound) return null;
 
   const votes = game.currentRound.spectatorVotes;
   if (votes.size === 0) return null;
 
-  // Tally votes
   const tally = new Map<string, number>();
   for (const votedFor of votes.values()) {
     tally.set(votedFor, (tally.get(votedFor) || 0) + 1);
   }
 
-  // Find the submission with the most votes
   let maxVotes = 0;
   let audiencePick: string | null = null;
   for (const [playerId, count] of tally) {
@@ -749,114 +909,68 @@ export function getAudiencePick(lobbyCode: string): string | null {
 
 // ── Snapshot / Restore ───────────────────────────────────────────────────────
 
-export function exportGames(): any[] {
-  return Array.from(games.values()).map(g => ({
-    lobbyCode: g.lobbyCode,
-    playerIds: g.playerIds,
-    czarIndex: g.czarIndex,
-    chaosDeck: g.chaosDeck,
-    knowledgeDeck: g.knowledgeDeck,
-    knowledgeDiscard: g.knowledgeDiscard,
-    chaosDiscard: g.chaosDiscard,
-    hands: Array.from(g.hands.entries()),
-    scores: Array.from(g.scores.entries()),
-    roundNumber: g.roundNumber,
-    maxRounds: g.maxRounds,
-    winMode: g.winMode,
-    targetPoints: g.targetPoints,
-    gameOver: g.gameOver,
-    gameType: g.gameType,
-    currentRound: g.currentRound ? {
-      chaosCard: g.currentRound.chaosCard,
-      czarId: g.currentRound.czarId,
-      phase: g.currentRound.phase,
-      submissions: Array.from(g.currentRound.submissions.entries()),
-      winnerId: g.currentRound.winnerId,
-      phaseDeadline: g.currentRound.phaseDeadline,
-      czarSetupCard: g.currentRound.czarSetupCard,
-      spectatorVotes: Array.from(g.currentRound.spectatorVotes.entries()),
-    } : null,
-  }));
+export async function exportGames(): Promise<any[]> {
+  const games = await getAllGames();
+  return games.map(g => serialise(g));
 }
 
-export function restoreGames(snapshots: any[]): void {
+export async function restoreGames(snapshots: any[]): Promise<void> {
   for (const s of snapshots) {
-    const game: InternalGameState = {
-      lobbyCode: s.lobbyCode,
-      playerIds: s.playerIds,
-      czarIndex: s.czarIndex,
-      chaosDeck: s.chaosDeck,
-      knowledgeDeck: s.knowledgeDeck,
-      knowledgeDiscard: s.knowledgeDiscard,
-      chaosDiscard: s.chaosDiscard,
-      hands: new Map(s.hands),
-      scores: new Map(s.scores),
-      roundNumber: s.roundNumber,
-      maxRounds: s.maxRounds,
-      winMode: s.winMode,
-      targetPoints: s.targetPoints,
-      gameOver: s.gameOver,
-      gameType: s.gameType,
-      currentRound: s.currentRound ? {
-        chaosCard: s.currentRound.chaosCard,
-        czarId: s.currentRound.czarId,
-        phase: s.currentRound.phase,
-        submissions: new Map(s.currentRound.submissions),
-        winnerId: s.currentRound.winnerId,
-        // Phase timers don't survive; give the new round a fresh deadline
-        // from now so timers restart cleanly on the new instance.
-        phaseDeadline: Date.now() + (s.currentRound.phase === "judging" ? JUDGE_TIME_MS : s.currentRound.phase === "czar_setup" ? CZAR_SETUP_TIME_MS : SUBMIT_TIME_MS),
-        czarSetupCard: s.currentRound.czarSetupCard,
-        spectatorVotes: new Map(s.currentRound.spectatorVotes || []),
-      } : null,
-    };
-    games.set(game.lobbyCode, game);
+    const game = deserialise(s as SerialisedGame);
+    // Phase timers don't survive; give the new round a fresh deadline
+    // from now so timers restart cleanly on the new instance.
+    if (game.currentRound) {
+      game.currentRound.phaseDeadline = Date.now() + (
+        game.currentRound.phase === "judging" ? JUDGE_TIME_MS
+        : game.currentRound.phase === "czar_setup" ? CZAR_SETUP_TIME_MS
+        : SUBMIT_TIME_MS
+      );
+    }
+    await saveGame(game);
   }
 }
 
-export function remapGamePlayer(
+export async function remapGamePlayer(
   lobbyCode: string,
   oldPlayerId: string,
   newPlayerId: string
-): void {
-  const game = games.get(lobbyCode);
+): Promise<void> {
+  const game = await loadGame(lobbyCode);
   if (!game) return;
 
-  // Update playerIds array
   const idx = game.playerIds.indexOf(oldPlayerId);
   if (idx !== -1) {
     game.playerIds[idx] = newPlayerId;
   }
 
-  // Update hands
   const hand = game.hands.get(oldPlayerId);
   if (hand) {
     game.hands.delete(oldPlayerId);
     game.hands.set(newPlayerId, hand);
   }
 
-  // Update scores
   if (game.scores.has(oldPlayerId)) {
     const score = game.scores.get(oldPlayerId)!;
     game.scores.delete(oldPlayerId);
     game.scores.set(newPlayerId, score);
   }
 
-  // Update current round references
   const round = game.currentRound;
-  if (!round) return;
+  if (round) {
+    if (round.czarId === oldPlayerId) {
+      round.czarId = newPlayerId;
+    }
 
-  if (round.czarId === oldPlayerId) {
-    round.czarId = newPlayerId;
+    if (round.submissions.has(oldPlayerId)) {
+      const cards = round.submissions.get(oldPlayerId)!;
+      round.submissions.delete(oldPlayerId);
+      round.submissions.set(newPlayerId, cards);
+    }
+
+    if (round.winnerId === oldPlayerId) {
+      round.winnerId = newPlayerId;
+    }
   }
 
-  if (round.submissions.has(oldPlayerId)) {
-    const cards = round.submissions.get(oldPlayerId)!;
-    round.submissions.delete(oldPlayerId);
-    round.submissions.set(newPlayerId, cards);
-  }
-
-  if (round.winnerId === oldPlayerId) {
-    round.winnerId = newPlayerId;
-  }
+  await saveGame(game);
 }
