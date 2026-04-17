@@ -1,12 +1,14 @@
 import { UnoCard, UnoColor, UnoCardType, UnoTurnState, UnoPlayerView, UnoDeckTemplate } from "./types";
+import { redis } from "./redis.js";
 
 const HAND_SIZE = 7;
 const TURN_TIME_MS = 30_000;
 
-// Resolve the display name for a player. Uno names are pushed onto the
-// engine via setPlayerNames() at game creation so we avoid an async
-// cross-module call to lobby.ts on every playCard/drawCard mutation.
-// Falls back to a generic label for tests or when a name wasn't pushed.
+// Display-name override cache. Populated via setUnoPlayerNames() at game
+// creation so we avoid an async cross-module call to lobby.ts on every
+// card play. This is intentionally per-replica — if a player lands on a
+// different replica the fallback kicks in ("Bot"/"Someone"). Good enough
+// for a display string.
 const playerNameOverrides = new Map<string, Map<string, string>>();
 
 export function setUnoPlayerNames(lobbyCode: string, names: Record<string, string>): void {
@@ -43,12 +45,142 @@ interface InternalUnoGame {
   lastAction?: string;
   deckTemplate: UnoDeckTemplate;
   stackingEnabled: boolean;
-  vulnerablePlayer?: string; // player with 1 card who hasn't called Uno yet
+  vulnerablePlayer?: string;
 }
 
-const games = new Map<string, InternalUnoGame>();
+// ── Storage ──────────────────────────────────────────────────────────────────
+// One JSON blob per lobby in Redis (uno:{code}), in-memory Map fallback
+// otherwise. Maps and Sets are serialised to arrays of entries / arrays for
+// JSON compatibility.
 
-// ── Deck Generation ──
+const KEY = (code: string) => `uno:${code}`;
+const local = new Map<string, InternalUnoGame>();
+
+interface SerialisedUnoGame {
+  lobbyCode: string;
+  playerIds: string[];
+  hands: [string, UnoCard[]][];
+  drawPile: UnoCard[];
+  discardPile: UnoCard[];
+  scores: [string, number][];
+  currentPlayerIndex: number;
+  direction: 1 | -1;
+  activeColor: UnoColor;
+  phase: InternalUnoGame["phase"];
+  roundNumber: number;
+  maxRounds: number;
+  winMode: InternalUnoGame["winMode"];
+  targetPoints: number;
+  gameOver: boolean;
+  pendingDraw: number;
+  unoCalledPlayers: string[];
+  turnDeadline: number;
+  lastAction?: string;
+  deckTemplate: UnoDeckTemplate;
+  stackingEnabled: boolean;
+  vulnerablePlayer?: string;
+}
+
+function serialise(g: InternalUnoGame): SerialisedUnoGame {
+  return {
+    lobbyCode: g.lobbyCode,
+    playerIds: g.playerIds,
+    hands: Array.from(g.hands.entries()),
+    drawPile: g.drawPile,
+    discardPile: g.discardPile,
+    scores: Array.from(g.scores.entries()),
+    currentPlayerIndex: g.currentPlayerIndex,
+    direction: g.direction,
+    activeColor: g.activeColor,
+    phase: g.phase,
+    roundNumber: g.roundNumber,
+    maxRounds: g.maxRounds,
+    winMode: g.winMode,
+    targetPoints: g.targetPoints,
+    gameOver: g.gameOver,
+    pendingDraw: g.pendingDraw,
+    unoCalledPlayers: Array.from(g.unoCalledPlayers),
+    turnDeadline: g.turnDeadline,
+    lastAction: g.lastAction,
+    deckTemplate: g.deckTemplate,
+    stackingEnabled: g.stackingEnabled,
+    vulnerablePlayer: g.vulnerablePlayer,
+  };
+}
+
+function deserialise(s: SerialisedUnoGame): InternalUnoGame {
+  return {
+    lobbyCode: s.lobbyCode,
+    playerIds: s.playerIds,
+    hands: new Map(s.hands),
+    drawPile: s.drawPile,
+    discardPile: s.discardPile,
+    scores: new Map(s.scores),
+    currentPlayerIndex: s.currentPlayerIndex,
+    direction: s.direction,
+    activeColor: s.activeColor,
+    phase: s.phase,
+    roundNumber: s.roundNumber,
+    maxRounds: s.maxRounds,
+    winMode: s.winMode,
+    targetPoints: s.targetPoints,
+    gameOver: s.gameOver,
+    pendingDraw: s.pendingDraw,
+    unoCalledPlayers: new Set(s.unoCalledPlayers || []),
+    turnDeadline: s.turnDeadline,
+    lastAction: s.lastAction,
+    deckTemplate: s.deckTemplate,
+    stackingEnabled: s.stackingEnabled,
+    vulnerablePlayer: s.vulnerablePlayer,
+  };
+}
+
+async function loadGame(code: string): Promise<InternalUnoGame | undefined> {
+  if (redis) {
+    const json = await redis.get(KEY(code));
+    return json ? deserialise(JSON.parse(json)) : undefined;
+  }
+  return local.get(code);
+}
+
+async function saveGame(g: InternalUnoGame): Promise<void> {
+  if (redis) {
+    await redis.set(KEY(g.lobbyCode), JSON.stringify(serialise(g)));
+    return;
+  }
+  local.set(g.lobbyCode, g);
+}
+
+async function deleteGame(code: string): Promise<void> {
+  if (redis) {
+    await redis.del(KEY(code));
+    return;
+  }
+  local.delete(code);
+}
+
+async function gameExists(code: string): Promise<boolean> {
+  if (redis) return (await redis.exists(KEY(code))) === 1;
+  return local.has(code);
+}
+
+async function getAllGames(): Promise<InternalUnoGame[]> {
+  if (redis) {
+    const keys: string[] = [];
+    let cursor = "0";
+    do {
+      const [next, batch] = await redis.scan(cursor, "MATCH", "uno:*", "COUNT", 200);
+      cursor = next;
+      keys.push(...batch);
+    } while (cursor !== "0");
+    if (keys.length === 0) return [];
+    const raws = await redis.mget(...keys);
+    return raws.filter((r): r is string => !!r).map(r => deserialise(JSON.parse(r)));
+  }
+  return Array.from(local.values());
+}
+
+// ── Deck generation ──
 
 function generateUnoDeck(template: UnoDeckTemplate): UnoCard[] {
   const cards: UnoCard[] = [];
@@ -57,15 +189,12 @@ function generateUnoDeck(template: UnoDeckTemplate): UnoCard[] {
 
   for (const color of colors) {
     const label = template.colorNames[color];
-    // One 0 per color
     cards.push({ id: `u${id++}`, color, type: "number", value: 0, text: `${label} 0`, colorLabel: label });
-    // Two each of 1-9
     for (let v = 1; v <= 9; v++) {
       for (let c = 0; c < 2; c++) {
         cards.push({ id: `u${id++}`, color, type: "number", value: v, text: `${label} ${v}`, colorLabel: label });
       }
     }
-    // Two each of Skip, Reverse, Draw Two
     for (const actionType of ["skip", "reverse", "draw_two"] as UnoCardType[]) {
       const name = template.actionNames?.[actionType as keyof NonNullable<UnoDeckTemplate["actionNames"]>]
         || actionType.replace("_", " ");
@@ -74,7 +203,6 @@ function generateUnoDeck(template: UnoDeckTemplate): UnoCard[] {
       }
     }
   }
-  // 4 Wild, 4 Wild Draw Four
   const wildName = template.actionNames?.wild || "Wild";
   const wd4Name = template.actionNames?.wild_draw_four || "Wild Draw Four";
   for (let i = 0; i < 4; i++) {
@@ -95,21 +223,15 @@ function shuffle<T>(arr: T[]): T[] {
 // ── Validation ──
 
 export function isValidPlay(card: UnoCard, discardTop: UnoCard, activeColor: UnoColor, pendingDraw: number, stackingEnabled: boolean = false): boolean {
-  // If there's a pending draw...
   if (pendingDraw > 0) {
     if (!stackingEnabled) return false;
-    // Stacking: allow draw_two on draw_two, wild_draw_four on anything pending
     if (card.type === "draw_two" && discardTop.type === "draw_two") return true;
     if (card.type === "wild_draw_four") return true;
     return false;
   }
-  // Wild cards can always be played
   if (card.type === "wild" || card.type === "wild_draw_four") return true;
-  // Match color
   if (card.color === activeColor) return true;
-  // Match number
   if (card.type === "number" && discardTop.type === "number" && card.value === discardTop.value) return true;
-  // Match action type
   if (card.type !== "number" && card.type === discardTop.type) return true;
   return false;
 }
@@ -124,8 +246,7 @@ function drawFromPile(game: InternalUnoGame, count: number): UnoCard[] {
   const drawn: UnoCard[] = [];
   for (let i = 0; i < count; i++) {
     if (game.drawPile.length === 0) {
-      // Reshuffle discard (keep top card)
-      if (game.discardPile.length <= 1) break; // can't draw anymore
+      if (game.discardPile.length <= 1) break;
       const top = game.discardPile.pop()!;
       game.drawPile = shuffle([...game.discardPile]);
       game.discardPile = [top];
@@ -136,15 +257,15 @@ function drawFromPile(game: InternalUnoGame, count: number): UnoCard[] {
   return drawn;
 }
 
-// ── Create Game ──
+// ── Create Game ──────────────────────────────────────────────────────────────
 
-export function createUnoGame(
+export async function createUnoGame(
   lobbyCode: string,
   playerIds: string[],
   template: UnoDeckTemplate,
   winCondition?: { mode: "rounds" | "points" | "single_round" | "lowest_score"; value: number },
   houseRules?: { unoStacking?: boolean },
-): void {
+): Promise<void> {
   const deck = shuffle(generateUnoDeck(template));
 
   const hands = new Map<string, UnoCard[]>();
@@ -152,26 +273,22 @@ export function createUnoGame(
     hands.set(pid, deck.splice(0, HAND_SIZE));
   }
 
-  // Flip starting discard — if it's a wild draw four, reshuffle it back and try again
   let startCard: UnoCard;
   while (true) {
     startCard = deck.pop()!;
     if (startCard.type !== "wild_draw_four") break;
-    deck.unshift(startCard); // put back and reshuffle
+    deck.unshift(startCard);
     shuffle(deck);
   }
 
-  // Determine starting active color
   let activeColor: UnoColor;
   if (startCard.color) {
     activeColor = startCard.color;
   } else {
-    // Wild as starting card — pick random color
     const colors: UnoColor[] = ["red", "blue", "green", "yellow"];
     activeColor = colors[Math.floor(Math.random() * 4)];
   }
 
-  // Handle starting action cards per official rules
   let currentPlayerIndex = 0;
   let direction: 1 | -1 = 1;
 
@@ -181,7 +298,6 @@ export function createUnoGame(
     direction = -1;
     currentPlayerIndex = (playerIds.length - 1);
   } else if (startCard.type === "draw_two") {
-    // First player draws 2 and loses turn
     const firstHand = hands.get(playerIds[0])!;
     firstHand.push(...deck.splice(0, 2));
     currentPlayerIndex = 1 % playerIds.length;
@@ -216,13 +332,13 @@ export function createUnoGame(
     stackingEnabled: houseRules?.unoStacking || false,
   };
 
-  games.set(lobbyCode, game);
+  await saveGame(game);
 }
 
 // ── Player View ──
 
-export function getUnoPlayerView(lobbyCode: string, playerId: string): UnoPlayerView | null {
-  const game = games.get(lobbyCode);
+export async function getUnoPlayerView(lobbyCode: string, playerId: string): Promise<UnoPlayerView | null> {
+  const game = await loadGame(lobbyCode);
   if (!game) return null;
 
   const hand = game.hands.get(playerId) || [];
@@ -278,14 +394,14 @@ export interface PlayCardResult {
   roundPoints?: number;
 }
 
-export function playCard(
-  lobbyCode: string,
+/** Pure internal playCard — mutates the passed game, no Redis I/O. */
+function playCardOn(
+  game: InternalUnoGame,
   playerId: string,
   cardId: string,
   chosenColor?: UnoColor | null,
 ): PlayCardResult {
-  const game = games.get(lobbyCode);
-  if (!game) return { success: false, error: "Game not found" };
+  const lobbyCode = game.lobbyCode;
   if (game.phase !== "playing") return { success: false, error: "Not in playing phase" };
   if (game.playerIds[game.currentPlayerIndex] !== playerId) return { success: false, error: "Not your turn" };
 
@@ -300,17 +416,14 @@ export function playCard(
     return { success: false, error: "Invalid play" };
   }
 
-  // Remove card from hand, add to discard
   hand.splice(cardIndex, 1);
   game.discardPile.push(card);
   game.vulnerablePlayer = undefined;
 
   const pName = displayName(lobbyCode, playerId);
 
-  // Resolve card effects
   if (card.type === "wild" || card.type === "wild_draw_four") {
     if (!chosenColor) {
-      // Shouldn't happen if client sends color, but default
       const colors: UnoColor[] = ["red", "blue", "green", "yellow"];
       chosenColor = colors[Math.floor(Math.random() * 4)];
     }
@@ -318,7 +431,6 @@ export function playCard(
 
     if (card.type === "wild_draw_four") {
       if (game.stackingEnabled) {
-        // Stacking: accumulate penalty and pass to next player
         game.pendingDraw += 4;
         game.lastAction = `${pName} played ${card.text}! Draw penalty is now ${game.pendingDraw}`;
         advanceTurn(game);
@@ -326,7 +438,6 @@ export function playCard(
         game.pendingDraw = 4;
         game.lastAction = `${pName} played ${card.text}! Next player draws 4`;
         advanceTurn(game);
-        // Next player draws 4 and loses turn
         const nextPid = game.playerIds[game.currentPlayerIndex];
         const drawn = drawFromPile(game, 4);
         game.hands.get(nextPid)!.push(...drawn);
@@ -342,12 +453,11 @@ export function playCard(
     game.activeColor = card.color!;
     game.lastAction = `${pName} played ${card.text}! Next player skipped`;
     advanceTurn(game);
-    advanceTurn(game); // skip next
+    advanceTurn(game);
   } else if (card.type === "reverse") {
     game.activeColor = card.color!;
     game.direction *= -1;
     if (game.playerIds.length === 2) {
-      // In 2-player, reverse acts as skip
       game.lastAction = `${pName} played ${card.text}! Direction reversed`;
       advanceTurn(game);
       advanceTurn(game);
@@ -358,7 +468,6 @@ export function playCard(
   } else if (card.type === "draw_two") {
     game.activeColor = card.color!;
     if (game.stackingEnabled) {
-      // Stacking: accumulate penalty and pass to next player
       game.pendingDraw += 2;
       game.lastAction = `${pName} played ${card.text}! Draw penalty is now ${game.pendingDraw}`;
       advanceTurn(game);
@@ -368,29 +477,25 @@ export function playCard(
       const drawn = drawFromPile(game, 2);
       game.hands.get(nextPid)!.push(...drawn);
       game.lastAction = `${pName} played ${card.text}! ${displayName(lobbyCode, nextPid)} draws 2`;
-      advanceTurn(game); // skip the drawing player
+      advanceTurn(game);
     }
   } else {
-    // Number card
     game.activeColor = card.color!;
     game.lastAction = `${pName} played ${card.text}`;
     advanceTurn(game);
   }
 
-  // Check Uno vulnerability — if player has 1 card and hasn't called Uno
   if (hand.length === 1 && !game.unoCalledPlayers.has(playerId)) {
     game.vulnerablePlayer = playerId;
   }
 
-  // Check win — hand empty
   if (hand.length === 0) {
     game.phase = "round_over";
     let roundPoints = 0;
 
     if (game.winMode === "lowest_score") {
-      // Each player gets their own remaining card values as points (bad for them)
       for (const [pid, pHand] of game.hands) {
-        if (pHand.length === 0) continue; // winner gets 0
+        if (pHand.length === 0) continue;
         let pts = 0;
         for (const card of pHand) {
           if (card.type === "number") pts += card.value || 0;
@@ -399,24 +504,20 @@ export function playCard(
         }
         game.scores.set(pid, (game.scores.get(pid) || 0) + pts);
       }
-      // roundPoints for display: total points dealt out this round
       roundPoints = computeRoundScore(game);
       game.lastAction = `${pName} wins the round! Opponents add their card points.`;
 
-      // Check if any player hit the limit
-      for (const [pid, score] of game.scores) {
+      for (const [, score] of game.scores) {
         if (score >= game.targetPoints) {
           game.gameOver = true;
           break;
         }
       }
     } else {
-      // Standard scoring: winner banks all opponents' card values
       roundPoints = computeRoundScore(game);
       game.scores.set(playerId, (game.scores.get(playerId) || 0) + roundPoints);
       game.lastAction = `${pName} wins the round! (+${roundPoints} points)`;
 
-      // Check game over
       if (game.winMode === "points" && (game.scores.get(playerId) || 0) >= game.targetPoints) {
         game.gameOver = true;
       } else if (game.winMode === "rounds" && game.roundNumber >= game.maxRounds) {
@@ -437,6 +538,19 @@ export function playCard(
   return { success: true };
 }
 
+export async function playCard(
+  lobbyCode: string,
+  playerId: string,
+  cardId: string,
+  chosenColor?: UnoColor | null,
+): Promise<PlayCardResult> {
+  const game = await loadGame(lobbyCode);
+  if (!game) return { success: false, error: "Game not found" };
+  const result = playCardOn(game, playerId, cardId, chosenColor);
+  if (result.success) await saveGame(game);
+  return result;
+}
+
 function advanceTurn(game: InternalUnoGame): void {
   game.currentPlayerIndex = ((game.currentPlayerIndex + game.direction) % game.playerIds.length + game.playerIds.length) % game.playerIds.length;
 }
@@ -450,15 +564,13 @@ export interface DrawCardResult {
   autoPlayed?: boolean;
 }
 
-export function drawCard(lobbyCode: string, playerId: string): DrawCardResult {
-  const game = games.get(lobbyCode);
-  if (!game) return { success: false, error: "Game not found" };
+function drawCardOn(game: InternalUnoGame, playerId: string): DrawCardResult {
+  const lobbyCode = game.lobbyCode;
   if (game.phase !== "playing") return { success: false, error: "Not in playing phase" };
   if (game.playerIds[game.currentPlayerIndex] !== playerId) return { success: false, error: "Not your turn" };
 
   const pName = displayName(lobbyCode, playerId);
 
-  // If there's a pending draw (stacking mode), draw the full accumulated penalty
   if (game.pendingDraw > 0 && game.stackingEnabled) {
     const hand = game.hands.get(playerId)!;
     const drawn = drawFromPile(game, game.pendingDraw);
@@ -474,7 +586,6 @@ export function drawCard(lobbyCode: string, playerId: string): DrawCardResult {
 
   const drawn = drawFromPile(game, 1);
   if (drawn.length === 0) {
-    // No cards to draw — skip turn
     advanceTurn(game);
     game.turnDeadline = Date.now() + TURN_TIME_MS;
     return { success: true };
@@ -487,7 +598,6 @@ export function drawCard(lobbyCode: string, playerId: string): DrawCardResult {
   game.lastAction = `${pName} drew a card`;
   game.vulnerablePlayer = undefined;
 
-  // Player drew — advance turn (official rules: can play drawn card if valid, but for simplicity advance)
   advanceTurn(game);
   game.turnDeadline = Date.now() + TURN_TIME_MS;
   game.unoCalledPlayers.clear();
@@ -495,13 +605,19 @@ export function drawCard(lobbyCode: string, playerId: string): DrawCardResult {
   return { success: true, drawnCard: card };
 }
 
+export async function drawCard(lobbyCode: string, playerId: string): Promise<DrawCardResult> {
+  const game = await loadGame(lobbyCode);
+  if (!game) return { success: false, error: "Game not found" };
+  const result = drawCardOn(game, playerId);
+  if (result.success) await saveGame(game);
+  return result;
+}
+
 // ── Uno Call / Challenge ──
 
-export function callUno(lobbyCode: string, playerId: string): boolean {
-  const game = games.get(lobbyCode);
-  if (!game) return false;
+function callUnoOn(game: InternalUnoGame, playerId: string): boolean {
   const hand = game.hands.get(playerId);
-  if (!hand || hand.length > 2) return false; // can call when at 1 or 2 cards (anticipating play)
+  if (!hand || hand.length > 2) return false;
   game.unoCalledPlayers.add(playerId);
   if (game.vulnerablePlayer === playerId) {
     game.vulnerablePlayer = undefined;
@@ -509,14 +625,20 @@ export function callUno(lobbyCode: string, playerId: string): boolean {
   return true;
 }
 
-export function challengeUno(lobbyCode: string, challengerId: string, targetId: string): { success: boolean; penalized: boolean } {
-  const game = games.get(lobbyCode);
+export async function callUno(lobbyCode: string, playerId: string): Promise<boolean> {
+  const game = await loadGame(lobbyCode);
+  if (!game) return false;
+  const ok = callUnoOn(game, playerId);
+  if (ok) await saveGame(game);
+  return ok;
+}
+
+export async function challengeUno(lobbyCode: string, challengerId: string, targetId: string): Promise<{ success: boolean; penalized: boolean }> {
+  const game = await loadGame(lobbyCode);
   if (!game) return { success: false, penalized: false };
 
-  // Can only challenge the vulnerable player
   if (game.vulnerablePlayer !== targetId) return { success: false, penalized: false };
 
-  // Target has 1 card and didn't call Uno — penalty: draw 2
   const targetHand = game.hands.get(targetId);
   if (!targetHand) return { success: false, penalized: false };
 
@@ -524,6 +646,7 @@ export function challengeUno(lobbyCode: string, challengerId: string, targetId: 
   targetHand.push(...drawn);
   game.vulnerablePlayer = undefined;
   game.lastAction = `${displayName(lobbyCode, targetId)} caught not calling Uno! Draws 2`;
+  await saveGame(game);
 
   return { success: true, penalized: true };
 }
@@ -532,15 +655,15 @@ export function challengeUno(lobbyCode: string, challengerId: string, targetId: 
 
 function computeRoundScore(game: InternalUnoGame): number {
   let total = 0;
-  for (const [pid, hand] of game.hands) {
-    if (hand.length === 0) continue; // winner
+  for (const [, hand] of game.hands) {
+    if (hand.length === 0) continue;
     for (const card of hand) {
       if (card.type === "number") {
         total += card.value || 0;
       } else if (card.type === "skip" || card.type === "reverse" || card.type === "draw_two") {
         total += 20;
       } else {
-        total += 50; // wild, wild draw four
+        total += 50;
       }
     }
   }
@@ -549,41 +672,40 @@ function computeRoundScore(game: InternalUnoGame): number {
 
 // ── Round Management ──
 
-export function advanceUnoRound(lobbyCode: string): { started: boolean; gameOver: boolean } {
-  const game = games.get(lobbyCode);
+export async function advanceUnoRound(lobbyCode: string): Promise<{ started: boolean; gameOver: boolean }> {
+  const game = await loadGame(lobbyCode);
   if (!game) return { started: false, gameOver: false };
 
   if (game.gameOver) return { started: false, gameOver: true };
 
-  // single_round should never advance — game is over after 1 round
   if (game.winMode === "single_round") {
     game.gameOver = true;
+    await saveGame(game);
     return { started: false, gameOver: true };
   }
 
   game.roundNumber++;
   if (game.winMode === "rounds" && game.roundNumber > game.maxRounds) {
     game.gameOver = true;
+    await saveGame(game);
     return { started: false, gameOver: true };
   }
 
-  // For lowest_score, check if any player hit the limit
   if (game.winMode === "lowest_score") {
     for (const [, score] of game.scores) {
       if (score >= game.targetPoints) {
         game.gameOver = true;
+        await saveGame(game);
         return { started: false, gameOver: true };
       }
     }
   }
 
-  // Re-deal
   const deck = shuffle(generateUnoDeck(game.deckTemplate));
   for (const pid of game.playerIds) {
     game.hands.set(pid, deck.splice(0, HAND_SIZE));
   }
 
-  // Flip starting discard
   let startCard: UnoCard;
   while (true) {
     startCard = deck.pop()!;
@@ -604,7 +726,6 @@ export function advanceUnoRound(lobbyCode: string): { started: boolean; gameOver
   game.turnDeadline = Date.now() + TURN_TIME_MS;
   game.lastAction = undefined;
 
-  // Handle starting action cards
   if (startCard.type === "skip") {
     game.currentPlayerIndex = 1 % game.playerIds.length;
   } else if (startCard.type === "reverse") {
@@ -616,13 +737,14 @@ export function advanceUnoRound(lobbyCode: string): { started: boolean; gameOver
     game.currentPlayerIndex = 1 % game.playerIds.length;
   }
 
+  await saveGame(game);
   return { started: true, gameOver: false };
 }
 
 // ── Bot AI ──
 
-export function botPlayUnoTurn(lobbyCode: string, botId: string): PlayCardResult | DrawCardResult {
-  const game = games.get(lobbyCode);
+export async function botPlayUnoTurn(lobbyCode: string, botId: string): Promise<PlayCardResult | DrawCardResult> {
+  const game = await loadGame(lobbyCode);
   if (!game || game.playerIds[game.currentPlayerIndex] !== botId) return { success: false };
 
   const hand = game.hands.get(botId);
@@ -632,7 +754,6 @@ export function botPlayUnoTurn(lobbyCode: string, botId: string): PlayCardResult
   const playable = hand.filter(c => isValidPlay(c, discardTop, game.activeColor, game.pendingDraw, game.stackingEnabled));
 
   if (playable.length > 0) {
-    // Strategy: prefer number cards, then action cards, wilds last
     playable.sort((a, b) => {
       const priority: Record<UnoCardType, number> = { number: 0, skip: 1, reverse: 1, draw_two: 2, wild: 3, wild_draw_four: 4 };
       return priority[a.type] - priority[b.type];
@@ -641,54 +762,59 @@ export function botPlayUnoTurn(lobbyCode: string, botId: string): PlayCardResult
     const card = playable[0];
     let chosenColor: UnoColor | undefined;
     if (card.type === "wild" || card.type === "wild_draw_four") {
-      // Pick color bot has most of
       const counts: Record<UnoColor, number> = { red: 0, blue: 0, green: 0, yellow: 0 };
       for (const c of hand) { if (c.color) counts[c.color]++; }
       chosenColor = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]) as UnoColor;
     }
 
-    // Call Uno before playing if going to 1 card
+    // Call Uno before playing if going to 1 card (mutates game in-memory)
     if (hand.length === 2) {
-      callUno(lobbyCode, botId);
+      callUnoOn(game, botId);
     }
 
-    return playCard(lobbyCode, botId, card.id, chosenColor);
+    const result = playCardOn(game, botId, card.id, chosenColor);
+    if (result.success) await saveGame(game);
+    return result;
   }
 
-  return drawCard(lobbyCode, botId);
+  const result = drawCardOn(game, botId);
+  if (result.success) await saveGame(game);
+  return result;
 }
 
 // ── Timeout Handler ──
 
-export function handleUnoTurnTimeout(lobbyCode: string): DrawCardResult {
-  const game = games.get(lobbyCode);
+export async function handleUnoTurnTimeout(lobbyCode: string): Promise<DrawCardResult> {
+  const game = await loadGame(lobbyCode);
   if (!game || game.phase !== "playing") return { success: false };
   const pid = game.playerIds[game.currentPlayerIndex];
-  return drawCard(lobbyCode, pid);
+  const result = drawCardOn(game, pid);
+  if (result.success) await saveGame(game);
+  return result;
 }
 
 // ── Utility Exports ──
 
-export function getUnoGame(lobbyCode: string): InternalUnoGame | undefined {
-  return games.get(lobbyCode);
+export async function getUnoGame(lobbyCode: string): Promise<InternalUnoGame | undefined> {
+  return loadGame(lobbyCode);
 }
 
-export function getUnoPlayerIds(lobbyCode: string): string[] {
-  return games.get(lobbyCode)?.playerIds || [];
+export async function getUnoPlayerIds(lobbyCode: string): Promise<string[]> {
+  return (await loadGame(lobbyCode))?.playerIds || [];
 }
 
-export function getUnoCurrentPlayer(lobbyCode: string): string | undefined {
-  const game = games.get(lobbyCode);
+export async function getUnoCurrentPlayer(lobbyCode: string): Promise<string | undefined> {
+  const game = await loadGame(lobbyCode);
   if (!game) return undefined;
   return game.playerIds[game.currentPlayerIndex];
 }
 
-export function isUnoGame(lobbyCode: string): boolean {
-  return games.has(lobbyCode);
+export async function isUnoGame(lobbyCode: string): Promise<boolean> {
+  return gameExists(lobbyCode);
 }
 
-export function cleanupUnoGame(lobbyCode: string): void {
-  games.delete(lobbyCode);
+export async function cleanupUnoGame(lobbyCode: string): Promise<void> {
+  await deleteGame(lobbyCode);
   playerNameOverrides.delete(lobbyCode);
 }
 
@@ -697,15 +823,13 @@ export function cleanupUnoGame(lobbyCode: string): void {
  * shuffled back into the draw pile so their cards aren't lost from the deck,
  * and the turn rotation is adjusted so play continues cleanly.
  */
-export function removePlayerFromUnoGame(lobbyCode: string, playerId: string): void {
-  const game = games.get(lobbyCode);
+export async function removePlayerFromUnoGame(lobbyCode: string, playerId: string): Promise<void> {
+  const game = await loadGame(lobbyCode);
   if (!game) return;
 
   const idx = game.playerIds.indexOf(playerId);
   if (idx === -1) return;
 
-  // Return the leaver's hand to the draw pile and reshuffle so their cards
-  // stay in circulation for the remaining players.
   const hand = game.hands.get(playerId);
   if (hand && hand.length > 0) {
     game.drawPile.push(...hand);
@@ -718,20 +842,21 @@ export function removePlayerFromUnoGame(lobbyCode: string, playerId: string): vo
   game.unoCalledPlayers.delete(playerId);
   if (game.vulnerablePlayer === playerId) game.vulnerablePlayer = undefined;
 
-  // Keep currentPlayerIndex pointing at the correct remaining player:
-  //   - if it pointed past the leaver, decrement by one to keep the same player
-  //   - if it pointed at the leaver, the next player now occupies that slot
-  //     (no change needed) — but wrap if the leaver was at the end.
-  if (game.playerIds.length === 0) return;
+  if (game.playerIds.length === 0) {
+    await saveGame(game);
+    return;
+  }
   if (idx < game.currentPlayerIndex) {
     game.currentPlayerIndex -= 1;
   } else if (game.currentPlayerIndex >= game.playerIds.length) {
     game.currentPlayerIndex = 0;
   }
+
+  await saveGame(game);
 }
 
-export function remapUnoGamePlayer(lobbyCode: string, oldId: string, newId: string): void {
-  const game = games.get(lobbyCode);
+export async function remapUnoGamePlayer(lobbyCode: string, oldId: string, newId: string): Promise<void> {
+  const game = await loadGame(lobbyCode);
   if (!game) return;
   const idx = game.playerIds.indexOf(oldId);
   if (idx !== -1) game.playerIds[idx] = newId;
@@ -750,79 +875,36 @@ export function remapUnoGamePlayer(lobbyCode: string, oldId: string, newId: stri
     game.unoCalledPlayers.add(newId);
   }
   if (game.vulnerablePlayer === oldId) game.vulnerablePlayer = newId;
+  await saveGame(game);
 }
 
-export function getUnoScores(lobbyCode: string): Record<string, number> {
-  const game = games.get(lobbyCode);
+export async function getUnoScores(lobbyCode: string): Promise<Record<string, number>> {
+  const game = await loadGame(lobbyCode);
   if (!game) return {};
   return Object.fromEntries(game.scores);
 }
 
-export function isUnoGameOver(lobbyCode: string): boolean {
-  return games.get(lobbyCode)?.gameOver || false;
+export async function isUnoGameOver(lobbyCode: string): Promise<boolean> {
+  return (await loadGame(lobbyCode))?.gameOver || false;
 }
 
-export function getUnoPhase(lobbyCode: string): string | undefined {
-  return games.get(lobbyCode)?.phase;
+export async function getUnoPhase(lobbyCode: string): Promise<string | undefined> {
+  return (await loadGame(lobbyCode))?.phase;
 }
 
 // ── Snapshot / Restore ───────────────────────────────────────────────────────
 
-export function exportUnoGames(): any[] {
-  return Array.from(games.values()).map(g => ({
-    lobbyCode: g.lobbyCode,
-    playerIds: g.playerIds,
-    hands: Array.from(g.hands.entries()),
-    drawPile: g.drawPile,
-    discardPile: g.discardPile,
-    scores: Array.from(g.scores.entries()),
-    currentPlayerIndex: g.currentPlayerIndex,
-    direction: g.direction,
-    activeColor: g.activeColor,
-    phase: g.phase,
-    roundNumber: g.roundNumber,
-    maxRounds: g.maxRounds,
-    winMode: g.winMode,
-    targetPoints: g.targetPoints,
-    gameOver: g.gameOver,
-    pendingDraw: g.pendingDraw,
-    unoCalledPlayers: Array.from(g.unoCalledPlayers),
-    turnDeadline: g.turnDeadline,
-    lastAction: g.lastAction,
-    deckTemplate: g.deckTemplate,
-    stackingEnabled: g.stackingEnabled,
-    vulnerablePlayer: g.vulnerablePlayer,
-  }));
+export async function exportUnoGames(): Promise<any[]> {
+  const games = await getAllGames();
+  return games.map(g => serialise(g));
 }
 
-export function restoreUnoGames(snapshots: any[]): void {
+export async function restoreUnoGames(snapshots: any[]): Promise<void> {
   for (const s of snapshots) {
-    const game: InternalUnoGame = {
-      lobbyCode: s.lobbyCode,
-      playerIds: s.playerIds,
-      hands: new Map(s.hands),
-      drawPile: s.drawPile,
-      discardPile: s.discardPile,
-      scores: new Map(s.scores),
-      currentPlayerIndex: s.currentPlayerIndex,
-      direction: s.direction,
-      activeColor: s.activeColor,
-      phase: s.phase,
-      roundNumber: s.roundNumber,
-      maxRounds: s.maxRounds,
-      winMode: s.winMode,
-      targetPoints: s.targetPoints,
-      gameOver: s.gameOver,
-      pendingDraw: s.pendingDraw,
-      unoCalledPlayers: new Set(s.unoCalledPlayers || []),
-      // Turn timers don't survive; give the restored turn a fresh deadline
-      // so the client sees a clean countdown on the new instance.
-      turnDeadline: Date.now() + TURN_TIME_MS,
-      lastAction: s.lastAction,
-      deckTemplate: s.deckTemplate,
-      stackingEnabled: s.stackingEnabled,
-      vulnerablePlayer: s.vulnerablePlayer,
-    };
-    games.set(game.lobbyCode, game);
+    const game = deserialise(s as SerialisedUnoGame);
+    // Turn timers don't survive; give the restored turn a fresh deadline
+    // so the client sees a clean countdown on the new instance.
+    game.turnDeadline = Date.now() + TURN_TIME_MS;
+    await saveGame(game);
   }
 }

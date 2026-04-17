@@ -200,11 +200,12 @@ io.on("connection", async (socket) => {
       const { code, lobby } = lobbyResult;
       socket.join(code);
 
-      if (isUnoGame(code)) remapUnoGamePlayer(code, oldSocketId, socket.id);
+      const uno = await isUnoGame(code);
+      if (uno) await remapUnoGamePlayer(code, oldSocketId, socket.id);
       else remapGamePlayer(code, oldSocketId, socket.id);
 
       const gameView = lobby.status === "playing"
-        ? (isUnoGame(code) ? null : getPlayerView(code, socket.id))
+        ? (uno ? null : getPlayerView(code, socket.id))
         : null;
 
       socket.emit("session:reconnected", {
@@ -214,8 +215,8 @@ io.on("connection", async (socket) => {
         screen: lobby.status === "playing" ? "game" : "lobby",
       });
 
-      if (isUnoGame(code) && lobby.status === "playing") {
-        const unoView = getUnoPlayerView(code, socket.id);
+      if (uno && lobby.status === "playing") {
+        const unoView = await getUnoPlayerView(code, socket.id);
         if (unoView) socket.emit("uno:turn-update", unoView);
       }
       if ((await isCodenamesGame(code)) && lobby.status === "playing") {

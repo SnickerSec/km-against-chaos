@@ -14,24 +14,24 @@ import {
 
 // ── Bot Turn Logic ───────────────────────────────────────────────────────────
 
-export function triggerUnoBotTurn(io: Server<ClientEvents, ServerEvents>, code: string) {
-  const currentPid = getUnoCurrentPlayer(code);
+export async function triggerUnoBotTurn(io: Server<ClientEvents, ServerEvents>, code: string) {
+  const currentPid = await getUnoCurrentPlayer(code);
   if (!currentPid?.startsWith("bot-")) return;
-  const phase = getUnoPhase(code);
+  const phase = await getUnoPhase(code);
   if (phase !== "playing") return;
 
   setTimeout(async () => {
-    if (!isUnoGame(code)) return;
-    const currentNow = getUnoCurrentPlayer(code);
+    if (!(await isUnoGame(code))) return;
+    const currentNow = await getUnoCurrentPlayer(code);
     if (currentNow !== currentPid) return;
 
-    const result = botPlayUnoTurn(code, currentPid);
+    const result = await botPlayUnoTurn(code, currentPid);
     if (!result.success) return;
 
     const playerName = (await getPlayerNameInLobby(code, currentPid)) || currentPid;
 
     if ("roundOver" in result && result.roundOver) {
-      const scores = getUnoScores(code);
+      const scores = await getUnoScores(code);
       io.to(code).emit("uno:round-over", result.winnerId!, playerName, scores, result.roundPoints || 0);
       clearUnoTurnTimer(code);
       if (result.gameOver) {
@@ -40,7 +40,7 @@ export function triggerUnoBotTurn(io: Server<ClientEvents, ServerEvents>, code: 
       }
     }
 
-    sendUnoTurnToPlayers(io, code);
+    await sendUnoTurnToPlayers(io, code);
 
     if (!("roundOver" in result && result.roundOver)) {
       clearUnoTurnTimer(code);
@@ -50,9 +50,9 @@ export function triggerUnoBotTurn(io: Server<ClientEvents, ServerEvents>, code: 
   }, 1500 + Math.random() * 2000);
 }
 
-function handleTurnTimeout(io: Server<ClientEvents, ServerEvents>, code: string) {
-  handleUnoTurnTimeout(code);
-  sendUnoTurnToPlayers(io, code);
+async function handleTurnTimeout(io: Server<ClientEvents, ServerEvents>, code: string) {
+  await handleUnoTurnTimeout(code);
+  await sendUnoTurnToPlayers(io, code);
   triggerUnoBotTurn(io, code);
   scheduleUnoTurnTimer(code, (c) => handleTurnTimeout(io, c));
 }
@@ -70,9 +70,9 @@ export function registerUnoHandlers(
 ) {
   socket.on("uno:play-card", async (cardId, chosenColor, callback) => {
     const code = await findPlayerLobby(socket.id);
-    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
+    if (!code || !(await isUnoGame(code))) { callback({ success: false, error: "Not in an Uno game" }); return; }
 
-    const result = unoPlayCard(code, socket.id, cardId, chosenColor || undefined);
+    const result = await unoPlayCard(code, socket.id, cardId, chosenColor || undefined);
     if (!result.success) { callback({ success: false, error: result.error }); return; }
 
     callback({ success: true });
@@ -80,7 +80,7 @@ export function registerUnoHandlers(
     const playerName = (await getPlayerNameInLobby(code, socket.id)) || "???";
 
     if (result.roundOver) {
-      const scores = getUnoScores(code);
+      const scores = await getUnoScores(code);
       io.to(code).emit("uno:round-over", result.winnerId!, playerName, scores, result.roundPoints || 0);
       clearUnoTurnTimer(code);
       if (result.gameOver) {
@@ -92,43 +92,43 @@ export function registerUnoHandlers(
       scheduleUnoTurnTimer(code, (c) => handleTurnTimeout(io, c));
     }
 
-    sendUnoTurnToPlayers(io, code);
+    await sendUnoTurnToPlayers(io, code);
     if (!result.roundOver) triggerUnoBotTurn(io, code);
   });
 
   socket.on("uno:draw-card", async (callback) => {
     const code = await findPlayerLobby(socket.id);
-    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
+    if (!code || !(await isUnoGame(code))) { callback({ success: false, error: "Not in an Uno game" }); return; }
 
-    const result = unoDrawCard(code, socket.id);
+    const result = await unoDrawCard(code, socket.id);
     if (!result.success) { callback({ success: false, error: result.error }); return; }
 
     callback({ success: true, drawnCard: result.drawnCard });
 
     clearUnoTurnTimer(code);
     scheduleUnoTurnTimer(code, (c) => handleTurnTimeout(io, c));
-    sendUnoTurnToPlayers(io, code);
+    await sendUnoTurnToPlayers(io, code);
     triggerUnoBotTurn(io, code);
   });
 
   socket.on("uno:call-uno", async (callback) => {
     const code = await findPlayerLobby(socket.id);
-    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
+    if (!code || !(await isUnoGame(code))) { callback({ success: false, error: "Not in an Uno game" }); return; }
 
-    const ok = callUno(code, socket.id);
+    const ok = await callUno(code, socket.id);
     if (!ok) { callback({ success: false, error: "Can't call Uno right now" }); return; }
 
     callback({ success: true });
     const playerName = (await getPlayerNameInLobby(code, socket.id)) || "???";
     io.to(code).emit("uno:uno-called", socket.id, playerName);
-    sendUnoTurnToPlayers(io, code);
+    await sendUnoTurnToPlayers(io, code);
   });
 
   socket.on("uno:challenge-uno", async (targetId, callback) => {
     const code = await findPlayerLobby(socket.id);
-    if (!code || !isUnoGame(code)) { callback({ success: false, error: "Not in an Uno game" }); return; }
+    if (!code || !(await isUnoGame(code))) { callback({ success: false, error: "Not in an Uno game" }); return; }
 
-    const result = challengeUno(code, socket.id, targetId);
+    const result = await challengeUno(code, socket.id, targetId);
     if (!result.success) { callback({ success: false, error: "Can't challenge" }); return; }
 
     callback({ success: true, penalized: result.penalized });
@@ -136,22 +136,22 @@ export function registerUnoHandlers(
       const targetName = (await getPlayerNameInLobby(code, targetId)) || "???";
       io.to(code).emit("uno:uno-penalty", targetId, targetName);
     }
-    sendUnoTurnToPlayers(io, code);
+    await sendUnoTurnToPlayers(io, code);
   });
 
   socket.on("uno:next-round", async () => {
     const code = await findPlayerLobby(socket.id);
-    if (!code || !isUnoGame(code)) return;
+    if (!code || !(await isUnoGame(code))) return;
 
-    const result = advanceUnoRound(code);
+    const result = await advanceUnoRound(code);
     if (result.gameOver) {
-      const scores = getUnoScores(code);
+      const scores = await getUnoScores(code);
       io.to(code).emit("uno:game-over", scores);
       recordUnoGameResult(code, scores);
       return;
     }
     if (result.started) {
-      sendUnoTurnToPlayers(io, code);
+      await sendUnoTurnToPlayers(io, code);
       triggerUnoBotTurn(io, code);
       scheduleUnoTurnTimer(code, (c) => handleTurnTimeout(io, c));
     }

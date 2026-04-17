@@ -133,10 +133,10 @@ export function sendRoundToPlayers(io: Server<ClientEvents, ServerEvents>, code:
   }
 }
 
-export function sendUnoTurnToPlayers(io: Server<ClientEvents, ServerEvents>, code: string) {
-  const playerIds = getUnoPlayerIds(code);
+export async function sendUnoTurnToPlayers(io: Server<ClientEvents, ServerEvents>, code: string) {
+  const playerIds = await getUnoPlayerIds(code);
   for (const pid of playerIds) {
-    const view = getUnoPlayerView(code, pid);
+    const view = await getUnoPlayerView(code, pid);
     if (view) io.to(pid).emit("uno:turn-update", view);
   }
 }

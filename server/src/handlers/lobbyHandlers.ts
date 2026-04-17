@@ -49,7 +49,7 @@ export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socket
     // Push refreshed game state so the remaining players see the leaver gone
     // from the turn rotation immediately, not on their next action.
     if (code) {
-      if (isUnoGame(code)) sendUnoTurnToPlayers(io, code);
+      if (await isUnoGame(code)) await sendUnoTurnToPlayers(io, code);
       else if (await isCodenamesGame(code)) await sendCodenamesUpdate(io, code);
     }
   } else {
