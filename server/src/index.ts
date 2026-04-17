@@ -141,8 +141,11 @@ app.use("/api/stripe/webhook", (req: any, _res, next) => {
   req.on("end", () => { req.rawBody = Buffer.concat(chunks); next(); });
 });
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || join(process.cwd(), "uploads");
-app.use("/uploads", staticLimiter, express.static(UPLOAD_DIR, { maxAge: "1h", fallthrough: false }));
+// /uploads static mount removed — all persistent URLs now live on R2
+// (cdn.decked.gg). See storage.ts for the R2 integration. The Railway
+// persistent volume is scheduled for detachment so numReplicas > 1 can
+// stick; storage.ts's local-disk fallback only kicks in when R2_* env
+// vars are unset, which is tests and dev.
 
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin", apiLimiter, adminRoutes);
