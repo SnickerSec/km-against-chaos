@@ -496,13 +496,12 @@ export async function saveToArtLibrary(opts: {
     await putObject(r2Key, buffer, mime);
 
     const { rows } = await pool.query(
-      `INSERT INTO art_library (id, data, prompt, source_card_text, game_type, deck_name, width, height, has_speech_bubble, generated_by, r2_key)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO art_library (id, prompt, source_card_text, game_type, deck_name, width, height, has_speech_bubble, generated_by, r2_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (md5(prompt || source_card_text || game_type)) DO UPDATE SET use_count = art_library.use_count
        RETURNING id`,
       [
         id,
-        buffer, // keep bytea for rollback safety — follow-up will drop this column once R2 is proven
         opts.prompt,
         opts.sourceCardText,
         opts.gameType,

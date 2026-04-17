@@ -3,7 +3,7 @@ import { Router } from "express";
 import sharp from "sharp";
 import pool from "./db.js";
 import { createLogger } from "./logger.js";
-import { urlFor, isUsingR2 } from "./storage.js";
+import { urlFor } from "./storage.js";
 
 const log = createLogger("art-library");
 const router = Router();
@@ -70,50 +70,36 @@ router.get("/browse", async (req, res) => {
   }
 });
 
-// Serve full-size image. When r2_key is set (new rows + migrated legacy rows),
-// redirect to the R2 public URL so Railway doesn't proxy image bytes. Falls
-// back to streaming from the bytea for rows written before the migration.
+// Serve full-size image. 302 redirect to the R2 public URL — every row has
+// r2_key set after the migration 017/018 sequence, and the bytea column is
+// gone. Clients get cached directly by R2's CDN.
 router.get("/image/:id", async (req, res) => {
   try {
     const { rows } = await pool.query(
-      "SELECT r2_key, data FROM art_library WHERE id = $1",
+      "SELECT r2_key FROM art_library WHERE id = $1",
       [req.params.id]
     );
-    if (!rows.length) { res.status(404).end(); return; }
-
-    if (rows[0].r2_key && isUsingR2()) {
-      res.redirect(302, urlFor(rows[0].r2_key));
-      return;
-    }
-
-    const buf: Buffer = rows[0].data;
-    res.setHeader("Content-Type", "image/jpeg");
-    res.setHeader("Content-Length", buf.length);
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    res.end(buf);
+    if (!rows.length || !rows[0].r2_key) { res.status(404).end(); return; }
+    res.redirect(302, urlFor(rows[0].r2_key));
   } catch (e: any) { Sentry.captureException(e);
     res.status(500).json({ error: e.message });
   }
 });
 
-// Serve thumbnail. Thumbnails are generated on-the-fly with sharp and always
-// read from whichever source has the bytes — bytea first (still present
-// during the dual-write window), then R2 as the fallback once the column is
-// dropped. Browsers cache the thumb for a year so this endpoint is hit once.
+// Serve thumbnail — fetch full image from R2 and resize on the fly. Browser
+// caches the result for a year so this path is hit once per art item per
+// client. If thumb volume grows, pre-generate to R2 under art-thumbs/.
 router.get("/thumb/:id", async (req, res) => {
   try {
     const { rows } = await pool.query(
-      "SELECT data, width, height, r2_key FROM art_library WHERE id = $1",
+      "SELECT width, height, r2_key FROM art_library WHERE id = $1",
       [req.params.id]
     );
-    if (!rows.length) { res.status(404).end(); return; }
+    if (!rows.length || !rows[0].r2_key) { res.status(404).end(); return; }
 
-    let source: Buffer | null = rows[0].data ? (rows[0].data as Buffer) : null;
-    if (!source && rows[0].r2_key && isUsingR2()) {
-      const r2Res = await fetch(urlFor(rows[0].r2_key));
-      if (r2Res.ok) source = Buffer.from(await r2Res.arrayBuffer());
-    }
-    if (!source) { res.status(404).end(); return; }
+    const r2Res = await fetch(urlFor(rows[0].r2_key));
+    if (!r2Res.ok) { res.status(502).end(); return; }
+    const source = Buffer.from(await r2Res.arrayBuffer());
 
     const thumbWidth = 128;
     const aspectRatio = rows[0].height / rows[0].width;
