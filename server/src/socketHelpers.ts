@@ -145,7 +145,7 @@ export async function sendCodenamesUpdate(io: Server<ClientEvents, ServerEvents>
   const players = await getLobbyPlayers(code);
   if (!players) return;
   for (const pid of players) {
-    const view = getCodenamesPlayerView(code, pid);
+    const view = await getCodenamesPlayerView(code, pid);
     if (view) {
       const playerSocket = io.sockets.sockets.get(pid);
       if (playerSocket) playerSocket.emit("codenames:update" as any, view);

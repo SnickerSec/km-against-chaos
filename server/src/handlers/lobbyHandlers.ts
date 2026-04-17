@@ -38,7 +38,7 @@ export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socket
     // onto the game screen via the client's uno:turn-update handler).
     removePlayerFromGame(code, socketId);
     removePlayerFromUnoGame(code, socketId);
-    removePlayerFromCodenamesGame(code, socketId);
+    await removePlayerFromCodenamesGame(code, socketId);
   }
 
   if (result.lobby) {
@@ -50,12 +50,12 @@ export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socket
     // from the turn rotation immediately, not on their next action.
     if (code) {
       if (isUnoGame(code)) sendUnoTurnToPlayers(io, code);
-      else if (isCodenamesGame(code)) await sendCodenamesUpdate(io, code);
+      else if (await isCodenamesGame(code)) await sendCodenamesUpdate(io, code);
     }
   } else {
     cleanupGame(result.code);
     cleanupUnoGame(result.code);
-    cleanupCodenamesGame(result.code);
+    await cleanupCodenamesGame(result.code);
     await clearChatHistory(result.code);
   }
 }
@@ -220,10 +220,10 @@ export function registerLobbyHandlers(
             const defaults = ["Apple","Bank","Bark","Bear","Berlin","Board","Bond","Boot","Bowl","Bug","Canada","Card","Castle","Cat","Cell","Chair","Change","Chest","China","Clip","Cloud","Club","Code","Cold","Comet","Compound","Copper","Crane","Crash","Cricket","Cross","Crown","Cycle","Day","Death","Diamond","Dice","Doctor","Dog","Draft","Dragon","Dress","Drill","Drop","Duck","Dwarf","Eagle","Egypt","Engine","Eye","Fair","Fan","Field","File","Film","Fire","Fish","Fly","Force","Forest","Fork","France","Game","Gas","Ghost","Giant","Glass","Glove","Gold","Grass","Green","Ham","Hand","Hawk","Head","Heart","Himalayas","Hit","Hole","Hook","Horn","Horse","Hospital","Hotel","Ice","Iron","Ivory","Jack","Jam","Jet","Jupiter","Kangaroo","Ketchup","Key","Kid","King","Kite","Knight","Lab","Lap","Laser","Lead","Lemon","Life","Light","Limousine","Line","Link","Lion","Lock","Log","London","Luck","Mail","Mammoth","Maple","March","Mass","Match","Mercury","Mexico","Microscope","Milk","Mine","Model","Mole","Moon","Moscow","Mount","Mouse","Mud","Mug","Nail","Net","Night","Ninja","Note","Novel","Nurse","Nut","Octopus","Oil","Olive","Olympus","Opera","Orange","Organ","Palm","Pan","Pants","Paper","Park","Pass","Paste","Penguin","Phoenix","Piano","Pie","Pilot","Pin","Pipe","Pirate","Pistol","Pit","Plate","Play","Plot","Point","Poison","Pole","Pool","Port","Post","Press","Princess","Pumpkin","Pupil","Queen","Rabbit","Race","Radio","Rain","Ranch","Ray","Revolution","Ring","Robin","Robot","Rock","Rome","Root","Rose","Round","Row","Ruler","Russia","Sail","Sand","Saturn","Scale","School","Scientist","Screen","Seal","Server","Shadow","Shakespeare","Shark","Ship","Shoe","Shop","Shot","Silk","Singer","Sink","Slip","Slug","Smuggler","Snow","Soldier","Soul","Space","Spell","Spider","Spike","Spot","Spring","Spy","Square","Staff","Star","State","Steam","Steel","Stick","Stock","Storm","Stream","Strike","String","Sub","Sugar","Suit","Super","Swan","Switch","Table","Tail","Tap","Teacher","Temple","Texas","Theater","Thief","Thumb","Tick","Tie","Tiger","Time","Tokyo","Tooth","Tower","Track","Train","Triangle","Trip","Trunk","Tube","Turkey","Undertaker","Unicorn","Vacuum","Van","Vet","Violet","Virus","Wall","War","Wash","Washington","Watch","Water","Wave","Web","Well","Whale","Whip","Wind","Witch","Worm","Yard"];
             wordPool.push(...defaults);
           }
-          createCodenamesGame(code, playerIds, wordPool);
+          await createCodenamesGame(code, playerIds, wordPool);
           io.to(code).emit("lobby:started");
           for (const pid of playerIds) {
-            const view = getCodenamesPlayerView(code, pid);
+            const view = await getCodenamesPlayerView(code, pid);
             if (view) {
               const playerSocket = io.sockets.sockets.get(pid);
               if (playerSocket) playerSocket.emit("codenames:update" as any, view);
@@ -317,7 +317,7 @@ export function registerLobbyHandlers(
     clearUnoTurnTimer(code);
     cleanupGame(code);
     cleanupUnoGame(code);
-    cleanupCodenamesGame(code);
+    await cleanupCodenamesGame(code);
 
     const result = await resetLobbyForRematch(socket.id);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }

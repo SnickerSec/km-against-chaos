@@ -218,8 +218,8 @@ io.on("connection", async (socket) => {
         const unoView = getUnoPlayerView(code, socket.id);
         if (unoView) socket.emit("uno:turn-update", unoView);
       }
-      if (isCodenamesGame(code) && lobby.status === "playing") {
-        const cnView = getCodenamesPlayerView(code, socket.id);
+      if ((await isCodenamesGame(code)) && lobby.status === "playing") {
+        const cnView = await getCodenamesPlayerView(code, socket.id);
         if (cnView) socket.emit("codenames:update" as any, cnView);
       }
 

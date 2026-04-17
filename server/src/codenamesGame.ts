@@ -1,3 +1,9 @@
+// Codenames game engine. State lives in Redis (one JSON blob per lobby,
+// keyed codenames:{code}) when REDIS_URL is set, otherwise in a local Map.
+// Public API is async throughout so every replica reads the same state.
+
+import { redis } from "./redis.js";
+
 // Types
 export type CodenamesColor = "red" | "blue" | "neutral" | "assassin";
 export type CodenamesTeam = "red" | "blue";
@@ -51,7 +57,55 @@ interface InternalCodenamesGame {
   winner?: CodenamesTeam;
 }
 
-const games = new Map<string, InternalCodenamesGame>();
+// ── Storage ──────────────────────────────────────────────────────────────────
+
+const KEY = (code: string) => `codenames:${code}`;
+const local = new Map<string, InternalCodenamesGame>();
+
+async function loadGame(code: string): Promise<InternalCodenamesGame | undefined> {
+  if (redis) {
+    const json = await redis.get(KEY(code));
+    return json ? JSON.parse(json) as InternalCodenamesGame : undefined;
+  }
+  return local.get(code);
+}
+
+async function saveGame(game: InternalCodenamesGame): Promise<void> {
+  if (redis) {
+    await redis.set(KEY(game.lobbyCode), JSON.stringify(game));
+    return;
+  }
+  local.set(game.lobbyCode, game);
+}
+
+async function deleteGame(code: string): Promise<void> {
+  if (redis) {
+    await redis.del(KEY(code));
+    return;
+  }
+  local.delete(code);
+}
+
+async function gameExists(code: string): Promise<boolean> {
+  if (redis) return (await redis.exists(KEY(code))) === 1;
+  return local.has(code);
+}
+
+async function getAllGames(): Promise<InternalCodenamesGame[]> {
+  if (redis) {
+    const keys: string[] = [];
+    let cursor = "0";
+    do {
+      const [next, batch] = await redis.scan(cursor, "MATCH", "codenames:*", "COUNT", 200);
+      cursor = next;
+      keys.push(...batch);
+    } while (cursor !== "0");
+    if (keys.length === 0) return [];
+    const raws = await redis.mget(...keys);
+    return raws.filter((r): r is string => !!r).map(r => JSON.parse(r) as InternalCodenamesGame);
+  }
+  return Array.from(local.values());
+}
 
 // Shuffle helper
 function shuffle<T>(arr: T[]): T[] {
@@ -62,7 +116,9 @@ function shuffle<T>(arr: T[]): T[] {
   return arr;
 }
 
-export function createCodenamesGame(lobbyCode: string, playerIds: string[], words: string[]): void {
+// ── Public API ───────────────────────────────────────────────────────────────
+
+export async function createCodenamesGame(lobbyCode: string, playerIds: string[], words: string[]): Promise<void> {
   // Pick 25 random words
   const shuffledWords = shuffle([...words]);
   const selectedWords = shuffledWords.slice(0, 25);
@@ -97,15 +153,15 @@ export function createCodenamesGame(lobbyCode: string, playerIds: string[], word
     gameOver: false,
   };
 
-  games.set(lobbyCode, game);
+  await saveGame(game);
 }
 
-export function isCodenamesGame(lobbyCode: string): boolean {
-  return games.has(lobbyCode);
+export async function isCodenamesGame(lobbyCode: string): Promise<boolean> {
+  return gameExists(lobbyCode);
 }
 
-export function getCodenamesPlayerView(lobbyCode: string, playerId: string): CodenamesPlayerView | null {
-  const game = games.get(lobbyCode);
+export async function getCodenamesPlayerView(lobbyCode: string, playerId: string): Promise<CodenamesPlayerView | null> {
+  const game = await loadGame(lobbyCode);
   if (!game) return null;
 
   const isRedSpymaster = game.teams.red.spymaster === playerId;
@@ -142,8 +198,8 @@ export function getCodenamesPlayerView(lobbyCode: string, playerId: string): Cod
 }
 
 // Team selection phase
-export function joinTeam(lobbyCode: string, playerId: string, team: CodenamesTeam, asSpymaster: boolean): { success: boolean; error?: string } {
-  const game = games.get(lobbyCode);
+export async function joinTeam(lobbyCode: string, playerId: string, team: CodenamesTeam, asSpymaster: boolean): Promise<{ success: boolean; error?: string }> {
+  const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   if (game.phase !== "team_pick") return { success: false, error: "Not in team pick phase" };
 
@@ -162,11 +218,12 @@ export function joinTeam(lobbyCode: string, playerId: string, team: CodenamesTea
     game.teams[team].guessers.push(playerId);
   }
 
+  await saveGame(game);
   return { success: true };
 }
 
-export function startCodenamesRound(lobbyCode: string): { success: boolean; error?: string } {
-  const game = games.get(lobbyCode);
+export async function startCodenamesRound(lobbyCode: string): Promise<{ success: boolean; error?: string }> {
+  const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
 
   // Need at least 1 spymaster per team and 1 guesser per team
@@ -179,12 +236,13 @@ export function startCodenamesRound(lobbyCode: string): { success: boolean; erro
 
   game.phase = "spymaster_clue";
   game.currentTeam = "red";
+  await saveGame(game);
   return { success: true };
 }
 
 // Spymaster gives a clue
-export function giveClue(lobbyCode: string, playerId: string, word: string, count: number): { success: boolean; error?: string } {
-  const game = games.get(lobbyCode);
+export async function giveClue(lobbyCode: string, playerId: string, word: string, count: number): Promise<{ success: boolean; error?: string }> {
+  const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   if (game.phase !== "spymaster_clue") return { success: false, error: "Not clue phase" };
 
@@ -206,12 +264,13 @@ export function giveClue(lobbyCode: string, playerId: string, word: string, coun
   game.phase = "guessing";
   game.lastAction = `${game.currentTeam === "red" ? "Red" : "Blue"} Spymaster: "${word.trim()}" for ${count}`;
 
+  await saveGame(game);
   return { success: true };
 }
 
 // Guesser selects a word
-export function guessWord(lobbyCode: string, playerId: string, wordIndex: number): { success: boolean; error?: string; color?: CodenamesColor; gameOver?: boolean; turnOver?: boolean } {
-  const game = games.get(lobbyCode);
+export async function guessWord(lobbyCode: string, playerId: string, wordIndex: number): Promise<{ success: boolean; error?: string; color?: CodenamesColor; gameOver?: boolean; turnOver?: boolean }> {
+  const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   if (game.phase !== "guessing") return { success: false, error: "Not guessing phase" };
   if (game.gameOver) return { success: false, error: "Game is over" };
@@ -235,6 +294,7 @@ export function guessWord(lobbyCode: string, playerId: string, wordIndex: number
     game.winner = game.currentTeam === "red" ? "blue" : "red";
     game.phase = "game_over";
     game.lastAction = `${word.word} was the ASSASSIN! ${game.winner === "red" ? "Red" : "Blue"} team wins!`;
+    await saveGame(game);
     return { success: true, color, gameOver: true };
   }
 
@@ -249,15 +309,18 @@ export function guessWord(lobbyCode: string, playerId: string, wordIndex: number
       game.winner = game.currentTeam;
       game.phase = "game_over";
       game.lastAction = `${game.currentTeam === "red" ? "Red" : "Blue"} team found all their words! They win!`;
+      await saveGame(game);
       return { success: true, color, gameOver: true };
     }
 
     if (game.guessesRemaining <= 0) {
       // Out of guesses — switch teams
       switchTeam(game);
+      await saveGame(game);
       return { success: true, color, turnOver: true };
     }
 
+    await saveGame(game);
     return { success: true, color };
   }
 
@@ -273,6 +336,7 @@ export function guessWord(lobbyCode: string, playerId: string, wordIndex: number
       game.gameOver = true;
       game.winner = otherTeam;
       game.phase = "game_over";
+      await saveGame(game);
       return { success: true, color, gameOver: true };
     }
   } else {
@@ -281,6 +345,7 @@ export function guessWord(lobbyCode: string, playerId: string, wordIndex: number
 
   // Wrong guess or neutral — switch teams
   switchTeam(game);
+  await saveGame(game);
   return { success: true, color, turnOver: true };
 }
 
@@ -292,8 +357,8 @@ function switchTeam(game: InternalCodenamesGame): void {
 }
 
 // Pass turn (guessers can end their turn early)
-export function passTurn(lobbyCode: string, playerId: string): { success: boolean; error?: string } {
-  const game = games.get(lobbyCode);
+export async function passTurn(lobbyCode: string, playerId: string): Promise<{ success: boolean; error?: string }> {
+  const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   if (game.phase !== "guessing") return { success: false, error: "Not guessing phase" };
 
@@ -302,11 +367,12 @@ export function passTurn(lobbyCode: string, playerId: string): { success: boolea
 
   game.lastAction = `${game.currentTeam === "red" ? "Red" : "Blue"} team passed.`;
   switchTeam(game);
+  await saveGame(game);
   return { success: true };
 }
 
-export function cleanupCodenamesGame(lobbyCode: string): void {
-  games.delete(lobbyCode);
+export async function cleanupCodenamesGame(lobbyCode: string): Promise<void> {
+  await deleteGame(lobbyCode);
 }
 
 /**
@@ -314,8 +380,8 @@ export function cleanupCodenamesGame(lobbyCode: string): void {
  * slot on either team; a vacated spymaster slot becomes unset so the team can
  * reassign.
  */
-export function removePlayerFromCodenamesGame(lobbyCode: string, playerId: string): void {
-  const game = games.get(lobbyCode);
+export async function removePlayerFromCodenamesGame(lobbyCode: string, playerId: string): Promise<void> {
+  const game = await loadGame(lobbyCode);
   if (!game) return;
 
   const idx = game.playerIds.indexOf(playerId);
@@ -328,10 +394,12 @@ export function removePlayerFromCodenamesGame(lobbyCode: string, playerId: strin
     }
     game.teams[team].guessers = game.teams[team].guessers.filter(p => p !== playerId);
   }
+
+  await saveGame(game);
 }
 
-export function getCodenamesScores(lobbyCode: string): Record<string, number> | null {
-  const game = games.get(lobbyCode);
+export async function getCodenamesScores(lobbyCode: string): Promise<Record<string, number> | null> {
+  const game = await loadGame(lobbyCode);
   if (!game) return null;
   // Return team-based scores mapped to player IDs
   const scores: Record<string, number> = {};
@@ -348,12 +416,12 @@ export function getCodenamesScores(lobbyCode: string): Record<string, number> | 
 // State is entirely primitives/plain objects (no Maps or Sets), so the whole
 // game object round-trips through JSON cleanly.
 
-export function exportCodenamesGames(): any[] {
-  return Array.from(games.values());
+export async function exportCodenamesGames(): Promise<any[]> {
+  return getAllGames();
 }
 
-export function restoreCodenamesGames(snapshots: any[]): void {
+export async function restoreCodenamesGames(snapshots: any[]): Promise<void> {
   for (const s of snapshots) {
-    games.set(s.lobbyCode, s as InternalCodenamesGame);
+    await saveGame(s as InternalCodenamesGame);
   }
 }
