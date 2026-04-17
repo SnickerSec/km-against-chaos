@@ -24,6 +24,11 @@ export function getSocket(): Socket {
     socket = io(SERVER_URL, {
       autoConnect: true,
       auth: { sessionId: getSessionId() },
+      // Retry fast on the first attempt so typical Railway redeploys
+      // (~500ms gap once the new container is healthy) reconnect before the
+      // restart banner timer fires.
+      reconnectionDelay: 250,
+      reconnectionDelayMax: 5000,
     });
 
     // Identify authenticated user on connect/reconnect
@@ -31,12 +36,23 @@ export function getSocket(): Socket {
       identifySocket(socket!);
     });
 
-    // Server restart notice — show toast and let Socket.IO auto-reconnect
+    // Don't flash the restart banner for fast reconnects: server_restart
+    // only arms a timer, and the reconnect handler cancels it. If the
+    // reconnect lands within 2s the user sees nothing at all.
+    let restartBannerTimer: ReturnType<typeof setTimeout> | null = null;
     socket.on("server_restart" as any, () => {
-      useGameStore.setState({ serverRestarting: true });
+      if (restartBannerTimer) clearTimeout(restartBannerTimer);
+      restartBannerTimer = setTimeout(() => {
+        useGameStore.setState({ serverRestarting: true });
+        restartBannerTimer = null;
+      }, 2000);
     });
 
     socket.on("reconnect" as any, () => {
+      if (restartBannerTimer) {
+        clearTimeout(restartBannerTimer);
+        restartBannerTimer = null;
+      }
       useGameStore.setState({ serverRestarting: false });
     });
 
