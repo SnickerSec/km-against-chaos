@@ -9,8 +9,8 @@ import {
 } from "../lobby.js";
 import { getDeck } from "../deckStore.js";
 import { createGame, startRound, getPlayerView, getScores, endGame, cleanupGame, addPlayerToGame, removePlayerFromGame } from "../game.js";
-import { createUnoGame, isUnoGame, cleanupUnoGame, getUnoPlayerView } from "../unoGame.js";
-import { createCodenamesGame, isCodenamesGame, cleanupCodenamesGame, getCodenamesPlayerView } from "../codenamesGame.js";
+import { createUnoGame, isUnoGame, cleanupUnoGame, getUnoPlayerView, removePlayerFromUnoGame } from "../unoGame.js";
+import { createCodenamesGame, isCodenamesGame, cleanupCodenamesGame, getCodenamesPlayerView, removePlayerFromCodenamesGame } from "../codenamesGame.js";
 import { setInGame, setNotInGame, getUserIdForSocket } from "../presence.js";
 import pool from "../db.js";
 import {
@@ -32,14 +32,29 @@ export function handleLeave(io: Server<ClientEvents, ServerEvents>, socketId: st
   const result = leaveLobby(socketId);
   if (!result) return;
 
-  if (code) removePlayerFromGame(code, socketId);
+  if (code) {
+    // Remove from whichever game engine owns this lobby so the leaver stops
+    // receiving turn/round updates (which would otherwise force them back
+    // onto the game screen via the client's uno:turn-update handler).
+    removePlayerFromGame(code, socketId);
+    removePlayerFromUnoGame(code, socketId);
+    removePlayerFromCodenamesGame(code, socketId);
+  }
 
   if (result.lobby) {
     io.to(result.code).emit("lobby:updated", result.lobby);
     io.to(result.code).emit("lobby:player-left", socketId);
     if (result.newHostId) io.to(result.code).emit("lobby:host-changed", result.newHostId);
+
+    // Push refreshed game state so the remaining players see the leaver gone
+    // from the turn rotation immediately, not on their next action.
+    if (code) {
+      if (isUnoGame(code)) sendUnoTurnToPlayers(io, code);
+      else if (isCodenamesGame(code)) sendCodenamesUpdate(io, code);
+    }
   } else {
     cleanupGame(result.code);
+    cleanupUnoGame(result.code);
     cleanupCodenamesGame(result.code);
     clearChatHistory(result.code);
   }

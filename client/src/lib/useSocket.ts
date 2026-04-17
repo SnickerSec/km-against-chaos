@@ -168,6 +168,9 @@ export function useSocket() {
     // ── Codenames Events ──
 
     socket.on("codenames:update" as any, (view: any) => {
+      // Ignore stragglers after a clean leave — otherwise a late update from
+      // the game engine would drag us back onto the game screen.
+      if (!useGameStore.getState().lobby) return;
       useGameStore.getState().setCodenamesView(view);
       if (useGameStore.getState().screen !== "game") {
         setScreen("game");
@@ -175,6 +178,7 @@ export function useSocket() {
     });
 
     socket.on("uno:turn-update" as any, (view: UnoPlayerView) => {
+      if (!useGameStore.getState().lobby) return;
       useGameStore.getState().setUnoGameView(view);
       if (useGameStore.getState().screen !== "game") {
         setScreen("game");

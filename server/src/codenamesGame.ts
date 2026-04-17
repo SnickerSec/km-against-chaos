@@ -309,6 +309,27 @@ export function cleanupCodenamesGame(lobbyCode: string): void {
   games.delete(lobbyCode);
 }
 
+/**
+ * Remove a player from an active Codenames game (leave or kick). Clears their
+ * slot on either team; a vacated spymaster slot becomes unset so the team can
+ * reassign.
+ */
+export function removePlayerFromCodenamesGame(lobbyCode: string, playerId: string): void {
+  const game = games.get(lobbyCode);
+  if (!game) return;
+
+  const idx = game.playerIds.indexOf(playerId);
+  if (idx === -1) return;
+  game.playerIds.splice(idx, 1);
+
+  for (const team of ["red", "blue"] as const) {
+    if (game.teams[team].spymaster === playerId) {
+      game.teams[team].spymaster = undefined;
+    }
+    game.teams[team].guessers = game.teams[team].guessers.filter(p => p !== playerId);
+  }
+}
+
 export function getCodenamesScores(lobbyCode: string): Record<string, number> | null {
   const game = games.get(lobbyCode);
   if (!game) return null;

@@ -682,6 +682,44 @@ export function cleanupUnoGame(lobbyCode: string): void {
   games.delete(lobbyCode);
 }
 
+/**
+ * Remove a player from an active Uno game (leave or kick). Their hand is
+ * shuffled back into the draw pile so their cards aren't lost from the deck,
+ * and the turn rotation is adjusted so play continues cleanly.
+ */
+export function removePlayerFromUnoGame(lobbyCode: string, playerId: string): void {
+  const game = games.get(lobbyCode);
+  if (!game) return;
+
+  const idx = game.playerIds.indexOf(playerId);
+  if (idx === -1) return;
+
+  // Return the leaver's hand to the draw pile and reshuffle so their cards
+  // stay in circulation for the remaining players.
+  const hand = game.hands.get(playerId);
+  if (hand && hand.length > 0) {
+    game.drawPile.push(...hand);
+    shuffle(game.drawPile);
+  }
+
+  game.playerIds.splice(idx, 1);
+  game.hands.delete(playerId);
+  game.scores.delete(playerId);
+  game.unoCalledPlayers.delete(playerId);
+  if (game.vulnerablePlayer === playerId) game.vulnerablePlayer = undefined;
+
+  // Keep currentPlayerIndex pointing at the correct remaining player:
+  //   - if it pointed past the leaver, decrement by one to keep the same player
+  //   - if it pointed at the leaver, the next player now occupies that slot
+  //     (no change needed) — but wrap if the leaver was at the end.
+  if (game.playerIds.length === 0) return;
+  if (idx < game.currentPlayerIndex) {
+    game.currentPlayerIndex -= 1;
+  } else if (game.currentPlayerIndex >= game.playerIds.length) {
+    game.currentPlayerIndex = 0;
+  }
+}
+
 export function remapUnoGamePlayer(lobbyCode: string, oldId: string, newId: string): void {
   const game = games.get(lobbyCode);
   if (!game) return;
