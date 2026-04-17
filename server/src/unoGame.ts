@@ -1,7 +1,16 @@
 import { UnoCard, UnoColor, UnoCardType, UnoTurnState, UnoPlayerView, UnoDeckTemplate } from "./types";
+import { getPlayerNameInLobby } from "./lobby.js";
 
 const HAND_SIZE = 7;
 const TURN_TIME_MS = 30_000;
+
+// Resolve the display name for a player in a given lobby, falling back to a
+// generic label if the lobby is gone (e.g., in unit tests without a lobby).
+function displayName(lobbyCode: string, playerId: string): string {
+  const name = getPlayerNameInLobby(lobbyCode, playerId);
+  if (name) return name;
+  return playerId.startsWith("bot-") ? "Bot" : "Someone";
+}
 
 interface InternalUnoGame {
   lobbyCode: string;
@@ -287,8 +296,7 @@ export function playCard(
   game.discardPile.push(card);
   game.vulnerablePlayer = undefined;
 
-  // Determine player name for lastAction
-  const pName = playerId.startsWith("bot-") ? playerId.replace("bot-", "Bot ") : "Player";
+  const pName = displayName(lobbyCode, playerId);
 
   // Resolve card effects
   if (card.type === "wild" || card.type === "wild_draw_four") {
@@ -314,7 +322,7 @@ export function playCard(
         const drawn = drawFromPile(game, 4);
         game.hands.get(nextPid)!.push(...drawn);
         game.pendingDraw = 0;
-        game.lastAction = `${pName} played ${card.text}! ${nextPid.startsWith("bot-") ? nextPid.replace("bot-", "Bot ") : "Player"} draws 4`;
+        game.lastAction = `${pName} played ${card.text}! ${displayName(lobbyCode, nextPid)} draws 4`;
         advanceTurn(game);
       }
     } else {
@@ -350,7 +358,7 @@ export function playCard(
       const nextPid = game.playerIds[game.currentPlayerIndex];
       const drawn = drawFromPile(game, 2);
       game.hands.get(nextPid)!.push(...drawn);
-      game.lastAction = `${pName} played ${card.text}! ${nextPid.startsWith("bot-") ? nextPid.replace("bot-", "Bot ") : "Player"} draws 2`;
+      game.lastAction = `${pName} played ${card.text}! ${displayName(lobbyCode, nextPid)} draws 2`;
       advanceTurn(game); // skip the drawing player
     }
   } else {
@@ -439,7 +447,7 @@ export function drawCard(lobbyCode: string, playerId: string): DrawCardResult {
   if (game.phase !== "playing") return { success: false, error: "Not in playing phase" };
   if (game.playerIds[game.currentPlayerIndex] !== playerId) return { success: false, error: "Not your turn" };
 
-  const pName = playerId.startsWith("bot-") ? playerId.replace("bot-", "Bot ") : "Player";
+  const pName = displayName(lobbyCode, playerId);
 
   // If there's a pending draw (stacking mode), draw the full accumulated penalty
   if (game.pendingDraw > 0 && game.stackingEnabled) {
@@ -506,7 +514,7 @@ export function challengeUno(lobbyCode: string, challengerId: string, targetId: 
   const drawn = drawFromPile(game, 2);
   targetHand.push(...drawn);
   game.vulnerablePlayer = undefined;
-  game.lastAction = `${targetId.startsWith("bot-") ? targetId.replace("bot-", "Bot ") : "Player"} caught not calling Uno! Draws 2`;
+  game.lastAction = `${displayName(lobbyCode, targetId)} caught not calling Uno! Draws 2`;
 
   return { success: true, penalized: true };
 }
