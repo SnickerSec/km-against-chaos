@@ -3,6 +3,7 @@ import { Router } from "express";
 import sharp from "sharp";
 import pool from "./db.js";
 import { createLogger } from "./logger.js";
+import { urlFor, isUsingR2 } from "./storage.js";
 
 const log = createLogger("art-library");
 const router = Router();
@@ -69,11 +70,22 @@ router.get("/browse", async (req, res) => {
   }
 });
 
-// Serve full-size image
+// Serve full-size image. When r2_key is set (new rows + migrated legacy rows),
+// redirect to the R2 public URL so Railway doesn't proxy image bytes. Falls
+// back to streaming from the bytea for rows written before the migration.
 router.get("/image/:id", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT data FROM art_library WHERE id = $1", [req.params.id]);
+    const { rows } = await pool.query(
+      "SELECT r2_key, data FROM art_library WHERE id = $1",
+      [req.params.id]
+    );
     if (!rows.length) { res.status(404).end(); return; }
+
+    if (rows[0].r2_key && isUsingR2()) {
+      res.redirect(302, urlFor(rows[0].r2_key));
+      return;
+    }
+
     const buf: Buffer = rows[0].data;
     res.setHeader("Content-Type", "image/jpeg");
     res.setHeader("Content-Length", buf.length);
@@ -84,17 +96,30 @@ router.get("/image/:id", async (req, res) => {
   }
 });
 
-// Serve thumbnail (resized on-the-fly, cached by browser)
+// Serve thumbnail. Thumbnails are generated on-the-fly with sharp and always
+// read from whichever source has the bytes — bytea first (still present
+// during the dual-write window), then R2 as the fallback once the column is
+// dropped. Browsers cache the thumb for a year so this endpoint is hit once.
 router.get("/thumb/:id", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT data, width, height FROM art_library WHERE id = $1", [req.params.id]);
+    const { rows } = await pool.query(
+      "SELECT data, width, height, r2_key FROM art_library WHERE id = $1",
+      [req.params.id]
+    );
     if (!rows.length) { res.status(404).end(); return; }
+
+    let source: Buffer | null = rows[0].data ? (rows[0].data as Buffer) : null;
+    if (!source && rows[0].r2_key && isUsingR2()) {
+      const r2Res = await fetch(urlFor(rows[0].r2_key));
+      if (r2Res.ok) source = Buffer.from(await r2Res.arrayBuffer());
+    }
+    if (!source) { res.status(404).end(); return; }
 
     const thumbWidth = 128;
     const aspectRatio = rows[0].height / rows[0].width;
     const thumbHeight = Math.round(thumbWidth * aspectRatio);
 
-    const thumb = await sharp(rows[0].data)
+    const thumb = await sharp(source)
       .resize(thumbWidth, thumbHeight, { fit: "cover" })
       .jpeg({ quality: 70 })
       .toBuffer();

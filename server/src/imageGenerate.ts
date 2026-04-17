@@ -8,8 +8,31 @@ import { createLogger } from "./logger.js";
 
 const log = createLogger("art");
 import pool from "./db.js";
+import { putObject } from "./storage.js";
 import path from "path";
 import fs from "fs";
+
+// Sniff image format from the first bytes of a buffer so we pick the right
+// R2 key extension and Content-Type. AI output is PNG from fal.ai; speech-
+// bubble composites are re-encoded to JPEG.
+function sniffImage(buf: Buffer): { ext: "png" | "jpg" | "webp" | "gif"; mime: string } {
+  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return { ext: "png", mime: "image/png" };
+  }
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return { ext: "jpg", mime: "image/jpeg" };
+  }
+  if (buf.length >= 12 && buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46
+      && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) {
+    return { ext: "webp", mime: "image/webp" };
+  }
+  if (buf.length >= 6 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) {
+    return { ext: "gif", mime: "image/gif" };
+  }
+  // Unknown — default to JPEG. We'd rather have a wrong extension than fail
+  // the upload.
+  return { ext: "jpg", mime: "image/jpeg" };
+}
 
 // Register Creative Block BB font with fontconfig
 const fontsDir = path.resolve(__dirname, "../fonts");
@@ -464,14 +487,22 @@ export async function saveToArtLibrary(opts: {
     }
 
     const id = randomBytes(8).toString("hex");
+
+    // Upload to R2 first — if this fails, the whole save fails and no row
+    // is written. Key layout: art/{id}.{ext}, where ext is sniffed from the
+    // buffer's magic bytes.
+    const { ext, mime } = sniffImage(buffer);
+    const r2Key = `art/${id}.${ext}`;
+    await putObject(r2Key, buffer, mime);
+
     const { rows } = await pool.query(
-      `INSERT INTO art_library (id, data, prompt, source_card_text, game_type, deck_name, width, height, has_speech_bubble, generated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO art_library (id, data, prompt, source_card_text, game_type, deck_name, width, height, has_speech_bubble, generated_by, r2_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (md5(prompt || source_card_text || game_type)) DO UPDATE SET use_count = art_library.use_count
        RETURNING id`,
       [
         id,
-        buffer,
+        buffer, // keep bytea for rollback safety — follow-up will drop this column once R2 is proven
         opts.prompt,
         opts.sourceCardText,
         opts.gameType,
@@ -480,6 +511,7 @@ export async function saveToArtLibrary(opts: {
         opts.height || 512,
         opts.hasSpeechBubble || false,
         opts.generatedBy || null,
+        r2Key,
       ]
     );
     return rows[0].id;
