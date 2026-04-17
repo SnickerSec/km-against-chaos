@@ -1,14 +1,11 @@
 import { Router } from "express";
 import { createHash } from "crypto";
-import { mkdirSync, writeFileSync, existsSync } from "fs";
-import { join } from "path";
 import { createLogger } from "./logger.js";
+import { putObject, hasObject, urlFor } from "./storage.js";
 
 const log = createLogger("tts");
 const router = Router();
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || join(process.cwd(), "uploads");
-const TTS_DIR = join(UPLOAD_DIR, "tts");
 const DEFAULT_VOICE = "21m00Tcm4TlvDq8ikWAM"; // Rachel
 const MAX_TEXT = 500;
 
@@ -55,10 +52,13 @@ router.post("/speak", async (req, res) => {
 
   const hash = createHash("sha1").update(`${voice}:${text}`).digest("hex").slice(0, 24);
   const filename = `${hash}.mp3`;
-  const filepath = join(TTS_DIR, filename);
-  const url = `/uploads/tts/${filename}`;
+  const key = `tts/${filename}`;
 
-  if (existsSync(filepath)) { res.json({ url, cached: true }); return; }
+  // Cache hit — the key is content-addressable (hash of voice+text) so the
+  // object for a given voice/text never changes. Return the URL directly.
+  if (await hasObject(key)) {
+    res.json({ url: urlFor(key), cached: true }); return;
+  }
 
   try {
     const apiRes = await fetch(
@@ -83,8 +83,7 @@ router.post("/speak", async (req, res) => {
       res.status(502).json({ error: "TTS upstream failed" }); return;
     }
     const buf = Buffer.from(await apiRes.arrayBuffer());
-    mkdirSync(TTS_DIR, { recursive: true });
-    writeFileSync(filepath, buf);
+    const url = await putObject(key, buf, "audio/mpeg");
     res.json({ url, cached: false });
   } catch (e: any) {
     log.error("tts generation failed", { error: e.message });

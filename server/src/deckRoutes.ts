@@ -1,9 +1,8 @@
 import * as Sentry from "@sentry/node";
 import { Router } from "express";
 import { randomBytes } from "crypto";
-import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
-import { join } from "path";
 import * as fal from "@fal-ai/serverless-client";
+import { putObject } from "./storage.js";
 import {
   listDecks,
   getDeck,
@@ -483,8 +482,10 @@ router.put("/:id", requireAuth, async (req, res) => {
 });
 
 // ── Card back image upload ──────────────────────────────────────────────────
-const UPLOAD_DIR = process.env.UPLOAD_DIR || join(process.cwd(), "uploads");
-const CARD_BACK_DIR = join(UPLOAD_DIR, "card-backs");
+// Uploads go through storage.putObject so they land in R2 in production and on
+// local disk in dev/tests (see storage.ts). Legacy /uploads/... URLs that
+// predate the R2 migration continue to resolve via the express.static mount
+// in index.ts until we fully migrate + detach the Railway volume.
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const EXT_BY_MIME: Record<string, string> = {
   "image/png": "png",
@@ -523,15 +524,11 @@ router.post("/:id/card-back", requireAuth, async (req: any, res) => {
   req.on("end", async () => {
     if (aborted) return;
     try {
-      mkdirSync(CARD_BACK_DIR, { recursive: true });
-      // Remove any prior file with a different extension
-      for (const e of Object.values(EXT_BY_MIME)) {
-        const prev = join(CARD_BACK_DIR, `${deck.id}.${e}`);
-        if (existsSync(prev)) try { unlinkSync(prev); } catch {}
-      }
       const filename = `${deck.id}.${ext}`;
-      writeFileSync(join(CARD_BACK_DIR, filename), Buffer.concat(chunks));
-      const url = `/uploads/card-backs/${filename}?v=${Date.now()}`;
+      const key = `card-backs/${filename}`;
+      const publicUrl = await putObject(key, Buffer.concat(chunks), contentType);
+      // Cache-bust query param so browsers reload the card back after an edit.
+      const url = `${publicUrl}?v=${Date.now()}`;
       await pool.query("UPDATE decks SET card_back_url = $1, updated_at = NOW() WHERE id = $2", [url, deck.id]);
       res.json({ cardBackUrl: url });
     } catch (e: any) { Sentry.captureException(e);
@@ -580,14 +577,10 @@ router.post("/:id/card-back/generate", requireAuth, requireAiRateLimit, async (r
     if (!imgRes.ok) throw new Error(`Image fetch failed: ${imgRes.status}`);
     const buf = Buffer.from(await imgRes.arrayBuffer());
 
-    mkdirSync(CARD_BACK_DIR, { recursive: true });
-    for (const e of Object.values(EXT_BY_MIME)) {
-      const prev = join(CARD_BACK_DIR, `${deck.id}.${e}`);
-      if (existsSync(prev)) try { unlinkSync(prev); } catch {}
-    }
     const filename = `${deck.id}.jpg`;
-    writeFileSync(join(CARD_BACK_DIR, filename), buf);
-    const url = `/uploads/card-backs/${filename}?v=${Date.now()}`;
+    const key = `card-backs/${filename}`;
+    const publicUrl = await putObject(key, buf, "image/jpeg");
+    const url = `${publicUrl}?v=${Date.now()}`;
     await pool.query("UPDATE decks SET card_back_url = $1, updated_at = NOW() WHERE id = $2", [url, deck.id]);
     res.json({ cardBackUrl: url, prompt });
   } catch (e: any) { Sentry.captureException(e);
@@ -603,10 +596,9 @@ router.delete("/:id/card-back", requireAuth, async (req: any, res) => {
   if (!isMod && deck.ownerId && deck.ownerId !== req.user.id) {
     res.status(403).json({ error: "Not your deck" }); return;
   }
-  for (const e of Object.values(EXT_BY_MIME)) {
-    const prev = join(CARD_BACK_DIR, `${deck.id}.${e}`);
-    if (existsSync(prev)) try { unlinkSync(prev); } catch {}
-  }
+  // Just unlink in the DB — orphan objects in R2 cost ~nothing and simplify the
+  // cross-environment code (we'd otherwise need different cleanup for R2 vs
+  // local disk). A lifecycle rule on the bucket can reap orphans later.
   await pool.query("UPDATE decks SET card_back_url = NULL, updated_at = NOW() WHERE id = $1", [deck.id]);
   res.json({ success: true });
 });
