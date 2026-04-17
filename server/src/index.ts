@@ -313,8 +313,13 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 // anything the route handlers throw or forward via next(err).
 Sentry.setupExpressErrorHandler(app);
 
-// Socket.IO error capture — handler-thrown errors don't bubble to Express
+// Socket.IO error capture — handler-thrown errors don't bubble to Express.
+// Skip benign engine.io codes that fire during normal client reconnects
+// (e.g. after a server restart, polling→websocket upgrade races a stale sid).
+// Codes: 1 UNKNOWN_SID, 3 BAD_REQUEST (includes TRANSPORT_MISMATCH).
+const BENIGN_ENGINE_IO_CODES = new Set([1, 3]);
 io.engine.on("connection_error", (err: any) => {
+  if (BENIGN_ENGINE_IO_CODES.has(err?.code)) return;
   Sentry.captureException(err, { tags: { source: "socket.io-engine" } });
 });
 
