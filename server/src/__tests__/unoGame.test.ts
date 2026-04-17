@@ -18,6 +18,8 @@ import {
   isUnoGame,
   remapUnoGamePlayer,
   handleUnoTurnTimeout,
+  exportUnoGames,
+  restoreUnoGames,
 } from "../unoGame.js";
 import type { UnoCard, UnoColor, UnoDeckTemplate } from "../types.js";
 
@@ -540,5 +542,86 @@ describe("edge cases", () => {
     expect(isUnoGame(LOBBY)).toBe(true);
     cleanupUnoGame(LOBBY);
     expect(isUnoGame(LOBBY)).toBe(false);
+  });
+});
+
+// ── Snapshot round-trip ──────────────────────────────────────────────────────
+// These tests protect the redeploy-survival path: game state exported on
+// SIGTERM is stringified to JSON for Postgres JSONB, then parsed back and
+// fed through restoreUnoGames on the next boot. Anything that doesn't
+// round-trip cleanly (Maps, Sets, undefined fields) would break restore
+// silently in production.
+
+describe("exportUnoGames / restoreUnoGames", () => {
+  afterEach(() => cleanupUnoGame(LOBBY));
+
+  it("returns empty array when no games exist", () => {
+    expect(exportUnoGames()).toEqual([]);
+  });
+
+  it("exports one entry per active game", () => {
+    createUnoGame(LOBBY, PLAYERS, TEMPLATE);
+    createUnoGame("other-uno", ["x", "y"], TEMPLATE);
+    expect(exportUnoGames()).toHaveLength(2);
+    cleanupUnoGame("other-uno");
+  });
+
+  it("round-trips through JSON and preserves gameplay state", () => {
+    createUnoGame(LOBBY, PLAYERS, TEMPLATE);
+    // Perturb state so we're not just round-tripping defaults.
+    callUno(LOBBY, PLAYERS[0]);
+    const beforeScores = getUnoScores(LOBBY);
+    const beforePhase = getUnoPhase(LOBBY);
+    const beforePlayer = getUnoCurrentPlayer(LOBBY);
+    const beforeView = getUnoPlayerView(LOBBY, PLAYERS[0])!;
+
+    // Simulate the SIGTERM → JSONB → boot cycle.
+    const snapshot = JSON.parse(JSON.stringify(exportUnoGames()));
+    cleanupUnoGame(LOBBY);
+    expect(isUnoGame(LOBBY)).toBe(false);
+    restoreUnoGames(snapshot);
+
+    expect(isUnoGame(LOBBY)).toBe(true);
+    expect(getUnoScores(LOBBY)).toEqual(beforeScores);
+    expect(getUnoPhase(LOBBY)).toBe(beforePhase);
+    expect(getUnoCurrentPlayer(LOBBY)).toBe(beforePlayer);
+    // Hand contents must survive — they live in a Map that got serialized as entries.
+    const afterView = getUnoPlayerView(LOBBY, PLAYERS[0])!;
+    expect(afterView.hand).toEqual(beforeView.hand);
+  });
+
+  it("refreshes turnDeadline on restore so timers start fresh", () => {
+    createUnoGame(LOBBY, PLAYERS, TEMPLATE);
+    const exported = exportUnoGames();
+    // Simulate a stale deadline from a server that's been down for a minute.
+    exported[0].turnDeadline = Date.now() - 60_000;
+    const beforeRestore = Date.now();
+    restoreUnoGames(JSON.parse(JSON.stringify(exported)));
+    const view = getUnoPlayerView(LOBBY, PLAYERS[0])!;
+    // Restored deadline should be in the future relative to restore time.
+    expect(view.turn.turnDeadline).toBeGreaterThanOrEqual(beforeRestore);
+  });
+
+  it("serializes unoCalledPlayers Set as an array in the exported snapshot", () => {
+    createUnoGame(LOBBY, PLAYERS, TEMPLATE);
+    // Pre-seed the Set directly on the exported object to simulate a game
+    // mid-play where someone has called Uno. We verify JSON survives the round.
+    const exported = exportUnoGames();
+    expect(Array.isArray(exported[0].unoCalledPlayers)).toBe(true);
+    exported[0].unoCalledPlayers = [PLAYERS[0]];
+    const roundTripped = JSON.parse(JSON.stringify(exported));
+    cleanupUnoGame(LOBBY);
+    restoreUnoGames(roundTripped);
+    // Re-export and verify the Set was rehydrated and re-serialized.
+    expect(exportUnoGames()[0].unoCalledPlayers).toContain(PLAYERS[0]);
+  });
+
+  it("restore overwrites an existing game with the same code", () => {
+    createUnoGame(LOBBY, PLAYERS, TEMPLATE);
+    const snapshot = JSON.parse(JSON.stringify(exportUnoGames()));
+    // Mutate a field on the snapshot and restore — live state should be replaced.
+    snapshot[0].roundNumber = 99;
+    restoreUnoGames(snapshot);
+    expect(exportUnoGames()[0].roundNumber).toBe(99);
   });
 });

@@ -10,6 +10,8 @@ import {
   passTurn,
   cleanupCodenamesGame,
   getCodenamesScores,
+  exportCodenamesGames,
+  restoreCodenamesGames,
 } from "../codenamesGame.js";
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -702,5 +704,70 @@ describe("grid color distribution", () => {
     expect(counts.blue).toBe(8);
     expect(counts.neutral).toBe(7);
     expect(counts.assassin).toBe(1);
+  });
+});
+
+// ── Snapshot round-trip ──────────────────────────────────────────────────────
+// Codenames state is all primitives/plain objects (no Maps or Sets), so it
+// should round-trip through JSONB without special handling. These tests
+// guard against future state-shape changes that would silently break
+// redeploy survival.
+
+describe("exportCodenamesGames / restoreCodenamesGames", () => {
+  it("returns empty array when no games exist", () => {
+    cleanupCodenamesGame(LOBBY);
+    expect(exportCodenamesGames()).toEqual([]);
+  });
+
+  it("round-trips mid-game state through JSON", () => {
+    setupTeamsAndStart();
+    giveClue(LOBBY, "p1", "animal", 2);
+    const redIdx = findWordIndex("red");
+    guessWord(LOBBY, "p2", redIdx);
+
+    const beforeView = getCodenamesPlayerView(LOBBY, "p1")!;
+    const beforeScores = beforeView.scores;
+
+    // Simulate the SIGTERM → JSONB → boot cycle.
+    const snapshot = JSON.parse(JSON.stringify(exportCodenamesGames()));
+    cleanupCodenamesGame(LOBBY);
+    expect(isCodenamesGame(LOBBY)).toBe(false);
+    restoreCodenamesGames(snapshot);
+
+    expect(isCodenamesGame(LOBBY)).toBe(true);
+    const afterView = getCodenamesPlayerView(LOBBY, "p1")!;
+    expect(afterView.scores).toEqual(beforeScores);
+    expect(afterView.currentTeam).toBe(beforeView.currentTeam);
+    expect(afterView.phase).toBe(beforeView.phase);
+    expect(afterView.clue).toEqual(beforeView.clue);
+    expect(afterView.guessesRemaining).toBe(beforeView.guessesRemaining);
+    // Revealed state must survive so the UI doesn't un-reveal cards.
+    expect(afterView.grid.filter(w => w.revealed).length)
+      .toBe(beforeView.grid.filter(w => w.revealed).length);
+  });
+
+  it("preserves spymaster color visibility after restore", () => {
+    setupTeamsAndStart();
+    const beforeSpymasterView = getCodenamesPlayerView(LOBBY, "p1")!;
+    const snapshot = JSON.parse(JSON.stringify(exportCodenamesGames()));
+    cleanupCodenamesGame(LOBBY);
+    restoreCodenamesGames(snapshot);
+    const afterSpymasterView = getCodenamesPlayerView(LOBBY, "p1")!;
+    // The hidden color board must be identical so the spymaster keeps
+    // the same mental model after the redeploy.
+    for (let i = 0; i < 25; i++) {
+      expect(afterSpymasterView.grid[i].color).toBe(beforeSpymasterView.grid[i].color);
+      expect(afterSpymasterView.grid[i].word).toBe(beforeSpymasterView.grid[i].word);
+    }
+  });
+
+  it("restore overwrites an existing game with the same code", () => {
+    setupTeamsAndStart();
+    const snapshot = JSON.parse(JSON.stringify(exportCodenamesGames()));
+    // Mutate the snapshot score and restore — live state should be replaced.
+    snapshot[0].scores = { red: 99, blue: 99 };
+    restoreCodenamesGames(snapshot);
+    const view = getCodenamesPlayerView(LOBBY, "p1")!;
+    expect(view.scores).toEqual({ red: 99, blue: 99 });
   });
 });
