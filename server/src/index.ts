@@ -313,9 +313,14 @@ function gracefulShutdown(signal: string) {
     process.exit(0);
   }, DRAIN_MS);
 
-  // Hard cap — Railway's default SIGKILL is ~3 min, stay well under it
+  // Hard cap — Railway's default SIGKILL is ~3 min, stay well under it.
   setTimeout(() => { log.error("shutdown timed out, forcing exit"); process.exit(1); }, DRAIN_MS + 10_000).unref();
 }
+
+// Shutdown sequence at a glance (see gracefulShutdown above for details):
+//   SIGTERM → /health → 503, snapshot, *HTTP stays open*
+//   …25s drain…
+//   emit server_restart → disconnect sockets → close HTTP → pool.end → exit
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
