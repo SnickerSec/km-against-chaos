@@ -191,6 +191,17 @@ if (clientDir) {
 // ── Socket.IO Connection Handler ─────────────────────────────────────────────
 
 io.on("connection", async (socket) => {
+  // Per-event Sentry isolation: every socket event runs in its own isolation
+  // scope so socket.data.user (set by auth:identify) attaches to errors raised
+  // inside that event without leaking onto other concurrent sockets' events.
+  socket.use((_packet, next) => {
+    Sentry.withIsolationScope(() => {
+      const u = (socket.data as { user?: { id: string; email: string; username: string } }).user;
+      if (u) Sentry.setUser(u);
+      next();
+    });
+  });
+
   const sessionId: string = socket.handshake.auth?.sessionId || socket.id;
   const { isReconnect, oldSocketId } = await registerSession(sessionId, socket.id);
 

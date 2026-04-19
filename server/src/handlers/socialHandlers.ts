@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import type { Server, Socket } from "socket.io";
+import { Sentry } from "../instrumentation.js";
 import type { ClientEvents, ServerEvents } from "../types.js";
 import { verifyJwt } from "../auth.js";
 import pool from "../db.js";
@@ -23,6 +24,10 @@ export function registerSocialHandlers(
     try {
       const user = verifyJwt(token);
       await setOnline(user.id, socket.id);
+      (socket.data as { user?: { id: string; email: string; username: string } }).user = {
+        id: user.id, email: user.email, username: user.name,
+      };
+      Sentry.setUser({ id: user.id, email: user.email, username: user.name });
 
       const friends = await pool.query(
         `SELECT CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END as friend_id
