@@ -590,4 +590,13 @@ describe("exportUnoGames / restoreUnoGames", () => {
     await restoreUnoGames(snapshot);
     expect((await exportUnoGames())[0].roundNumber).toBe(99);
   });
+
+  it("skips zombie games whose turnDeadline is more than an hour in the past", async () => {
+    await createUnoGame(LOBBY, PLAYERS, TEMPLATE);
+    const exported = JSON.parse(JSON.stringify(await exportUnoGames()));
+    exported[0].turnDeadline = Date.now() - (61 * 60 * 1000); // 61m stale
+    await cleanupUnoGame(LOBBY);
+    await restoreUnoGames(exported);
+    expect(await isUnoGame(LOBBY)).toBe(false);
+  });
 });

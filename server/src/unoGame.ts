@@ -923,9 +923,18 @@ export async function exportUnoGames(): Promise<any[]> {
   return games.map(g => serialise(g));
 }
 
+const ABANDONED_GAME_STALENESS_MS = 60 * 60 * 1000; // 1h past turnDeadline → zombie
+
 export async function restoreUnoGames(snapshots: any[]): Promise<void> {
   for (const s of snapshots) {
     const game = deserialise(s as SerialisedUnoGame);
+    // Skip zombie games — games whose turnDeadline was already an hour in
+    // the past at restore time mean nobody's been playing. Resurrecting them
+    // each deploy just re-arms the turn timer and keeps the game looping
+    // through SIGTERM → restore → timeout forever. Matches the CAH filter.
+    if (Date.now() - game.turnDeadline > ABANDONED_GAME_STALENESS_MS) {
+      continue;
+    }
     // Turn timers don't survive; give the restored turn a fresh deadline
     // so the client sees a clean countdown on the new instance.
     game.turnDeadline = Date.now() + TURN_TIME_MS;

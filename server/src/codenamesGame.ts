@@ -55,6 +55,7 @@ interface InternalCodenamesGame {
   lastAction?: string;
   gameOver: boolean;
   winner?: CodenamesTeam;
+  createdAt: number;  // epoch ms — used by the snapshot-restore zombie filter
 }
 
 // ── Storage ──────────────────────────────────────────────────────────────────
@@ -151,6 +152,7 @@ export async function createCodenamesGame(lobbyCode: string, playerIds: string[]
     scores: { red: 0, blue: 0 },
     targets: { red: 9, blue: 8 },
     gameOver: false,
+    createdAt: Date.now(),
   };
 
   await saveGame(game);
@@ -434,8 +436,19 @@ export async function exportCodenamesGames(): Promise<any[]> {
   return getAllGames();
 }
 
+const ABANDONED_GAME_AGE_MS = 2 * 60 * 60 * 1000; // 2h since creation → zombie
+
 export async function restoreCodenamesGames(snapshots: any[]): Promise<void> {
   for (const s of snapshots) {
-    await saveGame(s as InternalCodenamesGame);
+    const game = s as InternalCodenamesGame;
+    // Skip zombie games. Codenames has no phase deadline to key staleness off,
+    // so use createdAt the same way lobby.ts does: a game older than 2h is
+    // something nobody is actively playing. Pre-existing snapshots without
+    // createdAt are treated as fresh — the 15-min snapshot-table cutoff in
+    // snapshot.ts already bounds how long they can linger.
+    if (game.createdAt && Date.now() - game.createdAt > ABANDONED_GAME_AGE_MS) {
+      continue;
+    }
+    await saveGame(game);
   }
 }

@@ -741,4 +741,13 @@ describe("exportCodenamesGames / restoreCodenamesGames", () => {
     const view = (await getCodenamesPlayerView(LOBBY, "p1"))!;
     expect(view.scores).toEqual({ red: 99, blue: 99 });
   });
+
+  it("skips zombie games whose createdAt is more than 2 hours in the past", async () => {
+    await setupTeamsAndStart();
+    const exported = JSON.parse(JSON.stringify(await exportCodenamesGames()));
+    exported[0].createdAt = Date.now() - (3 * 60 * 60 * 1000); // 3h old
+    await cleanupCodenamesGame(LOBBY);
+    await restoreCodenamesGames(exported);
+    expect(await isCodenamesGame(LOBBY)).toBe(false);
+  });
 });
