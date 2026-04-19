@@ -29,6 +29,7 @@ export function useSocket() {
     setGameView,
     setSubmissions,
     addSubmittedPlayer,
+    addVotedPlayer,
     setWinnerInfo,
     setScores,
     addChatMessage,
@@ -90,6 +91,10 @@ export function useSocket() {
       addSubmittedPlayer(playerId);
     });
 
+    socket.on("game:player-voted" as any, (playerId: string) => {
+      addVotedPlayer(playerId);
+    });
+
     socket.on("game:judging", (submissions: Submission[], _chaosCard: ChaosCard) => {
       setSubmissions(submissions);
     });
@@ -117,6 +122,7 @@ export function useSocket() {
         maxRounds: 0,
         hasSubmitted: false,
         submittedPlayers: new Set(),
+        votedPlayers: new Set(),
         selectedCards: [],
         winnerInfo: null,
       });
@@ -267,6 +273,7 @@ export function useSocket() {
     setGameView,
     setSubmissions,
     addSubmittedPlayer,
+    addVotedPlayer,
     setWinnerInfo,
     setScores,
     addChatMessage,

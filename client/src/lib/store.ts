@@ -186,6 +186,7 @@ interface GameStore {
   maxRounds: number;
   hasSubmitted: boolean;
   submittedPlayers: Set<string>;
+  votedPlayers: Set<string>;
   selectedCards: string[];
   winnerInfo: { winnerId: string; winnerName: string; cards: KnowledgeCard[]; audiencePick?: string | null } | null;
 
@@ -238,6 +239,7 @@ interface GameStore {
   setRoundPhase: (phase: "czar_setup" | "submitting" | "judging" | "revealing") => void;
   setSubmissions: (submissions: Submission[]) => void;
   addSubmittedPlayer: (playerId: string) => void;
+  addVotedPlayer: (playerId: string) => void;
   toggleCardSelection: (cardId: string, maxPick: number) => void;
   setHasSubmitted: (v: boolean) => void;
   setWinnerInfo: (info: { winnerId: string; winnerName: string; cards: KnowledgeCard[]; audiencePick?: string | null } | null) => void;
@@ -272,6 +274,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   maxRounds: 0,
   hasSubmitted: false,
   submittedPlayers: new Set(),
+  votedPlayers: new Set(),
   selectedCards: [],
   winnerInfo: null,
   chatMessages: [],
@@ -315,6 +318,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       hasSubmitted: view.hasSubmitted,
       gameType: view.gameType || "cah",
       submittedPlayers: new Set(),
+      votedPlayers: new Set(),
       selectedCards: [],
       winnerInfo: null,
     }),
@@ -337,6 +341,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const next = new Set(get().submittedPlayers);
     next.add(playerId);
     set({ submittedPlayers: next });
+  },
+
+  addVotedPlayer: (playerId) => {
+    const next = new Set(get().votedPlayers);
+    next.add(playerId);
+    set({ votedPlayers: next });
   },
 
   toggleCardSelection: (cardId, maxPick) => {
@@ -420,6 +430,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       maxRounds: 0,
       hasSubmitted: false,
       submittedPlayers: new Set(),
+      votedPlayers: new Set(),
       selectedCards: [],
       winnerInfo: null,
       chatMessages: [],

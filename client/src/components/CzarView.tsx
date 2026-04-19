@@ -10,7 +10,7 @@ import { Icon } from "@iconify/react";
 import { Button } from "./ui/Button";
 
 export default function CzarView({ isCzar }: { isCzar: boolean }) {
-  const { round, gameType, lobby } = useGameStore();
+  const { round, gameType, lobby, votedPlayers } = useGameStore();
   const { pickWinner, spectatorVote } = useSocket();
   const isJH = gameType === "joking_hazard";
   const [selected, setSelected] = useState<string | null>(null);
@@ -97,6 +97,18 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
               ? "Vote for your favorite!"
               : isJH ? "The Judge is choosing a winner..." : "The Czar is choosing a winner..."}
       </p>
+      {botCzarMode && (() => {
+        // Live tally: non-czar in-game players only (czar is a bot, bots judge/vote too).
+        const nonCzarPlayers = (lobby?.players || []).filter((p) => !p.isSpectator && p.id !== round.czarId);
+        const expected = nonCzarPlayers.length;
+        const voted = votedPlayers.size + (hasVoted ? 1 : 0);
+        if (expected === 0) return null;
+        return (
+          <p className="text-center text-xs text-purple-300 mb-4" aria-live="polite">
+            {voted} of {expected} voted
+          </p>
+        );
+      })()}
 
       <div className="grid grid-cols-1 gap-3 max-w-lg mx-auto">
         {round.submissions.map((sub, i) => {
