@@ -199,7 +199,7 @@ export function registerLobbyHandlers(
       let customChaos = undefined;
       let customKnowledge = undefined;
       let winCondition = undefined;
-      let gameType: "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames" | undefined = undefined;
+      let gameType: "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames" | "blackjack" | undefined = undefined;
       let unoTemplate: UnoDeckTemplate | undefined = undefined;
       if (deckId) {
         const deck = await getDeck(deckId);

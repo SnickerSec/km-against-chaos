@@ -110,8 +110,9 @@ export function validateDeck(deck: {
   if (!deck.name || deck.name.trim().length === 0) {
     return "Deck name is required";
   }
-  // Uno decks store a template instead of cards — skip card validation
-  if (deck.gameType === "uno") {
+  // Uno decks store a template instead of cards; Blackjack has no cards at
+  // all (built-in rules) — skip card validation for both.
+  if (deck.gameType === "uno" || deck.gameType === "blackjack") {
     return null;
   }
   if (!deck.chaosCards || deck.chaosCards.length < minChaos) {
