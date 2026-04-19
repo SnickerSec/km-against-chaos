@@ -398,3 +398,58 @@ describe("split rule edges", () => {
     expect((r as { success: false; error: string }).error).toMatch(/re-?split/i);
   });
 });
+
+import { runDealer } from "../blackjackGame.js";
+
+describe("runDealer", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+  });
+
+  it("hits to 17 and stands", async () => {
+    // Force every player to stand cleanly, then run dealer.
+    for (const pid of ["p1", "p2", "p3"] as const) {
+      await rigHand(LOBBY, pid, [{ suit: "S", rank: "9" }, { suit: "H", rank: "9" }]);
+      await stand(LOBBY, pid);
+    }
+    // Stub dealer hand to 12 (e.g., 7 + 5), then deal 6 → 18, stop.
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.dealerHand = [{ suit: "S", rank: "7" }, { suit: "H", rank: "5" }];
+    g.shoe = [{ suit: "C", rank: "6" }];
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await runDealer(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.dealerHand).toHaveLength(3);
+    expect(v.phase).toBe("settle");
+  });
+
+  it("skips drawing if every player busted", async () => {
+    for (const pid of ["p1", "p2", "p3"] as const) {
+      await rigHand(LOBBY, pid, [{ suit: "S", rank: "K" }, { suit: "H", rank: "Q" }]);
+      const exported = await exportBlackjackGames();
+      const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+      // Add a third card to bust (K+Q+5 = 25)
+      g.hands[pid][0].cards.push({ suit: "C", rank: "5" });
+      g.hands[pid][0].resolved = true;
+      await cleanupBlackjackGame(LOBBY);
+      await restoreBlackjackGames([g]);
+    }
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.dealerHand = [{ suit: "S", rank: "7" }, { suit: "H", rank: "5" }];
+    g.phase = "dealer";
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await runDealer(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    // Dealer doesn't draw — every player already lost.
+    expect(v.dealerHand).toHaveLength(2);
+  });
+});

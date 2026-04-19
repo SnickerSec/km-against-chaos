@@ -457,6 +457,34 @@ export async function split(lobbyCode: string, playerId: string): Promise<Action
   });
 }
 
+function anyLiveHand(g: InternalBlackjackGame): boolean {
+  for (const pid of g.playerIds) {
+    for (const h of g.hands[pid] || []) {
+      if (handValue(h.cards) <= 21) return true;
+    }
+  }
+  return false;
+}
+
+export async function runDealer(lobbyCode: string): Promise<void> {
+  await withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return;
+    if (g.phase !== "dealer") return;
+
+    // Skip drawing if every player busted — dealer wins by default.
+    if (anyLiveHand(g)) {
+      while (handValue(g.dealerHand) < 17) {
+        g.dealerHand.push(dealOne(g));
+      }
+    }
+
+    g.phase = "settle";
+    g.phaseDeadline = Date.now() + SETTLE_DELAY_MS;
+    await saveGame(g);
+  });
+}
+
 export async function isBlackjackGame(lobbyCode: string): Promise<boolean> {
   return gameExists(lobbyCode);
 }
