@@ -229,3 +229,34 @@ describe("hit", () => {
     expect((r as { success: false; error: string }).error).toMatch(/turn/i);
   });
 });
+
+import { stand } from "../blackjackGame.js";
+
+describe("stand", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+  });
+
+  it("advances to the next seat", async () => {
+    await stand(LOBBY, "p1");
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.activePlayerId).toBe("p2");
+    expect(v.hands.p1[0].resolved).toBe(true);
+  });
+
+  it("advances to dealer phase after the last seat stands", async () => {
+    await stand(LOBBY, "p1");
+    await stand(LOBBY, "p2");
+    await stand(LOBBY, "p3");
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.phase).toBe("dealer");
+  });
+
+  it("rejects when not active player", async () => {
+    const r = await stand(LOBBY, "p2");
+    expect(r.success).toBe(false);
+  });
+});

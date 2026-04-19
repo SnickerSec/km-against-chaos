@@ -377,6 +377,21 @@ export async function hit(lobbyCode: string, playerId: string): Promise<ActionRe
   });
 }
 
+export async function stand(lobbyCode: string, playerId: string): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "playing") return { success: false, error: "Not the playing phase" };
+    const cur = activeHand(g);
+    if (!cur || cur.pid !== playerId) return { success: false, error: "Not your turn" };
+
+    cur.hand.resolved = true;
+    advanceTurn(g);
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
 export async function isBlackjackGame(lobbyCode: string): Promise<boolean> {
   return gameExists(lobbyCode);
 }
