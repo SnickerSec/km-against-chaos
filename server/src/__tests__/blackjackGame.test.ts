@@ -36,6 +36,7 @@ describe("blackjackGame storage skeleton", () => {
 import {
   createBlackjackGame,
   getBlackjackPlayerView,
+  removePlayerFromBlackjackGame,
 } from "../blackjackGame.js";
 
 const PLAYERS = ["p1", "p2", "p3"];
@@ -596,5 +597,45 @@ describe("elimination and next-round loop", () => {
     expect(v.bets.p1).toBe("sitting_out"); // auto sit-out when ineligible
     expect(v.bets.p2).toBe(null);
     expect(v.bets.p3).toBe(null);
+  });
+});
+
+describe("removePlayerFromBlackjackGame", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+  });
+
+  it("removes a non-active player without disrupting the round", async () => {
+    await removePlayerFromBlackjackGame(LOBBY, "p3");
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.playerIds).toEqual(["p1", "p2"]);
+    expect(v.activePlayerId).toBe("p1");
+  });
+
+  it("auto-advances when the active player leaves mid-turn", async () => {
+    await removePlayerFromBlackjackGame(LOBBY, "p1");
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.activePlayerId).toBe("p2");
+  });
+
+  it("ends the game when only one eligible player remains", async () => {
+    await removePlayerFromBlackjackGame(LOBBY, "p1");
+    await removePlayerFromBlackjackGame(LOBBY, "p2");
+    const v = (await getBlackjackPlayerView(LOBBY, "p3"))!;
+    expect(v.phase).toBe("gameOver");
+  });
+});
+
+describe("restoreBlackjackGames zombie filter", () => {
+  it("skips games whose createdAt is more than 2h in the past", async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    const exported = JSON.parse(JSON.stringify(await exportBlackjackGames()));
+    exported[0].createdAt = Date.now() - (3 * 60 * 60 * 1000); // 3h old
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames(exported);
+    expect(await isBlackjackGame(LOBBY)).toBe(false);
   });
 });

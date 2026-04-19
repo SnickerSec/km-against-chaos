@@ -612,3 +612,45 @@ export async function restoreBlackjackGames(snapshots: any[]): Promise<void> {
     await saveGame(game);
   }
 }
+
+export async function removePlayerFromBlackjackGame(
+  lobbyCode: string,
+  playerId: string,
+): Promise<void> {
+  await withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return;
+    if (!g.playerIds.includes(playerId)) return;
+
+    const wasActive = g.phase === "playing" && g.playerIds[g.activePlayerIndex] === playerId;
+
+    // Drop the player from every per-player record.
+    g.playerIds = g.playerIds.filter(p => p !== playerId);
+    delete g.chips[playerId];
+    delete g.bets[playerId];
+    delete g.hands[playerId];
+
+    // If they were active, advance. activePlayerIndex was an index into the
+    // old playerIds — after splice, the same index now points at the next
+    // seat (or off the end if they were last).
+    if (wasActive) {
+      if (g.activePlayerIndex >= g.playerIds.length) {
+        g.phase = "dealer";
+        g.activePlayerIndex = -1;
+        g.activeHandIndex = 0;
+      } else {
+        g.activeHandIndex = 0;
+        g.phaseDeadline = Date.now() + TURN_TIME_MS;
+      }
+    }
+
+    // End the game if only one eligible player remains.
+    const eligibleCount = g.playerIds.filter(p => eligible(g, p)).length;
+    if (eligibleCount <= 1) {
+      g.phase = "gameOver";
+      g.phaseDeadline = Date.now();
+    }
+
+    await saveGame(g);
+  });
+}
