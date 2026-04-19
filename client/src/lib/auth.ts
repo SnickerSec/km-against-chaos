@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import * as Sentry from "@sentry/nextjs";
 import { getSocket, identifySocket } from "./socket";
 
 const API_URL =
@@ -46,6 +47,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem("km-auth-token", token);
     const userWithRole = { ...user, role: role ?? null };
     set({ token, user: userWithRole, isAdmin: !!isAdmin, isModerator: role === "moderator", loading: false });
+    Sentry.setUser({ id: userWithRole.id, email: userWithRole.email, username: userWithRole.name });
     // Identify socket with new auth
     identifySocket(getSocket());
   },
@@ -53,6 +55,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: () => {
     localStorage.removeItem("km-auth-token");
     set({ user: null, token: null, isAdmin: false, isModerator: false, loading: false });
+    Sentry.setUser(null);
   },
 
   restore: async () => {
@@ -69,6 +72,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { user, isAdmin, role } = await res.json();
       const userWithRole = { ...user, role: role ?? null };
       set({ token, user: userWithRole, isAdmin: !!isAdmin, isModerator: role === "moderator", loading: false });
+      Sentry.setUser({ id: userWithRole.id, email: userWithRole.email, username: userWithRole.name });
     } catch {
       localStorage.removeItem("km-auth-token");
       set({ loading: false });
