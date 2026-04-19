@@ -2,6 +2,7 @@ import type { Server } from "socket.io";
 import type { ClientEvents, ServerEvents } from "./types.js";
 import { getPlayerView, getPlayerIds, getScores, getPhaseDeadline } from "./game.js";
 import { getUnoPlayerView, getUnoPlayerIds, getUnoScores, getUnoTurnDeadline } from "./unoGame.js";
+import { getBlackjackPlayerView, getBlackjackTurnDeadline } from "./blackjackGame.js";
 import { getCodenamesPlayerView } from "./codenamesGame.js";
 import { getLobbyForSocket, getPlayerNameInLobby, getLobbyDeckId, getLobbyDeckName, getLobbyGameType, isPlayerBot, getActivePlayers, getLobbyPlayers } from "./lobby.js";
 import { getUserIdForSocket } from "./presence.js";
@@ -153,6 +154,19 @@ export async function sendCodenamesUpdate(io: Server<ClientEvents, ServerEvents>
   }
 }
 
+export async function sendBlackjackUpdate(io: Server<ClientEvents, ServerEvents>, code: string) {
+  // One per-player view (each player gets the same hidden-hole-card shape;
+  // future per-seat masking — sit-out, eliminated — already lives in the
+  // engine view).
+  const playerIds = (await getActivePlayers(code)) || [];
+  for (const pid of playerIds) {
+    const view = await getBlackjackPlayerView(code, pid);
+    if (!view) continue;
+    const sock = io.sockets.sockets.get(pid);
+    if (sock) sock.emit("blackjack:update" as any, view);
+  }
+}
+
 // ── Lookup Aliases ───────────────────────────────────────────────────────────
 
 export async function findPlayerLobby(socketId: string): Promise<string | undefined> {
@@ -171,7 +185,11 @@ export async function getPlayerName(code: string, playerId: string): Promise<str
 // We guard with a Redis SET NX lock keyed to the specific phase deadline, so
 // only the first replica to claim it runs the transition; the others no-op.
 // TTL is short (60s) so a dead replica doesn't block future fires.
-async function claimTimerLock(kind: "cah" | "uno", code: string, deadline: number): Promise<boolean> {
+async function claimTimerLock(
+  kind: "cah" | "uno" | "blackjack",
+  code: string,
+  deadline: number,
+): Promise<boolean> {
   if (!redis) return true; // single-replica mode — no cross-replica race
   const key = `timer-lock:${kind}:${code}:${deadline}`;
   const ok = await redis.set(key, "1", "EX", 60, "NX");
@@ -232,6 +250,36 @@ export function scheduleUnoTurnTimer(code: string, onExpiry: (code: string) => v
 export function clearUnoTurnTimer(code: string) {
   const t = unoTurnTimers.get(code);
   if (t) { clearTimeout(t); unoTurnTimers.delete(code); }
+}
+
+// ── Blackjack Phase Timers ───────────────────────────────────────────────────
+// One timer per game, regardless of phase — the deadline lives on the game's
+// phaseDeadline field. The callback is responsible for calling the right
+// engine entry point based on the live phase. SET-NX-keyed-by-deadline gives
+// at-most-once across replicas.
+
+const blackjackTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+export async function scheduleBlackjackTimer(code: string, onExpiry: (code: string) => void) {
+  clearBlackjackTimer(code);
+  const deadline = await getBlackjackTurnDeadline(code);
+  if (!deadline) return;
+  const delay = Math.max(0, deadline - Date.now());
+  blackjackTimers.set(code, setTimeout(async () => {
+    blackjackTimers.delete(code);
+    const live = await getBlackjackTurnDeadline(code);
+    if (live !== deadline) return;
+    if (!(await claimTimerLock("blackjack", code, deadline))) return;
+    onExpiry(code);
+  }, delay));
+}
+
+export function clearBlackjackTimer(code: string) {
+  const existing = blackjackTimers.get(code);
+  if (existing) {
+    clearTimeout(existing);
+    blackjackTimers.delete(code);
+  }
 }
 
 // ── Game Result Recording ────────────────────────────────────────────────────
