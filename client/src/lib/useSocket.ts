@@ -102,6 +102,11 @@ export function useSocket() {
       setError("Time ran out — random cards auto-submitted for you");
     });
 
+    // Server auto-picked a winner because the czar's judging timer expired.
+    socket.on("game:auto-picked" as any, () => {
+      setError("Time ran out — a random winner was picked for you");
+    });
+
     socket.on("game:vote-tally" as any, (tally: Record<string, number>) => {
       setVoteTally(tally);
     });

@@ -92,6 +92,10 @@ async function triggerBotSubmissions(io: Server<ClientEvents, ServerEvents>, cod
           const judgingData = await getJudgingData(code);
           if (judgingData) {
             io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
+            // Replace the lingering submit-phase timer with a fresh
+            // judging-phase timer — otherwise the stale 60s timer fires
+            // mid-judging and auto-picks a winner for the human czar.
+            await scheduleRoundTimer(code, (c) => handleTimerExpiry(io, c));
             kickoffJudging(io, code);
           }
         }
@@ -225,6 +229,13 @@ async function handleTimerExpiry(io: Server<ClientEvents, ServerEvents>, code: s
   }
 
   if (czarId) {
+    // Timer expired mid-judging — pick a random winner so the round doesn't
+    // stall. If the czar is human, tell them why a winner appeared.
+    const czarIsBot = czarId.startsWith("bot-");
+    if (!czarIsBot) {
+      log.info("czar-timeout", { code, czarId });
+      io.to(czarId).emit("game:auto-picked" as any);
+    }
     const result = await botPickWinner(code, czarId);
     if (result.winnerId) {
       const scores = await getScores(code);

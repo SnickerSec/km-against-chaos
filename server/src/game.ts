@@ -524,13 +524,17 @@ function submitCardsOn(
     playedCards.push(hand.splice(idx, 1)[0]);
   }
 
+  // Push to discard BEFORE drawing so the reshuffle inside drawKnowledge
+  // can see these cards when the main deck is empty. Previously the order
+  // was draw-then-push, which silently shrank hands when deck+discard were
+  // both empty mid-round (tiny decks, or after many force-submits).
+  round.submissions.set(playerId, playedCards);
+  game.knowledgeDiscard.push(...playedCards);
+
   for (let i = 0; i < playedCards.length; i++) {
     const drawn = drawKnowledge(game);
     if (drawn) hand.push(drawn);
   }
-
-  round.submissions.set(playerId, playedCards);
-  game.knowledgeDiscard.push(...playedCards);
 
   const expectedCount = game.playerIds.filter((id) => id !== round.czarId).length;
   const allSubmitted = round.submissions.size >= expectedCount;
@@ -827,13 +831,15 @@ export async function botSubmitCards(lobbyCode: string, botId: string): Promise<
     playedCards.push(hand.splice(idx, 1)[0]);
   }
 
+  // Discard-before-draw so the reshuffle can recycle these cards when the
+  // main deck is empty. See submitCardsOn for the full note.
+  round.submissions.set(botId, playedCards);
+  game.knowledgeDiscard.push(...playedCards);
+
   for (let i = 0; i < playedCards.length; i++) {
     const drawn = drawKnowledge(game);
     if (drawn) hand.push(drawn);
   }
-
-  round.submissions.set(botId, playedCards);
-  game.knowledgeDiscard.push(...playedCards);
 
   const expectedCount = game.playerIds.filter(id => id !== round.czarId).length;
   const allSubmitted = round.submissions.size >= expectedCount;
@@ -868,12 +874,16 @@ export async function forceSubmitForMissing(lobbyCode: string): Promise<string[]
       playedCards.push(hand.splice(idx, 1)[0]);
     }
 
+    // Force-submitted cards were previously never pushed to discard — a
+    // permanent card leak. Push them first so the pool stays conserved
+    // and the draw below can recycle them if needed.
+    round.submissions.set(pid, playedCards);
+    game.knowledgeDiscard.push(...playedCards);
+
     for (let i = 0; i < playedCards.length; i++) {
       const drawn = drawKnowledge(game);
       if (drawn) hand.push(drawn);
     }
-
-    round.submissions.set(pid, playedCards);
   }
 
   round.phase = "judging";
