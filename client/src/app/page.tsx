@@ -1,12 +1,18 @@
 "use client";
 
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import { useGameStore } from "@/lib/store";
 import HomeScreen from "@/components/HomeScreen";
-import LobbyScreen from "@/components/LobbyScreen";
-import GameScreen from "@/components/GameScreen";
-import GameOverScreen from "@/components/GameOverScreen";
 import InstallPrompt from "@/components/InstallPrompt";
+
+// Lazy-load screens that only appear after the user joins a game.
+// Cuts ~60 KB parsed (ComicPanel, GameScreen, VoiceChat, Chat, RoundWinner,
+// CzarView, etc.) off the homepage bundle; users never touch this code
+// until they enter a lobby.
+const LobbyScreen = dynamic(() => import("@/components/LobbyScreen"), { ssr: false });
+const GameScreen = dynamic(() => import("@/components/GameScreen"), { ssr: false });
+const GameOverScreen = dynamic(() => import("@/components/GameOverScreen"), { ssr: false });
 
 function ServerRestartBanner() {
   const restarting = useGameStore((s) => s.serverRestarting);
