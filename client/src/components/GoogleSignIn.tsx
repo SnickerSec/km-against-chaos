@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Icon } from "@iconify/react";
 import { useAuthStore, getGoogleClientId } from "@/lib/auth";
 import NotificationBell from "./NotificationBell";
 
@@ -112,34 +113,38 @@ function loadGsiScript(): Promise<void> {
 
 export default function GoogleSignIn() {
   const { user, loading, login, logout, restore } = useAuthStore();
-  const buttonRef = useRef<HTMLDivElement>(null);
-  const iconButtonRef = useRef<HTMLDivElement>(null);
+  const googleSlotRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const rendered = useRef(false);
+  const [signingIn, setSigningIn] = useState(false);
 
   useEffect(() => {
     restore();
   }, [restore]);
 
-  useEffect(() => {
-    if (loading || user || rendered.current) return;
-
+  // Full defer: GSI script is NOT loaded on mount. First render shows our own
+  // button. When the user clicks it we fetch the Google script, initialize,
+  // render Google's official sign-in button into a hidden slot, and
+  // programmatically dispatch a click on it — which triggers the real flow.
+  // Saves ~96 KB transfer / ~258 KB raw on every unauth page load.
+  const handleSignInClick = async () => {
     const clientId = getGoogleClientId();
-    if (!clientId) return;
+    if (!clientId) { setError("Sign-in not configured"); return; }
+    if (signingIn) return;
+    setSigningIn(true);
+    setError(null);
 
     gsiCallback = async (credential: string) => {
       try {
-        setError(null);
         await login(credential);
       } catch {
         setError("Sign-in failed. Try again.");
+        setSigningIn(false);
       }
     };
 
-    let cancelled = false;
-    loadGsiScript().then(() => {
-      if (cancelled || !window.google || !buttonRef.current || !iconButtonRef.current || rendered.current) return;
-      rendered.current = true;
+    try {
+      await loadGsiScript();
+      if (!window.google || !googleSlotRef.current) throw new Error("gsi unavailable");
 
       if (!gsiInitialized) {
         gsiInitialized = true;
@@ -149,30 +154,36 @@ export default function GoogleSignIn() {
         });
       }
 
-      window.google.accounts.id.renderButton(buttonRef.current, {
+      // Render Google's button into a hidden slot, then click it. The GSI
+      // iframe takes a tick to mount — poll briefly for the clickable child.
+      const slot = googleSlotRef.current;
+      while (slot.firstChild) slot.removeChild(slot.firstChild);
+      window.google.accounts.id.renderButton(slot, {
         theme: "filled_black",
-        size: "medium",
-        shape: "pill",
+        size: "large",
+        shape: "rectangular",
       });
-      window.google.accounts.id.renderButton(iconButtonRef.current, {
-        type: "icon",
-        theme: "filled_black",
-        size: "medium",
-        shape: "circle",
-      });
-    }).catch(() => {
-      if (!cancelled) setError("Couldn't load Google Sign-In. Try again.");
-    });
 
-    return () => { cancelled = true; };
-  }, [loading, user, login]);
-
-  // Reset rendered flag when user logs out so button can re-render
-  useEffect(() => {
-    if (!user && !loading) {
-      rendered.current = false;
+      const start = Date.now();
+      const tryClick = () => {
+        const target = googleSlotRef.current?.querySelector<HTMLElement>('[role="button"], button, iframe');
+        if (target) {
+          target.click();
+          return;
+        }
+        if (Date.now() - start > 2000) {
+          setError("Sign-in didn't open. Try again.");
+          setSigningIn(false);
+          return;
+        }
+        setTimeout(tryClick, 60);
+      };
+      setTimeout(tryClick, 120);
+    } catch {
+      setError("Couldn't load Google Sign-In. Try again.");
+      setSigningIn(false);
     }
-  }, [user, loading]);
+  };
 
   if (loading) {
     return <div className="h-10 w-32 bg-gray-800 rounded-full animate-pulse" />;
@@ -189,8 +200,18 @@ export default function GoogleSignIn() {
 
   return (
     <div>
-      <div ref={buttonRef} className="hidden sm:block" />
-      <div ref={iconButtonRef} className="sm:hidden" />
+      <button
+        onClick={handleSignInClick}
+        disabled={signingIn}
+        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-700 rounded-full text-sm font-medium text-white transition-colors disabled:opacity-70 disabled:cursor-progress"
+      >
+        <Icon icon="logos:google-icon" width={16} aria-hidden />
+        {signingIn ? "Opening…" : "Sign in"}
+      </button>
+      {/* Hidden slot where Google's branded button gets rendered after load
+          so we can programmatically click it. Absolutely positioned off-
+          screen to avoid layout impact. */}
+      <div ref={googleSlotRef} className="fixed -left-[9999px] top-0" aria-hidden />
       {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
     </div>
   );
