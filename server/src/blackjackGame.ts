@@ -215,6 +215,45 @@ export async function getBlackjackPlayerView(
   };
 }
 
+type ActionResult = { success: true } | { success: false; error: string };
+
+export async function placeBet(
+  lobbyCode: string,
+  playerId: string,
+  amount: number,
+): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "betting") return { success: false, error: "Not the betting phase" };
+    if (!g.playerIds.includes(playerId)) return { success: false, error: "Not in this game" };
+    if (g.bets[playerId] !== null) return { success: false, error: "Already submitted this round" };
+    if (!Number.isInteger(amount)) return { success: false, error: "Bet must be a whole number" };
+    if (amount < g.config.minBet) return { success: false, error: `Bet below table min (${g.config.minBet})` };
+    if (amount > g.config.maxBet) return { success: false, error: `Bet above table max (${g.config.maxBet})` };
+    if (amount > g.chips[playerId]) return { success: false, error: "Not enough chips" };
+
+    g.chips[playerId] -= amount;
+    g.bets[playerId] = amount;
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
+export async function sitOut(lobbyCode: string, playerId: string): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "betting") return { success: false, error: "Not the betting phase" };
+    if (!g.playerIds.includes(playerId)) return { success: false, error: "Not in this game" };
+    if (g.bets[playerId] !== null) return { success: false, error: "Already submitted this round" };
+
+    g.bets[playerId] = "sitting_out";
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
 export async function isBlackjackGame(lobbyCode: string): Promise<boolean> {
   return gameExists(lobbyCode);
 }
