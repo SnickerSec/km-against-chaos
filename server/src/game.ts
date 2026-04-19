@@ -803,6 +803,15 @@ export async function removePlayerFromGame(lobbyCode: string, playerId: string):
 
   if (game.currentRound) {
     game.currentRound.submissions.delete(playerId);
+
+    // If the leaver was the current czar, the round can't proceed — rotate
+    // the czar and end the round. Next "next-round" cycle starts fresh.
+    // Without this, round.czarId dangles at a removed player and the client
+    // falls through to the "???" name fallback.
+    if (game.currentRound.czarId === playerId) {
+      game.czarIndex++;
+      game.currentRound = null;
+    }
   }
 
   await saveGame(game);
