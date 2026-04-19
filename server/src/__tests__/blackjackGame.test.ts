@@ -39,6 +39,30 @@ import {
 const PLAYERS = ["p1", "p2", "p3"];
 const CONFIG = { startingChips: 1000, minBet: 10, maxBet: 500 };
 
+import { hit } from "../blackjackGame.js";
+
+/** Stub the live game's shoe so subsequent draws are deterministic. */
+async function rigShoe(lobby: string, top: Card[]) {
+  const exported = await exportBlackjackGames();
+  const g = exported.find((x: any) => x.lobbyCode === lobby);
+  if (!g) throw new Error("rigShoe: game not found");
+  // top[0] will be drawn first → push in reverse so pop() returns top[0] first.
+  g.shoe = [...top].reverse();
+  // Round-trip back through the public API to persist:
+  await cleanupBlackjackGame(lobby);
+  await restoreBlackjackGames([g]);
+}
+
+/** Stub a player's hand to a fixed pair of cards. */
+async function rigHand(lobby: string, playerId: string, cards: Card[]) {
+  const exported = await exportBlackjackGames();
+  const g = exported.find((x: any) => x.lobbyCode === lobby);
+  if (!g) throw new Error("rigHand: game not found");
+  g.hands[playerId] = [{ cards, bet: 100, doubled: false, resolved: false, fromSplit: false }];
+  await cleanupBlackjackGame(lobby);
+  await restoreBlackjackGames([g]);
+}
+
 describe("createBlackjackGame", () => {
   it("initialises every player with startingChips and a 52-card shoe", async () => {
     await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
@@ -168,5 +192,40 @@ describe("dealing", () => {
     // Up-card is never hidden
     expect(view.dealerHand[0]).toHaveProperty("rank");
     expect((view.dealerHand[0] as Card).rank).not.toBe("?");
+  });
+});
+
+describe("hit", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+  });
+
+  it("draws a card for the active player", async () => {
+    await rigHand(LOBBY, "p1", [{ suit: "S", rank: "5" }, { suit: "H", rank: "5" }]);
+    await rigShoe(LOBBY, [{ suit: "C", rank: "3" }]);
+    const r = await hit(LOBBY, "p1");
+    expect(r.success).toBe(true);
+    const view = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(view.hands.p1[0].cards).toHaveLength(3);
+  });
+
+  it("busts at >21 and resolves the hand", async () => {
+    await rigHand(LOBBY, "p1", [{ suit: "S", rank: "K" }, { suit: "H", rank: "Q" }]);
+    await rigShoe(LOBBY, [{ suit: "C", rank: "5" }]);
+    const r = await hit(LOBBY, "p1");
+    expect(r.success).toBe(true);
+    const view = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(view.hands.p1[0].resolved).toBe(true);
+    // Active player should have advanced
+    expect(view.activePlayerId).toBe("p2");
+  });
+
+  it("rejects when not the active player", async () => {
+    const r = await hit(LOBBY, "p2");
+    expect(r.success).toBe(false);
+    expect((r as { success: false; error: string }).error).toMatch(/turn/i);
   });
 });

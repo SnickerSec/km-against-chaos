@@ -172,6 +172,64 @@ function startDealing(g: InternalBlackjackGame): void {
   }
 }
 
+// ── Hand evaluation ──────────────────────────────────────────────────────────
+
+const RANK_VALUE: Record<Rank, number> = {
+  "A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
+  "10": 10, "J": 10, "Q": 10, "K": 10,
+};
+
+/** Best non-bust total — counts an Ace as 11 if it doesn't bust. */
+export function handValue(cards: Card[]): number {
+  let total = 0;
+  let aces = 0;
+  for (const c of cards) {
+    total += RANK_VALUE[c.rank];
+    if (c.rank === "A") aces++;
+  }
+  while (aces > 0 && total + 10 <= 21) { total += 10; aces--; }
+  return total;
+}
+
+function isBlackjack(cards: Card[]): boolean {
+  return cards.length === 2 && handValue(cards) === 21;
+}
+
+function activeHand(g: InternalBlackjackGame): { pid: string; hand: Hand } | null {
+  const pid = g.playerIds[g.activePlayerIndex];
+  if (!pid) return null;
+  const hands = g.hands[pid];
+  if (!hands || g.activeHandIndex >= hands.length) return null;
+  return { pid, hand: hands[g.activeHandIndex] };
+}
+
+/** Move to the next playable hand, or to the dealer phase if no hands remain. */
+function advanceTurn(g: InternalBlackjackGame): void {
+  // Try the next hand of the current player.
+  const curPid = g.playerIds[g.activePlayerIndex];
+  if (curPid) {
+    const hands = g.hands[curPid] || [];
+    if (g.activeHandIndex + 1 < hands.length) {
+      g.activeHandIndex++;
+      g.phaseDeadline = Date.now() + TURN_TIME_MS;
+      return;
+    }
+  }
+  // Otherwise advance to the next seat that has at least one hand.
+  for (let i = g.activePlayerIndex + 1; i < g.playerIds.length; i++) {
+    if ((g.hands[g.playerIds[i]] || []).length > 0) {
+      g.activePlayerIndex = i;
+      g.activeHandIndex = 0;
+      g.phaseDeadline = Date.now() + TURN_TIME_MS;
+      return;
+    }
+  }
+  // All players done — dealer phase. Settle is handled in T11/T12.
+  g.phase = "dealer";
+  g.activePlayerIndex = -1;
+  g.activeHandIndex = 0;
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export async function createBlackjackGame(
@@ -296,6 +354,24 @@ export async function sitOut(lobbyCode: string, playerId: string): Promise<Actio
 
     g.bets[playerId] = "sitting_out";
     if (allBetsIn(g)) startDealing(g);
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
+export async function hit(lobbyCode: string, playerId: string): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "playing") return { success: false, error: "Not the playing phase" };
+    const cur = activeHand(g);
+    if (!cur || cur.pid !== playerId) return { success: false, error: "Not your turn" };
+
+    cur.hand.cards.push(dealOne(g));
+    if (handValue(cur.hand.cards) > 21) {
+      cur.hand.resolved = true;
+      advanceTurn(g);
+    }
     await saveGame(g);
     return { success: true };
   });
