@@ -13,6 +13,9 @@ import {
   findPlayerLobby, getPlayerName, sendRoundToPlayers,
   scheduleRoundTimer, clearRoundTimer, recordCahGameResult,
 } from "../socketHelpers.js";
+import { createLogger } from "../logger.js";
+
+const log = createLogger("cah");
 
 // ── Bot Orchestration ────────────────────────────────────────────────────────
 
@@ -199,7 +202,12 @@ async function handleTimerExpiry(io: Server<ClientEvents, ServerEvents>, code: s
 
   const forced = await forceSubmitForMissing(code);
   if (forced.length > 0) {
-    for (const pid of forced) io.to(code).emit("game:player-submitted", pid);
+    log.info("force-submit", { code, missing: forced });
+    for (const pid of forced) {
+      io.to(code).emit("game:player-submitted", pid);
+      // Direct-to-victim toast so players know why cards "just appeared".
+      io.to(pid).emit("game:auto-submitted" as any);
+    }
     const judgingData = await getJudgingData(code);
     if (judgingData) {
       io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);

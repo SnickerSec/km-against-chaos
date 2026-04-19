@@ -96,6 +96,12 @@ export function useSocket() {
       addVotedPlayer(playerId);
     });
 
+    // Server force-submitted our cards because the submit timer ran out.
+    // Surface it so players don't see cards "just appear" without a reason.
+    socket.on("game:auto-submitted" as any, () => {
+      setError("Time ran out — random cards auto-submitted for you");
+    });
+
     socket.on("game:vote-tally" as any, (tally: Record<string, number>) => {
       setVoteTally(tally);
     });
