@@ -485,6 +485,52 @@ export async function runDealer(lobbyCode: string): Promise<void> {
   });
 }
 
+function classifyHand(hand: Hand, dealerTotal: number, dealerBlackjack: boolean): Outcome {
+  const playerTotal = handValue(hand.cards);
+  const playerBlackjack = isBlackjack(hand.cards) && !hand.fromSplit;
+  if (playerTotal > 21) return "lose";
+  if (playerBlackjack && dealerBlackjack) return "push";
+  if (playerBlackjack) return "blackjack";
+  if (dealerBlackjack) return "lose";
+  if (dealerTotal > 21) return "win";
+  if (playerTotal > dealerTotal) return "win";
+  if (playerTotal === dealerTotal) return "push";
+  return "lose";
+}
+
+export async function settleRound(lobbyCode: string): Promise<void> {
+  await withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return;
+    if (g.phase !== "settle") return;
+
+    const dealerTotal = handValue(g.dealerHand);
+    const dealerBJ = isBlackjack(g.dealerHand);
+    const settlements: Settlement[] = [];
+
+    for (const pid of g.playerIds) {
+      const hands = g.hands[pid] || [];
+      for (let i = 0; i < hands.length; i++) {
+        const h = hands[i];
+        const outcome = classifyHand(h, dealerTotal, dealerBJ);
+        let delta = 0;
+        switch (outcome) {
+          case "win":       delta = 2 * h.bet; break;
+          case "blackjack": delta = h.bet + Math.ceil(1.5 * h.bet); break;
+          case "push":      delta = h.bet; break;
+          case "lose":      delta = 0; break;
+        }
+        g.chips[pid] += delta;
+        settlements.push({ playerId: pid, handIndex: i, outcome, delta });
+      }
+    }
+
+    g.lastSettlement = settlements;
+    // Phase advances in T13 (auto-loop or game over)
+    await saveGame(g);
+  });
+}
+
 export async function isBlackjackGame(lobbyCode: string): Promise<boolean> {
   return gameExists(lobbyCode);
 }

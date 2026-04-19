@@ -399,7 +399,7 @@ describe("split rule edges", () => {
   });
 });
 
-import { runDealer } from "../blackjackGame.js";
+import { runDealer, settleRound } from "../blackjackGame.js";
 
 describe("runDealer", () => {
   beforeEach(async () => {
@@ -451,5 +451,84 @@ describe("runDealer", () => {
     const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
     // Dealer doesn't draw — every player already lost.
     expect(v.dealerHand).toHaveLength(2);
+  });
+});
+
+describe("settleRound", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+  });
+
+  async function setOutcome(dealer: Card[], p1: Card[], p2: Card[], p3: Card[]) {
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.dealerHand = dealer;
+    g.hands.p1 = [{ cards: p1, bet: 100, doubled: false, resolved: true, fromSplit: false }];
+    g.hands.p2 = [{ cards: p2, bet: 100, doubled: false, resolved: true, fromSplit: false }];
+    g.hands.p3 = [{ cards: p3, bet: 100, doubled: false, resolved: true, fromSplit: false }];
+    g.phase = "settle";
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+  }
+
+  it("win: chips +bet, push: chips +0, lose: chips −bet (vs pre-bet balance)", async () => {
+    // dealer 19, p1 wins (20), p2 pushes (19), p3 loses (18 vs 19)
+    await setOutcome(
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "9" }],
+      [{ suit: "S", rank: "K" }, { suit: "H", rank: "10" }],   // 20
+      [{ suit: "S", rank: "9" }, { suit: "H", rank: "10" }],   // 19
+      [{ suit: "S", rank: "8" }, { suit: "H", rank: "10" }],   // 18
+    );
+    await settleRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.chips.p1).toBe(1100); // 1000 - 100 + 200
+    expect(v.chips.p2).toBe(1000); // 1000 - 100 + 100
+    expect(v.chips.p3).toBe(900);  // 1000 - 100 + 0
+    expect(v.lastSettlement?.find(s => s.playerId === "p1")?.outcome).toBe("win");
+    expect(v.lastSettlement?.find(s => s.playerId === "p2")?.outcome).toBe("push");
+    expect(v.lastSettlement?.find(s => s.playerId === "p3")?.outcome).toBe("lose");
+  });
+
+  it("blackjack pays 3:2", async () => {
+    await setOutcome(
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "9" }],   // dealer 19
+      [{ suit: "S", rank: "A" }, { suit: "H", rank: "K" }],    // p1 blackjack
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "9" }],   // p2 push (19)
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "9" }],   // p3 push
+    );
+    await settleRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.chips.p1).toBe(1150); // 1000 - 100 + 100 + ceil(1.5*100) = 1150
+    expect(v.lastSettlement?.find(s => s.playerId === "p1")?.outcome).toBe("blackjack");
+  });
+
+  it("dealer blackjack pushes vs player blackjack, loses to non-blackjack 21", async () => {
+    await setOutcome(
+      [{ suit: "S", rank: "A" }, { suit: "H", rank: "K" }],    // dealer blackjack
+      [{ suit: "S", rank: "A" }, { suit: "H", rank: "K" }],    // p1 push (both BJ)
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "5" }, { suit: "C", rank: "6" }], // p2 21, not BJ → lose
+      [{ suit: "S", rank: "9" }, { suit: "H", rank: "9" }],    // p3 18 → lose
+    );
+    await settleRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.chips.p1).toBe(1000); // push
+    expect(v.chips.p2).toBe(900);  // lose
+    expect(v.chips.p3).toBe(900);  // lose
+  });
+
+  it("busted player loses regardless of dealer", async () => {
+    await setOutcome(
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "10" }, { suit: "C", rank: "5" }], // dealer busts at 25
+      [{ suit: "S", rank: "K" }, { suit: "H", rank: "Q" }, { suit: "C", rank: "5" }],   // p1 bust
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "9" }],                             // p2 win (19)
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "9" }],                             // p3 win
+    );
+    await settleRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.chips.p1).toBe(900);  // bust = lose
+    expect(v.chips.p2).toBe(1100); // dealer busted = win
   });
 });
