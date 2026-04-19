@@ -531,6 +531,64 @@ export async function settleRound(lobbyCode: string): Promise<void> {
   });
 }
 
+function eligible(g: InternalBlackjackGame, pid: string): boolean {
+  return (g.chips[pid] ?? 0) >= g.config.minBet;
+}
+
+export async function startNextRound(lobbyCode: string): Promise<void> {
+  await withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return;
+    if (g.phase !== "settle") return;
+
+    const eligibleCount = g.playerIds.filter(p => eligible(g, p)).length;
+    if (eligibleCount <= 1) {
+      g.phase = "gameOver";
+      g.phaseDeadline = Date.now();
+      await saveGame(g);
+      return;
+    }
+
+    g.roundNumber++;
+    g.shoe = freshShoe();
+    g.dealerHand = [];
+    g.bets = {};
+    g.hands = {};
+    for (const pid of g.playerIds) {
+      g.bets[pid] = eligible(g, pid) ? null : "sitting_out";
+      g.hands[pid] = [];
+    }
+    g.phase = "betting";
+    g.activePlayerIndex = 0;
+    g.activeHandIndex = 0;
+    g.phaseDeadline = Date.now() + BETTING_WINDOW_MS;
+    g.lastSettlement = undefined;
+    await saveGame(g);
+  });
+}
+
+export async function getBlackjackScores(lobbyCode: string): Promise<Record<string, number> | null> {
+  const g = await loadGame(lobbyCode);
+  if (!g) return null;
+  // Last player standing gets 1; others 0.
+  const survivors = g.playerIds.filter(p => eligible(g, p));
+  const out: Record<string, number> = {};
+  for (const pid of g.playerIds) out[pid] = survivors.includes(pid) ? 1 : 0;
+  // Tie-break: if multiple eligible players (gameOver shouldn't fire then,
+  // but defensively) award 1 to the highest chip count.
+  if (survivors.length > 1) {
+    const top = survivors.sort((a, b) => (g.chips[b] ?? 0) - (g.chips[a] ?? 0))[0];
+    for (const pid of g.playerIds) out[pid] = pid === top ? 1 : 0;
+  }
+  return out;
+}
+
+export async function getBlackjackTurnDeadline(lobbyCode: string): Promise<number | null> {
+  const g = await loadGame(lobbyCode);
+  if (!g) return null;
+  return g.phaseDeadline;
+}
+
 export async function isBlackjackGame(lobbyCode: string): Promise<boolean> {
   return gameExists(lobbyCode);
 }

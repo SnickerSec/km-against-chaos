@@ -4,6 +4,8 @@ import {
   cleanupBlackjackGame,
   exportBlackjackGames,
   restoreBlackjackGames,
+  startNextRound,
+  getBlackjackScores,
 } from "../blackjackGame.js";
 
 const LOBBY = "test-blackjack-001";
@@ -530,5 +532,69 @@ describe("settleRound", () => {
     const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
     expect(v.chips.p1).toBe(900);  // bust = lose
     expect(v.chips.p2).toBe(1100); // dealer busted = win
+  });
+});
+
+describe("elimination and next-round loop", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+  });
+
+  it("loops back to betting with fresh shoe and incremented roundNumber", async () => {
+    // Trip a settled state with everyone surviving
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "settle";
+    g.chips = { p1: 500, p2: 500, p3: 500 };
+    g.bets = { p1: 100, p2: 100, p3: 100 };
+    g.dealerHand = [{ suit: "S", rank: "10" }, { suit: "H", rank: "9" }];
+    g.hands = { p1: [], p2: [], p3: [] };
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await startNextRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.phase).toBe("betting");
+    expect(v.roundNumber).toBe(2);
+    expect(v.bets).toEqual({ p1: null, p2: null, p3: null });
+    expect(v.dealerHand).toEqual([]);
+    expect(v.shoeRemaining).toBe(52);
+  });
+
+  it("ends the game when ≤1 player has chips ≥ minBet", async () => {
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "settle";
+    g.chips = { p1: 5, p2: 5, p3: 1000 }; // only p3 can keep playing
+    g.dealerHand = [{ suit: "S", rank: "10" }, { suit: "H", rank: "9" }];
+    g.hands = { p1: [], p2: [], p3: [] };
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await startNextRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.phase).toBe("gameOver");
+
+    const scores = await getBlackjackScores(LOBBY);
+    // Last player standing scores 1, the rest 0 — same shape as codenames scores.
+    expect(scores).toEqual({ p1: 0, p2: 0, p3: 1 });
+  });
+
+  it("eliminated players (chips < minBet) sit out the next round automatically", async () => {
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "settle";
+    g.chips = { p1: 5, p2: 500, p3: 500 }; // p1 eliminated, p2/p3 alive
+    g.dealerHand = [{ suit: "S", rank: "10" }, { suit: "H", rank: "9" }];
+    g.hands = { p1: [], p2: [], p3: [] };
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await startNextRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.phase).toBe("betting");
+    expect(v.bets.p1).toBe("sitting_out"); // auto sit-out when ineligible
+    expect(v.bets.p2).toBe(null);
+    expect(v.bets.p3).toBe(null);
   });
 });
