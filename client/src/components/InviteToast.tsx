@@ -1,10 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 import { useFriendsStore } from "@/lib/friendsStore";
-
-export default function InviteToast() {
-  const { invites, removeInvite } = useFriendsStore();
 
   // Auto-dismiss after 30 seconds
   useEffect(() => {
@@ -29,13 +27,13 @@ export default function InviteToast() {
           </p>
           <p className="text-xs text-gray-400 mb-3">{inv.deckName}</p>
           <div className="flex gap-2">
-            <a
-              href={`/?code=${inv.lobbyCode}`}
+            <Link
+              href={`/?code=${inv.lobbyCode}&autojoin=1`}
               onClick={() => removeInvite(inv.id)}
               className="flex-1 text-center py-1.5 bg-purple-600 hover:bg-purple-700 rounded text-xs font-medium transition-colors"
             >
               Join Game
-            </a>
+            </Link>
             <button
               onClick={() => removeInvite(inv.id)}
               className="flex-1 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium text-gray-300 transition-colors"
