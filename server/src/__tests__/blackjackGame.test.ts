@@ -143,3 +143,30 @@ describe("betting auto-advance", () => {
     expect(view.hands.p1).toEqual([]); // sitting-out player has no hand
   });
 });
+
+import { Card } from "../blackjackGame.js";
+
+describe("dealing", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+  });
+
+  it("each player gets exactly 2 cards and dealer gets 2", async () => {
+    const view = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(view.hands.p1[0].cards).toHaveLength(2);
+    expect(view.hands.p2[0].cards).toHaveLength(2);
+    expect(view.hands.p3[0].cards).toHaveLength(2);
+    expect(view.dealerHand).toHaveLength(2);
+  });
+
+  it("hides dealer hole card in player view during playing", async () => {
+    const view = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(view.dealerHand[1]).toEqual({ suit: "?", rank: "?" });
+    // Up-card is never hidden
+    expect(view.dealerHand[0]).toHaveProperty("rank");
+    expect((view.dealerHand[0] as Card).rank).not.toBe("?");
+  });
+});
