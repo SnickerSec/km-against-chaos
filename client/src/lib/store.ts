@@ -20,7 +20,7 @@ export interface LobbyState {
   deckName: string;
   gameType: string;
   winCondition: { mode: string; value: number };
-  houseRules?: { unoStacking?: boolean };
+  houseRules?: { unoStacking?: boolean; botCzar?: boolean };
   status: "waiting" | "playing" | "finished";
   maxPlayers: number;
   rematchVotes?: number;

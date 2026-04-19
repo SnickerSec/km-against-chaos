@@ -638,6 +638,57 @@ describe("points-mode game over", () => {
   });
 });
 
+// ── botCzar mode ──────────────────────────────────────────────────────────────
+
+describe("botCzar mode", () => {
+  const BC_LOBBY = "test-bc";
+  const HUMANS = ["h1", "h2"];
+  const BOT_A = "bot-aaa";
+  const BOT_B = "bot-bbb";
+
+  afterEach(async () => { await cleanupGame(BC_LOBBY); });
+
+  it("only bots are picked as czar across rounds", async () => {
+    await cleanupGame(BC_LOBBY);
+    await createGame(BC_LOBBY, [...HUMANS, BOT_A, BOT_B], CHAOS, KNOWLEDGE, { mode: "rounds", value: 4 }, "cah", { botCzar: true });
+
+    const seen: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const r = await startRound(BC_LOBBY);
+      if (!r) break;
+      seen.push(r.czarId);
+      // Force-end the round so czarIndex advances
+      const submitters = (await getPlayerIds(BC_LOBBY)).filter((p) => p !== r.czarId);
+      for (const p of submitters) {
+        const v = (await getPlayerView(BC_LOBBY, p))!;
+        await submitCards(BC_LOBBY, p, [v.hand[0].id]);
+      }
+      await pickWinner(BC_LOBBY, r.czarId, submitters[0]);
+      await advanceRound(BC_LOBBY);
+    }
+    expect(seen.length).toBeGreaterThan(0);
+    for (const czar of seen) {
+      expect(czar.startsWith("bot-")).toBe(true);
+    }
+    // With 2 bots over 4 rounds, both bots should appear
+    expect(new Set(seen).size).toBeGreaterThan(1);
+  });
+
+  it("ends the game if all bots are removed mid-game", async () => {
+    await cleanupGame(BC_LOBBY);
+    await createGame(BC_LOBBY, [...HUMANS, BOT_A], CHAOS, KNOWLEDGE, { mode: "rounds", value: 5 }, "cah", { botCzar: true });
+
+    const r1 = await startRound(BC_LOBBY);
+    expect(r1?.czarId).toBe(BOT_A);
+    await advanceRound(BC_LOBBY);
+
+    await removePlayerFromGame(BC_LOBBY, BOT_A);
+    const r2 = await startRound(BC_LOBBY);
+    expect(r2).toBeNull();
+    expect(await isGameOver(BC_LOBBY)).toBe(true);
+  });
+});
+
 // ── addPlayerToGame / removePlayerFromGame ────────────────────────────────────
 
 describe("addPlayerToGame", () => {

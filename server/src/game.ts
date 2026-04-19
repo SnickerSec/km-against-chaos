@@ -32,6 +32,9 @@ interface InternalGameState {
   targetPoints: number;
   gameOver: boolean;
   gameType: GameType;
+  /** When true, only player IDs starting with "bot-" are eligible to be the
+   *  card czar. Players just submit cards every round; bots judge. */
+  botCzar: boolean;
 }
 
 const SUBMIT_TIME_MS = 60_000;
@@ -72,6 +75,7 @@ interface SerialisedGame {
   targetPoints: number;
   gameOver: boolean;
   gameType: GameType;
+  botCzar?: boolean;
   currentRound: {
     chaosCard: ChaosCard;
     czarId: string;
@@ -101,6 +105,7 @@ function serialise(g: InternalGameState): SerialisedGame {
     targetPoints: g.targetPoints,
     gameOver: g.gameOver,
     gameType: g.gameType,
+    botCzar: g.botCzar,
     currentRound: g.currentRound ? {
       chaosCard: g.currentRound.chaosCard,
       czarId: g.currentRound.czarId,
@@ -131,6 +136,7 @@ function deserialise(s: SerialisedGame): InternalGameState {
     targetPoints: s.targetPoints,
     gameOver: s.gameOver,
     gameType: s.gameType,
+    botCzar: s.botCzar || false,
     currentRound: s.currentRound ? {
       chaosCard: s.currentRound.chaosCard,
       czarId: s.currentRound.czarId,
@@ -218,7 +224,8 @@ export async function createGame(
   customChaos?: ChaosCard[],
   customKnowledge?: KnowledgeCard[],
   winCondition?: { mode: "rounds" | "points"; value: number },
-  gameType?: GameType
+  gameType?: GameType,
+  options?: { botCzar?: boolean },
 ): Promise<void> {
   let chaosDeck: ChaosCard[];
   let knowledgeDeck: KnowledgeCard[];
@@ -261,6 +268,7 @@ export async function createGame(
     targetPoints: wc.mode === "points" ? wc.value : Infinity,
     gameOver: false,
     gameType: gameType || "cah",
+    botCzar: options?.botCzar || false,
   };
 
   await saveGame(game);
@@ -284,7 +292,20 @@ export async function startRound(lobbyCode: string): Promise<RoundState | null> 
     }
   }
 
-  const czarId = game.playerIds[game.czarIndex % game.playerIds.length];
+  // Bot-czar mode: only IDs starting with "bot-" are eligible to judge. If
+  // every bot has been removed, end the game — the round can't proceed.
+  let czarId: string;
+  if (game.botCzar) {
+    const botCandidates = game.playerIds.filter((id) => id.startsWith("bot-"));
+    if (botCandidates.length === 0) {
+      game.gameOver = true;
+      await saveGame(game);
+      return null;
+    }
+    czarId = botCandidates[game.czarIndex % botCandidates.length];
+  } else {
+    czarId = game.playerIds[game.czarIndex % game.playerIds.length];
+  }
 
   let chaosCard: ChaosCard | null;
   if (game.gameType === "superfight") {

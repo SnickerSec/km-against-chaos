@@ -6,6 +6,7 @@ import {
   resetLobbyForRematch, setLobbyHouseRules, setMaxPlayers,
   getLobbyForSocket, getLobbyDeckId, getLobbyDeckName, getLobbyGameType,
   getLobbyHouseRules, getActivePlayers, getPlayerNameInLobby, getLobbyPlayers,
+  getBotsInLobby,
 } from "../lobby.js";
 import { getDeck } from "../deckStore.js";
 import { createGame, startRound, getPlayerView, getScores, endGame, cleanupGame, addPlayerToGame, removePlayerFromGame } from "../game.js";
@@ -153,7 +154,7 @@ export function registerLobbyHandlers(
     }
   });
 
-  socket.on("lobby:set-house-rules" as any, async (houseRules: { unoStacking?: boolean }, callback: (res: any) => void) => {
+  socket.on("lobby:set-house-rules" as any, async (houseRules: { unoStacking?: boolean; botCzar?: boolean }, callback: (res: any) => void) => {
     const result = await setLobbyHouseRules(socket.id, houseRules);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     callback({ success: true });
@@ -169,6 +170,25 @@ export function registerLobbyHandlers(
 
   socket.on("lobby:start", async (callback) => {
     try {
+      // Pre-validate bot-czar mode (CAH only) before flipping lobby to
+      // "playing" — easier than rolling back if validation fails after.
+      const lobbyCode = await getLobbyForSocket(socket.id);
+      if (lobbyCode) {
+        const houseRulesPre = await getLobbyHouseRules(lobbyCode);
+        if (houseRulesPre?.botCzar) {
+          const deckIdPre = await getLobbyDeckId(lobbyCode);
+          const deckPre = deckIdPre ? await getDeck(deckIdPre) : null;
+          const gtPre = deckPre?.gameType || "cah";
+          if (gtPre === "cah" || gtPre === "joking_hazard" || gtPre === "apples_to_apples") {
+            const botsPre = await getBotsInLobby(lobbyCode);
+            if (botsPre.length === 0) {
+              callback({ success: false, error: "Bot card czar requires at least one bot in the lobby" });
+              return;
+            }
+          }
+        }
+      }
+
       const result = await startGame(socket.id);
       if ("error" in result) { callback({ success: false, error: result.error }); return; }
 
@@ -248,7 +268,8 @@ export function registerLobbyHandlers(
           await triggerUnoBotTurn(io, code);
           scheduleUnoTurnTimer(code, createUnoTimerCallback(io));
         } else {
-          await createGame(code, playerIds, customChaos, customKnowledge, winCondition, gameType);
+          const houseRules = await getLobbyHouseRules(code);
+          await createGame(code, playerIds, customChaos, customKnowledge, winCondition, gameType, { botCzar: houseRules?.botCzar });
           const round = await startRound(code);
           if (round) {
             io.to(code).emit("lobby:started");

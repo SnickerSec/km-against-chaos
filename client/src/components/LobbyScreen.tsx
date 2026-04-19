@@ -109,6 +109,24 @@ export default function LobbyScreen() {
           <span className="text-xs text-gray-400">Stacking (+2/+4) enabled</span>
         </div>
       )}
+      {(lobby.gameType === "cah" || lobby.gameType === "joking_hazard" || lobby.gameType === "apples_to_apples") && isHost && (
+        <div className="flex items-center gap-2 mb-2">
+          <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={lobby.houseRules?.botCzar || false}
+              onChange={(e) => setHouseRules({ ...lobby.houseRules, botCzar: e.target.checked })}
+              className="accent-purple-500 w-3.5 h-3.5"
+            />
+            Bot card czar (requires &ge;1 bot)
+          </label>
+        </div>
+      )}
+      {(lobby.gameType === "cah" || lobby.gameType === "joking_hazard" || lobby.gameType === "apples_to_apples") && !isHost && lobby.houseRules?.botCzar && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs text-gray-400">Bot card czar enabled</span>
+        </div>
+      )}
       <h2 className="text-2xl font-bold mb-4">Lobby</h2>
 
       <div className="bg-gray-800 border border-purple-500/40 glow-purple px-6 py-4 rounded-lg mb-6 flex flex-col items-center">
