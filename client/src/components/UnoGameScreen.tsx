@@ -51,6 +51,7 @@ export default function UnoGameScreen() {
   const [overDrop, setOverDrop] = useState(false);
   const discardRef = useRef<HTMLDivElement>(null);
   const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const pendingDragRef = useRef<{ cardId: string; pointerId: number; x: number; y: number; el: HTMLElement } | null>(null);
 
   const isMyTurn = unoTurn ? unoTurn.currentPlayerId === myId : false;
   const isRoundOver = unoTurn ? unoTurn.phase === "round_over" || !!unoRoundWinner : false;
@@ -81,20 +82,35 @@ export default function UnoGameScreen() {
 
   const onDragStart = useCallback((cardId: string, e: React.PointerEvent) => {
     if (!isMyTurn || isRoundOver || !playableCardIds.includes(cardId)) return;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    setDragCardId(cardId);
-    setDragPos({ x: e.clientX, y: e.clientY });
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    pendingDragRef.current = {
+      cardId,
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      el: e.currentTarget as HTMLElement,
+    };
   }, [isMyTurn, isRoundOver, playableCardIds]);
 
   const onDragMove = useCallback((e: React.PointerEvent) => {
+    const pending = pendingDragRef.current;
+    if (pending && !dragCardId) {
+      if (Math.hypot(e.clientX - pending.x, e.clientY - pending.y) > 5) {
+        const rect = pending.el.getBoundingClientRect();
+        dragOffset.current = { x: pending.x - rect.left, y: pending.y - rect.top };
+        setDragCardId(pending.cardId);
+        setDragPos({ x: e.clientX, y: e.clientY });
+        pending.el.setPointerCapture(pending.pointerId);
+        pendingDragRef.current = null;
+      }
+      return;
+    }
     if (!dragCardId) return;
     setDragPos({ x: e.clientX, y: e.clientY });
     setOverDrop(isOverDiscard(e.clientX, e.clientY));
   }, [dragCardId, isOverDiscard]);
 
   const onDragEnd = useCallback(() => {
+    pendingDragRef.current = null;
     if (!dragCardId || !dragPos) {
       setDragCardId(null);
       setDragPos(null);
