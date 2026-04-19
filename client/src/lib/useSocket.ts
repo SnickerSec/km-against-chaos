@@ -239,7 +239,7 @@ export function useSocket() {
     });
     socket.on("sound:received" as any, ({ mp3, title: _title, playerName: _playerName }: { mp3: string; title: string; playerName: string }) => {
       if (typeof window === "undefined") return;
-      try { new Audio(mp3).play(); } catch {}
+      new Audio(mp3).play().catch(() => {});
     });
 
     socket.on("party:game-starting" as any, ({ lobbyCode }: { lobbyCode: string }) => {
