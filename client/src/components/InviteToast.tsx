@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { useFriendsStore } from "@/lib/friendsStore";
 
+export default function InviteToast() {
+  const { invites, removeInvite } = useFriendsStore();
+
   // Auto-dismiss after 30 seconds
   useEffect(() => {
     if (invites.length === 0) return;
