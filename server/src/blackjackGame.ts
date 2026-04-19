@@ -4,6 +4,12 @@
 
 import { redis, withGameLock } from "./redis.js";
 
+// ── Configuration ────────────────────────────────────────────────────────────
+
+export const BETTING_WINDOW_MS = 15_000;
+export const TURN_TIME_MS = 30_000;
+export const SETTLE_DELAY_MS = 5_000;
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type Suit = "S" | "H" | "D" | "C";
@@ -102,7 +108,112 @@ async function getAllGames(): Promise<InternalBlackjackGame[]> {
   return Array.from(local.values());
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const SUITS: Suit[] = ["S", "H", "D", "C"];
+const RANKS: Rank[] = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+
+function freshShoe(): Card[] {
+  const shoe: Card[] = [];
+  for (const s of SUITS) for (const r of RANKS) shoe.push({ suit: s, rank: r });
+  return shuffle(shoe);
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
+
+export async function createBlackjackGame(
+  lobbyCode: string,
+  playerIds: string[],
+  config: BlackjackConfig,
+): Promise<void> {
+  if (playerIds.length < 1) throw new Error("createBlackjackGame: need at least 1 player");
+
+  const chips: Record<string, number> = {};
+  const bets: Record<string, number | "sitting_out" | null> = {};
+  const hands: Record<string, Hand[]> = {};
+  for (const pid of playerIds) {
+    chips[pid] = config.startingChips;
+    bets[pid] = null;
+    hands[pid] = [];
+  }
+
+  const game: InternalBlackjackGame = {
+    lobbyCode,
+    shoe: freshShoe(),
+    playerIds,
+    chips,
+    config,
+    phase: "betting",
+    bets,
+    hands,
+    dealerHand: [],
+    activePlayerIndex: 0,
+    activeHandIndex: 0,
+    phaseDeadline: Date.now() + BETTING_WINDOW_MS,
+    roundNumber: 1,
+    createdAt: Date.now(),
+  };
+
+  await saveGame(game);
+}
+
+export interface BlackjackPlayerView {
+  gameType: "blackjack";
+  phase: BlackjackPhase;
+  chips: Record<string, number>;
+  bets: Record<string, number | "sitting_out" | null>;
+  hands: Record<string, Hand[]>;
+  dealerHand: Array<Card | { suit: "?"; rank: "?" }>;
+  playerIds: string[];
+  config: BlackjackConfig;
+  activePlayerId: string | null;
+  activeHandIndex: number;
+  roundNumber: number;
+  phaseDeadline: number;
+  shoeRemaining: number;
+  lastSettlement?: Settlement[];
+}
+
+export async function getBlackjackPlayerView(
+  lobbyCode: string,
+  _playerId: string,
+): Promise<BlackjackPlayerView | null> {
+  const g = await loadGame(lobbyCode);
+  if (!g) return null;
+
+  // Hide the dealer's hole card during 'playing'. Reveal it from 'dealer'
+  // onward so the client can animate the draw sequence.
+  const hideHoleCard = g.phase === "playing" || g.phase === "dealing";
+  const dealerHand: Array<Card | { suit: "?"; rank: "?" }> =
+    hideHoleCard && g.dealerHand.length >= 2
+      ? [g.dealerHand[0], { suit: "?", rank: "?" }, ...g.dealerHand.slice(2)]
+      : g.dealerHand;
+
+  return {
+    gameType: "blackjack",
+    phase: g.phase,
+    chips: g.chips,
+    bets: g.bets,
+    hands: g.hands,
+    dealerHand,
+    playerIds: g.playerIds,
+    config: g.config,
+    activePlayerId: g.phase === "playing" ? g.playerIds[g.activePlayerIndex] ?? null : null,
+    activeHandIndex: g.activeHandIndex,
+    roundNumber: g.roundNumber,
+    phaseDeadline: g.phaseDeadline,
+    shoeRemaining: g.shoe.length,
+    lastSettlement: g.lastSettlement,
+  };
+}
 
 export async function isBlackjackGame(lobbyCode: string): Promise<boolean> {
   return gameExists(lobbyCode);
