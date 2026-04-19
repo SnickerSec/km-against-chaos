@@ -127,6 +127,51 @@ function shuffle<T>(arr: T[]): T[] {
   return arr;
 }
 
+function allBetsIn(g: InternalBlackjackGame): boolean {
+  return g.playerIds.every(pid => g.bets[pid] !== null);
+}
+
+function dealOne(g: InternalBlackjackGame): Card {
+  const c = g.shoe.pop();
+  if (!c) throw new Error("blackjack: shoe empty (should be reshuffled before any hand)");
+  return c;
+}
+
+function startDealing(g: InternalBlackjackGame): void {
+  g.phase = "dealing";
+  // Build hands for every player who placed a numeric bet. Sitting-out players
+  // get no hand this round.
+  for (const pid of g.playerIds) {
+    if (typeof g.bets[pid] === "number") {
+      g.hands[pid] = [{ cards: [], bet: g.bets[pid] as number, doubled: false, resolved: false, fromSplit: false }];
+    } else {
+      g.hands[pid] = [];
+    }
+  }
+  // Two cards each, classic round-the-table order: every player gets one,
+  // then dealer one (face-up), then every player one more, then dealer one
+  // (face-down hole card). For a Redis blob this ordering doesn't actually
+  // matter — but we keep it for parity with how the client will animate.
+  g.dealerHand = [];
+  for (let pass = 0; pass < 2; pass++) {
+    for (const pid of g.playerIds) {
+      if (g.hands[pid].length > 0) g.hands[pid][0].cards.push(dealOne(g));
+    }
+    g.dealerHand.push(dealOne(g));
+  }
+  // Skip directly to playing, with active player = first non-sitting-out seat.
+  g.phase = "playing";
+  g.activePlayerIndex = g.playerIds.findIndex(pid => g.hands[pid].length > 0);
+  g.activeHandIndex = 0;
+  g.phaseDeadline = Date.now() + TURN_TIME_MS;
+
+  // If literally everyone is sitting out, jump to dealer phase (which will
+  // immediately settle with no payouts).
+  if (g.activePlayerIndex === -1) {
+    g.phase = "dealer";
+  }
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export async function createBlackjackGame(
@@ -235,6 +280,7 @@ export async function placeBet(
 
     g.chips[playerId] -= amount;
     g.bets[playerId] = amount;
+    if (allBetsIn(g)) startDealing(g);
     await saveGame(g);
     return { success: true };
   });
@@ -249,6 +295,7 @@ export async function sitOut(lobbyCode: string, playerId: string): Promise<Actio
     if (g.bets[playerId] !== null) return { success: false, error: "Already submitted this round" };
 
     g.bets[playerId] = "sitting_out";
+    if (allBetsIn(g)) startDealing(g);
     await saveGame(g);
     return { success: true };
   });

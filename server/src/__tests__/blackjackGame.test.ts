@@ -117,3 +117,29 @@ describe("placeBet", () => {
     expect(view.chips.p1).toBe(1000);
   });
 });
+
+describe("betting auto-advance", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+  });
+
+  it("advances to playing after all funded players bet", async () => {
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+    const view = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(view.phase).toBe("playing");
+    expect(view.activePlayerId).toBe("p1");
+    // 3 players × 2 cards + 2 dealer = 8 cards out of 52
+    expect(view.shoeRemaining).toBe(44);
+  });
+
+  it("sit-out + bets advance to playing too", async () => {
+    await sitOut(LOBBY, "p1");
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+    const view = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(view.phase).toBe("playing");
+    expect(view.hands.p1).toEqual([]); // sitting-out player has no hand
+  });
+});
