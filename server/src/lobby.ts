@@ -650,8 +650,17 @@ export async function exportLobbies(): Promise<any[]> {
   }));
 }
 
+const ABANDONED_LOBBY_AGE_MS = 2 * 60 * 60 * 1000; // 2h old lobby → abandoned
+
 export async function restoreLobbies(snapshots: any[]): Promise<void> {
   for (const s of snapshots) {
+    const createdAt = new Date(s.createdAt);
+    // Skip abandoned lobbies — if a lobby is older than 2h we're re-animating
+    // something nobody's come back to. Drops zombie state that otherwise
+    // loops through every deploy cycle (snapshot → restore → snapshot).
+    if (Date.now() - createdAt.getTime() > ABANDONED_LOBBY_AGE_MS) {
+      continue;
+    }
     const lobby: Lobby = {
       code: s.code,
       players: new Map(s.players),
@@ -663,7 +672,7 @@ export async function restoreLobbies(snapshots: any[]): Promise<void> {
       houseRules: s.houseRules || {},
       status: s.status,
       maxPlayers: s.maxPlayers,
-      createdAt: new Date(s.createdAt),
+      createdAt,
       rematchVotes: new Set(s.rematchVotes || []),
     };
     // Mark every player disconnected until they reconnect via sessionId

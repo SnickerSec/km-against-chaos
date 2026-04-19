@@ -1064,9 +1064,18 @@ export async function exportGames(): Promise<any[]> {
   return games.map(g => serialise(g));
 }
 
+const ABANDONED_GAME_STALENESS_MS = 60 * 60 * 1000; // 1h past phaseDeadline → zombie
+
 export async function restoreGames(snapshots: any[]): Promise<void> {
   for (const s of snapshots) {
     const game = deserialise(s as SerialisedGame);
+    // Skip zombie games — rounds whose phaseDeadline was already an hour
+    // in the past at restore time mean nobody's been playing. Resurrecting
+    // them each deploy just keeps re-firing their czar-timeout and polluting
+    // logs without a user ever seeing the result.
+    if (game.currentRound && Date.now() - game.currentRound.phaseDeadline > ABANDONED_GAME_STALENESS_MS) {
+      continue;
+    }
     // Phase timers don't survive; give the new round a fresh deadline
     // from now so timers restart cleanly on the new instance.
     if (game.currentRound) {
