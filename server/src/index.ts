@@ -69,7 +69,7 @@ app.use((_req, res, next) => {
       "img-src 'self' data: https:",
       "connect-src 'self' wss: https:",
       "frame-src https://accounts.google.com",
-      "media-src 'self' https://www.myinstants.com",
+      "media-src 'self' https://www.myinstants.com https://cdn.decked.gg",
     ].join("; ")
   );
   next();
