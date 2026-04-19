@@ -292,6 +292,19 @@ export async function startRound(lobbyCode: string): Promise<RoundState | null> 
     }
   }
 
+  // Top up every player's hand to HAND_SIZE. Heals games that got into a
+  // bad state under the old draw-then-push-to-discard bug (which could
+  // silently shrink hands). Running every round is cheap and idempotent.
+  for (const pid of game.playerIds) {
+    const hand = game.hands.get(pid) || [];
+    while (hand.length < HAND_SIZE) {
+      const drawn = drawKnowledge(game);
+      if (!drawn) break; // deck+discard exhausted
+      hand.push(drawn);
+    }
+    game.hands.set(pid, hand);
+  }
+
   // Bot-czar mode: only IDs starting with "bot-" are eligible to judge. If
   // every bot has been removed, end the game — the round can't proceed.
   let czarId: string;
