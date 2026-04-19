@@ -189,6 +189,13 @@ export async function scheduleRoundTimer(code: string, onExpiry: (code: string) 
   const delay = Math.max(0, deadline - Date.now());
   roundTimers.set(code, setTimeout(async () => {
     roundTimers.delete(code);
+    // Re-check phaseDeadline at fire time. clearRoundTimer only clears
+    // this replica's setTimeout; a timer scheduled on a DIFFERENT replica
+    // for an earlier deadline is still ticking there. When it fires, the
+    // live phaseDeadline in Redis has moved on — skip this stale fire so
+    // we don't auto-submit/auto-pick for a phase that already advanced.
+    const live = await getPhaseDeadline(code);
+    if (live !== deadline) return;
     if (!(await claimTimerLock("cah", code, deadline))) return;
     onExpiry(code);
   }, delay));
@@ -209,10 +216,14 @@ const unoTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function scheduleUnoTurnTimer(code: string, onExpiry: (code: string) => void) {
   clearUnoTurnTimer(code);
+  const scheduledAt = Date.now();
   unoTurnTimers.set(code, setTimeout(async () => {
     unoTurnTimers.delete(code);
     const deadline = await getUnoTurnDeadline(code);
     if (!deadline) return;
+    // Same staleness guard as the CAH round timer: a deadline bumped by
+    // another replica after we scheduled means our fire is stale.
+    if (deadline > scheduledAt + TURN_TIMER_MS + 1000) return;
     if (!(await claimTimerLock("uno", code, deadline))) return;
     onExpiry(code);
   }, TURN_TIMER_MS));
