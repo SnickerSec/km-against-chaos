@@ -59,6 +59,7 @@ export default function InstallPrompt() {
         </button>
         <button
           onClick={handleDismiss}
+          aria-label="Dismiss install prompt"
           className="text-gray-400 hover:text-gray-300 shrink-0"
         >
           <Icon icon="mdi:close" width={16} />

@@ -293,7 +293,7 @@ export default function HomeScreen() {
       <div className="flex justify-center mt-6 pb-4">
         <Link
           href="/privacy"
-          className="text-gray-700 hover:text-gray-400 text-xs transition-colors"
+          className="text-gray-400 hover:text-gray-200 text-xs transition-colors"
         >
           Privacy Policy
         </Link>
