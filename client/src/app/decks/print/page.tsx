@@ -73,7 +73,7 @@ export default function TgcPrintPage() {
               <h2 className="text-xl font-bold">Creating Your Deck</h2>
             </div>
             <p className="text-sm text-gray-300 mb-1">{progress.step}</p>
-            <p className="text-xs text-gray-500 mb-4">{progress.detail}</p>
+            <p className="text-xs text-gray-400 mb-4">{progress.detail}</p>
             {progress.total > 0 && (
               <>
                 <div className="w-full bg-gray-800 rounded-full h-4 mb-2 overflow-hidden">
@@ -82,7 +82,7 @@ export default function TgcPrintPage() {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <p className="text-xs text-gray-500 text-right">
+                <p className="text-xs text-gray-400 text-right">
                   {progress.progress} / {progress.total} cards ({pct}%)
                 </p>
               </>
@@ -139,7 +139,7 @@ export default function TgcPrintPage() {
 
         {!progress && !error && !cartUrl && (
           <div className="text-center">
-            <Icon icon="mdi:loading" className="animate-spin text-gray-500 mx-auto mb-4" width={32} />
+            <Icon icon="mdi:loading" className="animate-spin text-gray-400 mx-auto mb-4" width={32} />
             <p className="text-gray-400">Loading...</p>
           </div>
         )}

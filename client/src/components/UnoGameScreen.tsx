@@ -176,7 +176,7 @@ export default function UnoGameScreen() {
           <ScoreBar />
           <button
             onClick={() => { if (confirm("Leave the game?")) leaveLobby(); }}
-            className="text-gray-500 hover:text-red-400 text-xs transition-colors"
+            className="text-gray-400 hover:text-red-400 text-xs transition-colors"
           >
             Leave
           </button>
@@ -209,7 +209,7 @@ export default function UnoGameScreen() {
             <Icon icon={DIRECTION_ICON[unoTurn.direction] || "mdi:rotate-right"} className="text-2xl text-gray-300" />
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">Active:</span>
+            <span className="text-xs text-gray-400">Active:</span>
             <span className={`w-6 h-6 rounded-full ${ACTIVE_COLOR_STYLE[unoTurn.activeColor]}`} />
             <span className="text-xs text-gray-300">
               {unoDeckTemplate?.colorNames?.[unoTurn.activeColor] || unoTurn.activeColor}
@@ -336,7 +336,7 @@ export default function UnoGameScreen() {
               Your turn!
             </span>
           ) : (
-            <span className="text-gray-500 text-sm">
+            <span className="text-gray-400 text-sm">
               Waiting for <strong className="text-purple-400">{currentPlayerName}</strong>
             </span>
           )}
@@ -373,7 +373,7 @@ export default function UnoGameScreen() {
         <div className="flex justify-center pb-2">
           <button
             onClick={() => handleCardPlay(selectedUnoCard)}
-            className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-full text-sm transition-colors animate-bounce"
+            className="px-6 py-2 bg-green-700 hover:bg-green-600 text-white font-bold rounded-full text-sm transition-colors animate-bounce"
           >
             Play Card
           </button>
@@ -420,7 +420,7 @@ export default function UnoGameScreen() {
             </div>
           )}
           {unoHand.length === 0 && (
-            <p className="text-center text-gray-500 text-sm">No cards in hand</p>
+            <p className="text-center text-gray-400 text-sm">No cards in hand</p>
           )}
         </div>
       )}

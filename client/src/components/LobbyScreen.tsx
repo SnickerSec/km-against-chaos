@@ -123,7 +123,7 @@ export default function LobbyScreen() {
             level="M"
           />
         </div>
-        <p className="text-gray-500 text-xs mt-2">Scan to join on your phone</p>
+        <p className="text-gray-400 text-xs mt-2">Scan to join on your phone</p>
         <div className="flex gap-2 mt-3">
           <Button onClick={copyInviteLink} variant="secondary" size="sm">
             {copied ? "Copied!" : "Copy Invite Link"}
@@ -172,7 +172,7 @@ export default function LobbyScreen() {
                 <PlayerAvatar name={player.name} isBot={player.isBot} size="md" />
                 {player.name}
                 {player.id === socket.id && (
-                  <span className="text-gray-500 text-sm">(you)</span>
+                  <span className="text-gray-400 text-sm">(you)</span>
                 )}
                 {player.isBot && (
                   <span className="text-blue-400 text-sm">BOT</span>

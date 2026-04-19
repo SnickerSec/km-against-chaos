@@ -78,7 +78,7 @@ export default function PartyBar() {
               </div>
             ))}
           </div>
-          <span className="text-xs text-gray-500">{party.members.length} member{party.members.length !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-gray-400">{party.members.length} member{party.members.length !== 1 ? "s" : ""}</span>
         </div>
         <div className="flex items-center gap-2">
           {isLeader && (

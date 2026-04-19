@@ -30,7 +30,7 @@ export default function CardPreview({ text, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-xl font-medium leading-relaxed text-center">{text}</p>
-        <p className="text-gray-500 text-xs text-center mt-4">Tap anywhere to close</p>
+        <p className="text-gray-400 text-xs text-center mt-4">Tap anywhere to close</p>
       </div>
     </div>
   );

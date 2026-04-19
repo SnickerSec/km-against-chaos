@@ -172,13 +172,13 @@ export default function Chat() {
             <div className="flex border-b border-gray-700">
               <button
                 onClick={() => setPickerTab("gif")}
-                className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${pickerTab === "gif" ? "text-purple-400 border-b-2 border-purple-500" : "text-gray-500 hover:text-gray-300"}`}
+                className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${pickerTab === "gif" ? "text-purple-400 border-b-2 border-purple-500" : "text-gray-400 hover:text-gray-300"}`}
               >
                 GIFs
               </button>
               <button
                 onClick={() => setPickerTab("sticker")}
-                className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${pickerTab === "sticker" ? "text-cyan-400 border-b-2 border-cyan-500" : "text-gray-500 hover:text-gray-300"}`}
+                className={`flex-1 py-1.5 text-xs font-semibold transition-colors ${pickerTab === "sticker" ? "text-cyan-400 border-b-2 border-cyan-500" : "text-gray-400 hover:text-gray-300"}`}
               >
                 Stickers
               </button>
@@ -196,7 +196,7 @@ export default function Chat() {
             {/* Results grid */}
             <div className="h-40 overflow-y-auto px-2 pb-2">
               {pickerLoading ? (
-                <p className="text-gray-500 text-xs text-center py-4">Loading...</p>
+                <p className="text-gray-400 text-xs text-center py-4">Loading...</p>
               ) : pickerResults.length === 0 ? (
                 <p className="text-gray-600 text-xs text-center py-4">No results</p>
               ) : (
@@ -252,7 +252,7 @@ export default function Chat() {
           <button
             onClick={handleSend}
             disabled={!input.trim()}
-            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-semibold transition-colors"
+            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-400 rounded-lg text-sm font-semibold transition-colors"
           >
             Send
           </button>

@@ -102,7 +102,7 @@ export default function SoundPicker({ onPlay, onClose, onSelect }: Props) {
             <Icon icon="mdi:music-note" className="text-purple-400" />
             {onSelect ? "Choose a Sound" : "Play a Sound"}
           </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
             <Icon icon="mdi:close" />
           </button>
         </div>
@@ -111,13 +111,13 @@ export default function SoundPicker({ onPlay, onClose, onSelect }: Props) {
         <div className="flex border-b border-gray-800">
           <button
             onClick={() => setTab("saved")}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${tab === "saved" ? "text-white border-b-2 border-purple-500" : "text-gray-500 hover:text-gray-300"}`}
+            className={`flex-1 py-2 text-sm font-medium transition-colors ${tab === "saved" ? "text-white border-b-2 border-purple-500" : "text-gray-400 hover:text-gray-300"}`}
           >
             Saved
           </button>
           <button
             onClick={() => setTab("search")}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${tab === "search" ? "text-white border-b-2 border-purple-500" : "text-gray-500 hover:text-gray-300"}`}
+            className={`flex-1 py-2 text-sm font-medium transition-colors ${tab === "search" ? "text-white border-b-2 border-purple-500" : "text-gray-400 hover:text-gray-300"}`}
           >
             Search MyInstants
           </button>
@@ -145,7 +145,7 @@ export default function SoundPicker({ onPlay, onClose, onSelect }: Props) {
               </form>
 
               {results.length === 0 && !searching && query && (
-                <p className="text-center text-gray-500 text-sm py-4">No results found</p>
+                <p className="text-center text-gray-400 text-sm py-4">No results found</p>
               )}
 
               <div className="space-y-1">
@@ -165,7 +165,7 @@ export default function SoundPicker({ onPlay, onClose, onSelect }: Props) {
                         <button
                           onClick={() => handleSave(r.title, r.mp3)}
                           disabled={savingId === r.mp3}
-                          className="text-gray-500 hover:text-yellow-400 transition-colors shrink-0"
+                          className="text-gray-400 hover:text-yellow-400 transition-colors shrink-0"
                           title="Save"
                         >
                           {savingId === r.mp3
@@ -199,7 +199,7 @@ export default function SoundPicker({ onPlay, onClose, onSelect }: Props) {
           {tab === "saved" && (
             <div className="p-3">
               {!user && (
-                <p className="text-center text-gray-500 text-sm py-6">Sign in to save sounds</p>
+                <p className="text-center text-gray-400 text-sm py-6">Sign in to save sounds</p>
               )}
               {user && loadingSaved && (
                 <div className="flex justify-center py-6">
@@ -207,7 +207,7 @@ export default function SoundPicker({ onPlay, onClose, onSelect }: Props) {
                 </div>
               )}
               {user && !loadingSaved && saved.length === 0 && (
-                <p className="text-center text-gray-500 text-sm py-6">No saved sounds yet — search to find some!</p>
+                <p className="text-center text-gray-400 text-sm py-6">No saved sounds yet — search to find some!</p>
               )}
               {user && !loadingSaved && saved.length > 0 && (
                 <div className="space-y-1">

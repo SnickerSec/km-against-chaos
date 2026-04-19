@@ -84,7 +84,7 @@ export default function GameOverScreen() {
                     {i === 0 ? "🏆 " : ""}{p.name}
                   </span>
                   {title && (
-                    <p className={`text-xs ${i === 0 ? "text-yellow-400" : "text-gray-500"}`}>
+                    <p className={`text-xs ${i === 0 ? "text-yellow-400" : "text-gray-400"}`}>
                       {title}
                     </p>
                   )}
@@ -112,7 +112,7 @@ export default function GameOverScreen() {
               />
             </>
           ) : (
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-400 text-sm">
               <button
                 onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                 className="text-purple-400 hover:text-purple-300 transition-colors"
@@ -148,11 +148,11 @@ export default function GameOverScreen() {
               <p className="text-purple-400 text-sm font-medium">Voted for rematch!</p>
             )}
             {lobby?.rematchVotes !== undefined && lobby.rematchVotes > 0 && (
-              <p className="text-gray-500 text-xs">
+              <p className="text-gray-400 text-xs">
                 {lobby.rematchVotes} player{lobby.rematchVotes !== 1 ? "s" : ""} want{lobby.rematchVotes === 1 ? "s" : ""} a rematch
               </p>
             )}
-            <p className="text-gray-500 text-xs">Waiting for host to start rematch...</p>
+            <p className="text-gray-400 text-xs">Waiting for host to start rematch...</p>
           </div>
         )}
         <button

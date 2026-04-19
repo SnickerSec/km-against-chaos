@@ -242,7 +242,7 @@ function ArtGallery({ deck }: { deck: CustomDeck }) {
             />
             <div className="mt-3 text-center">
               <p className="text-white text-sm">{activeCard.text}</p>
-              <p className="text-gray-500 text-xs mt-1">
+              <p className="text-gray-400 text-xs mt-1">
                 {lightboxIndex! + 1} / {cardsWithArt.length} · {activeCard.type === "chaos" ? "Prompt" : "Answer"} card
               </p>
             </div>

@@ -48,7 +48,7 @@ export default function ScoreBar() {
     <>
       <button
         onClick={() => setMuted(toggleMute())}
-        className="text-gray-500 hover:text-gray-300 transition-colors"
+        className="text-gray-400 hover:text-gray-300 transition-colors"
         aria-label={muted ? "Unmute sounds" : "Mute sounds"}
         title={muted ? "Unmute sounds" : "Mute sounds"}
       >
@@ -63,7 +63,7 @@ export default function ScoreBar() {
         <Icon icon="mdi:trophy" className="text-yellow-400 text-base" />
         <span className="font-medium">{leader.name}</span>
         <strong className="text-white">{leader.score}</strong>
-        <Icon icon={open ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-500 text-sm" />
+        <Icon icon={open ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-400 text-sm" />
       </button>
 
       {open && (
@@ -72,10 +72,10 @@ export default function ScoreBar() {
           style={{ position: "fixed", top: pos.top, right: pos.right, zIndex: 9999 }}
           className="w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-xl py-1"
         >
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 pt-2 pb-1">Leaderboard</p>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 pt-2 pb-1">Leaderboard</p>
           {sorted.map((p, i) => (
             <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-800 transition-colors">
-              <span className="text-xs w-4 text-gray-500 text-right shrink-0">
+              <span className="text-xs w-4 text-gray-400 text-right shrink-0">
                 {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`}
               </span>
               <PlayerAvatar name={p.name} isBot={p.isBot} size="sm" />

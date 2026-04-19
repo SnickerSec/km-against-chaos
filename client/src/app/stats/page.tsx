@@ -124,7 +124,7 @@ export default function StatsPage() {
                     className="flex items-center justify-between px-4 py-3"
                   >
                     <GameTypeBadge gameType={b.gameType} />
-                    <span className="text-gray-500 text-sm">
+                    <span className="text-gray-400 text-sm">
                       {b.wins}W / {b.games}G
                     </span>
                   </div>
@@ -150,7 +150,7 @@ export default function StatsPage() {
                       <GameTypeBadge gameType={g.gameType} />
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-gray-500 text-sm">
+                      <span className="text-gray-400 text-sm">
                         {g.finalScore} pts
                       </span>
                       {g.isWinner && (
@@ -174,7 +174,7 @@ export default function StatsPage() {
                   >
                     Prev
                   </button>
-                  <span className="text-gray-500 text-sm">
+                  <span className="text-gray-400 text-sm">
                     Page {historyData.page} of {historyData.pages}
                   </span>
                   <button
@@ -193,7 +193,7 @@ export default function StatsPage() {
 
       {user && myStats && myStats.totalGames === 0 && (
         <section className="mb-10">
-          <p className="text-gray-500 text-center py-8">
+          <p className="text-gray-400 text-center py-8">
             No games played yet. Start a game to see your stats!
           </p>
         </section>
@@ -201,7 +201,7 @@ export default function StatsPage() {
 
       {!user && (
         <section className="mb-10">
-          <p className="text-gray-500 text-center py-4">
+          <p className="text-gray-400 text-center py-4">
             Sign in with Google to track your personal stats.
           </p>
         </section>
@@ -225,9 +225,9 @@ export default function StatsPage() {
         </div>
 
         {loading ? (
-          <p className="text-gray-500 text-center py-8">Loading...</p>
+          <p className="text-gray-400 text-center py-8">Loading...</p>
         ) : leaderboard.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">
+          <p className="text-gray-400 text-center py-8">
             No games recorded yet. Play some games to populate the leaderboard!
           </p>
         ) : (
@@ -269,7 +269,7 @@ export default function StatsPage() {
                   <span className="text-white font-semibold">
                     {entry.wins}W
                   </span>
-                  <span className="text-gray-500 text-sm ml-1">
+                  <span className="text-gray-400 text-sm ml-1">
                     / {entry.totalGames}G
                   </span>
                   <span className="text-gray-600 text-xs ml-2">
@@ -295,7 +295,7 @@ function StatCard({
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 text-center">
       <div className="text-2xl font-bold text-white">{value}</div>
-      <div className="text-xs text-gray-500 mt-1">{label}</div>
+      <div className="text-xs text-gray-400 mt-1">{label}</div>
     </div>
   );
 }

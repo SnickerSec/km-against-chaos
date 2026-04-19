@@ -79,11 +79,11 @@ function ViewDeckContent() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-2">
             <GameTypeBadge gameType={deck.gameType} />
-            {deck.maturity && <span className="text-xs text-gray-500 uppercase">{deck.maturity}</span>}
+            {deck.maturity && <span className="text-xs text-gray-400 uppercase">{deck.maturity}</span>}
           </div>
           <h1 className="text-3xl font-bold mb-1">{deck.name}</h1>
           {deck.description && <p className="text-gray-400 mb-3">{deck.description}</p>}
-          <div className="text-sm text-gray-500 space-y-1 mb-4">
+          <div className="text-sm text-gray-400 space-y-1 mb-4">
             <p>{deck.chaosCards.length} prompts · {deck.knowledgeCards.length} answers</p>
             {deck.flavorThemes && deck.flavorThemes.length > 0 && (
               <p>Themes: {deck.flavorThemes.join(", ")}</p>

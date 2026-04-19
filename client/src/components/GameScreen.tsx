@@ -82,7 +82,7 @@ export default function GameScreen() {
           <ScoreBar />
           <button
             onClick={() => { if (confirm("Leave the game?")) leaveLobby(); }}
-            className="text-gray-500 hover:text-red-400 text-xs transition-colors"
+            className="text-gray-400 hover:text-red-400 text-xs transition-colors"
           >
             Leave
           </button>
@@ -169,7 +169,7 @@ export default function GameScreen() {
             {isJH || isA2A || isSF ? "You are the Judge" : "You are the Czar"}
           </span>
         ) : (
-          <span className="text-gray-500 text-sm">
+          <span className="text-gray-400 text-sm">
             {isJH || isA2A || isSF ? "Judge" : "Czar"}: <strong className="text-purple-400">{czarName}</strong>
           </span>
         )}
@@ -257,7 +257,7 @@ function WaitingForSubmissions({ cardBackSrc }: { cardBackSrc?: string | null })
   return (
     <div className="text-center mt-8">
       <p className="text-gray-400 text-lg mb-2">Waiting for players...</p>
-      <p className="text-gray-500 mb-4">
+      <p className="text-gray-400 mb-4">
         {submitted} / {totalPlayers} submitted
       </p>
       {cardBackSrc && submitted > 0 && (

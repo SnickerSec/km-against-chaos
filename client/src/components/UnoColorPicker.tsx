@@ -35,7 +35,7 @@ export default function UnoColorPicker({
         </div>
         <button
           onClick={onCancel}
-          className="mt-3 w-full text-gray-500 hover:text-gray-300 text-xs py-2 transition-colors"
+          className="mt-3 w-full text-gray-400 hover:text-gray-300 text-xs py-2 transition-colors"
         >
           Cancel
         </button>

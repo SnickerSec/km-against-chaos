@@ -487,7 +487,7 @@ export default function AdminPage() {
                             setUseCustomModel(!useCustomModel);
                             if (!useCustomModel) setCustomModel(model);
                           }}
-                          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                          className="text-xs text-gray-400 hover:text-gray-300 transition-colors"
                         >
                           {useCustomModel ? "Browse models" : "Enter custom model ID"}
                         </button>
@@ -529,7 +529,7 @@ export default function AdminPage() {
                               </option>
                             )}
                           </select>
-                          <p className="text-gray-500 text-xs mt-1">
+                          <p className="text-gray-400 text-xs mt-1">
                             {filteredModels.length} models available from {providerPrefixes.join(", ")}
                           </p>
                         </>
@@ -545,7 +545,7 @@ export default function AdminPage() {
                         max={8192}
                         className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
                       />
-                      <p className="text-gray-500 text-xs mt-1">Max response length (256–8192)</p>
+                      <p className="text-gray-400 text-xs mt-1">Max response length (256–8192)</p>
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
                       {keyStatus[provider] && (
@@ -638,11 +638,11 @@ export default function AdminPage() {
                                   <span className="text-sm font-medium text-white">{m.name}</span>
                                   {m.price && <span className="text-xs px-1.5 py-0.5 rounded bg-green-600/20 text-green-300">{m.price}</span>}
                                 </div>
-                                <p className="text-xs text-gray-500 mt-0.5">{m.description || m.id}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">{m.description || m.id}</p>
                               </div>
                             </label>
                           ))}
-                          {displayStandard.length === 0 && <p className="text-gray-500 text-sm py-2">No models match &quot;{imgSearch}&quot;</p>}
+                          {displayStandard.length === 0 && <p className="text-gray-400 text-sm py-2">No models match &quot;{imgSearch}&quot;</p>}
                           {displayStandard.length > 20 && <p className="text-gray-600 text-xs py-1">Showing 20 of {displayStandard.length} — search to narrow</p>}
                         </div>
                       </div>
@@ -679,7 +679,7 @@ export default function AdminPage() {
               {promptTemplates && (
                 <div className="bg-gray-800 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-purple-300 mb-1">Image Prompt Suffix</h3>
-                  <p className="text-gray-500 text-xs mb-2">Appended to every image generation prompt</p>
+                  <p className="text-gray-400 text-xs mb-2">Appended to every image generation prompt</p>
                   <textarea
                     value={promptTemplates.imagePromptSuffix}
                     onChange={(e) => setPromptTemplates({ ...promptTemplates, imagePromptSuffix: e.target.value })}
@@ -725,7 +725,7 @@ export default function AdminPage() {
                 {promptTemplates.cardEngineRules[gt] !== undefined && (
                   <div className="bg-gray-800 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-purple-300 mb-1">Card Engine Rules</h3>
-                    <p className="text-gray-500 text-xs mb-2">Game-specific rules included in AI card generation prompts</p>
+                    <p className="text-gray-400 text-xs mb-2">Game-specific rules included in AI card generation prompts</p>
                     <textarea
                       value={promptTemplates.cardEngineRules[gt] || ""}
                       onChange={(e) =>
@@ -744,7 +744,7 @@ export default function AdminPage() {
                 {promptTemplates.artStyles[gt] && (
                   <div className="bg-gray-800 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-purple-300 mb-1">Art Style</h3>
-                    <p className="text-gray-500 text-xs mb-3">Image generation style for this game type</p>
+                    <p className="text-gray-400 text-xs mb-3">Image generation style for this game type</p>
                     <div className="space-y-3">
                       <div>
                         <label className="block text-xs text-gray-400 mb-1">Base Prompt</label>
@@ -811,7 +811,7 @@ export default function AdminPage() {
               </div>
               <div className="bg-gray-800 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-purple-300 mb-1">Content Safety Rules</h3>
-                <p className="text-gray-500 text-xs mb-2">Included in AI card generation prompts for this maturity level</p>
+                <p className="text-gray-400 text-xs mb-2">Included in AI card generation prompts for this maturity level</p>
                 <textarea
                   value={promptTemplates.cardMaturityRules[activeMaturityRule] || ""}
                   onChange={(e) =>
@@ -887,7 +887,7 @@ export default function AdminPage() {
           )}
 
           {!usersLoading && users.length === 0 && !usersError && (
-            <p className="text-gray-500 text-sm">No users found.</p>
+            <p className="text-gray-400 text-sm">No users found.</p>
           )}
         </div>
 
@@ -942,7 +942,7 @@ export default function AdminPage() {
                               {d.gameType === "joking_hazard" ? "JH" : "CAH"}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-500">{d.gameType === "joking_hazard" ? `${d.knowledgeCount} panels` : `${d.chaosCount} prompts · ${d.knowledgeCount} answers`}</p>
+                          <p className="text-xs text-gray-400">{d.gameType === "joking_hazard" ? `${d.knowledgeCount} panels` : `${d.chaosCount} prompts · ${d.knowledgeCount} answers`}</p>
                         </div>
                         <div className="flex-shrink-0">
                           {featuredStatus[d.id]?.success && (
@@ -956,7 +956,7 @@ export default function AdminPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-sm">
+                  <p className="text-gray-400 text-sm">
                     {q ? "No decks match your search." : "No featured decks yet. Search to add some."}
                   </p>
                 )}
@@ -965,7 +965,7 @@ export default function AdminPage() {
           })()}
 
           {!decksLoading && adminDecks.length === 0 && (
-            <p className="text-gray-500 text-sm">No decks found.</p>
+            <p className="text-gray-400 text-sm">No decks found.</p>
           )}
         </div>
 

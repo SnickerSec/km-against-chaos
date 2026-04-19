@@ -87,13 +87,13 @@ export default function CodenamesGameScreen() {
         {isHost && (
           <button
             onClick={codenamesStartRound}
-            className="px-8 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold text-lg transition-colors"
+            className="px-8 py-3 bg-green-700 hover:bg-green-800 rounded-lg font-semibold text-lg transition-colors"
           >
             Start Game
           </button>
         )}
 
-        <button onClick={() => { if (confirm("Leave?")) leaveLobby(); }} className="text-gray-500 hover:text-red-400 text-sm">
+        <button onClick={() => { if (confirm("Leave?")) leaveLobby(); }} className="text-gray-400 hover:text-red-400 text-sm">
           Leave
         </button>
       </div>
@@ -116,15 +116,15 @@ export default function CodenamesGameScreen() {
           <span className={`text-sm font-bold ${v.currentTeam === "red" ? "text-red-400" : "text-blue-400"}`}>
             {v.currentTeam === "red" ? "Red" : "Blue"}&apos;s Turn
           </span>
-          <span className="text-gray-500 text-xs">
+          <span className="text-gray-400 text-xs">
             Red: {v.scores.red}/{v.targets.red} &middot; Blue: {v.scores.blue}/{v.targets.blue}
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-gray-400">
             {v.isSpymaster ? "Spymaster" : "Guesser"} &middot; {v.myTeam === "red" ? "Red" : "Blue"}
           </span>
-          <button onClick={() => { if (confirm("Leave?")) leaveLobby(); }} className="text-gray-500 hover:text-red-400 text-xs">Leave</button>
+          <button onClick={() => { if (confirm("Leave?")) leaveLobby(); }} className="text-gray-400 hover:text-red-400 text-xs">Leave</button>
         </div>
       </div>
 
@@ -200,7 +200,7 @@ export default function CodenamesGameScreen() {
             <button
               onClick={() => { codenamesGiveClue(clueWord, clueCount); setClueWord(""); }}
               disabled={!clueWord.trim()}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 rounded-lg font-semibold text-sm transition-colors"
+              className="px-4 py-2 bg-green-700 hover:bg-green-800 disabled:opacity-40 rounded-lg font-semibold text-sm transition-colors"
             >
               Give Clue
             </button>
@@ -215,11 +215,11 @@ export default function CodenamesGameScreen() {
             </button>
           </div>
         ) : v.phase === "spymaster_clue" && !canGiveClue ? (
-          <p className="text-center text-gray-500 text-sm">
+          <p className="text-center text-gray-400 text-sm">
             Waiting for {v.currentTeam === "red" ? "Red" : "Blue"} Spymaster to give a clue...
           </p>
         ) : v.phase === "guessing" && !canGuess ? (
-          <p className="text-center text-gray-500 text-sm">
+          <p className="text-center text-gray-400 text-sm">
             {v.currentTeam === "red" ? "Red" : "Blue"} team is guessing...
           </p>
         ) : null}

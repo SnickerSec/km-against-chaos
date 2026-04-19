@@ -199,7 +199,7 @@ export default function HomeScreen() {
           </h1>
           <div className="flex items-center gap-3">
             <div className="relative hidden sm:block">
-              <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
+              <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width={18} />
               <input
                 ref={searchRef}
                 type="text"
@@ -214,7 +214,7 @@ export default function HomeScreen() {
         </div>
         {/* Mobile search — visible only on small screens */}
         <div className="relative w-full mt-3 sm:hidden">
-          <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
+          <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width={18} />
           <input
             ref={mobileSearchRef}
             type="text"
@@ -268,7 +268,7 @@ export default function HomeScreen() {
           />
           <button
             onClick={handleJoin}
-            className="shrink-0 px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors"
+            className="shrink-0 px-6 py-3 bg-green-700 hover:bg-green-800 rounded-lg font-semibold transition-colors"
           >
             Join
           </button>
@@ -293,7 +293,7 @@ export default function HomeScreen() {
       <div className="flex justify-center mt-6 pb-4">
         <Link
           href="/privacy"
-          className="text-gray-700 hover:text-gray-500 text-xs transition-colors"
+          className="text-gray-700 hover:text-gray-400 text-xs transition-colors"
         >
           Privacy Policy
         </Link>

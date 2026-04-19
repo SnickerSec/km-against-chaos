@@ -260,7 +260,7 @@ export default function VoiceChat({ floating = false }: { floating?: boolean }) 
           <Icon icon="mdi:microphone" width={15} className="text-green-400" />
           <span className="text-xs font-semibold text-gray-300">Voice Chat</span>
           {allVoiceParticipants.length > 0 && (
-            <span className="text-xs text-gray-500">· {allVoiceParticipants.length} in voice</span>
+            <span className="text-xs text-gray-400">· {allVoiceParticipants.length} in voice</span>
           )}
         </div>
         <div className="flex items-center gap-1.5">
@@ -327,7 +327,7 @@ export default function VoiceChat({ floating = false }: { floating?: boolean }) 
                 <Icon
                   icon={isMutedMe ? "mdi:microphone-off" : isSpeaking ? "mdi:microphone" : "mdi:microphone-outline"}
                   width={12}
-                  className={isMutedMe ? "text-red-400" : isSpeaking ? "text-green-400" : "text-gray-500"}
+                  className={isMutedMe ? "text-red-400" : isSpeaking ? "text-green-400" : "text-gray-400"}
                 />
                 <span>{isMe ? `${user.name} (you)` : user.name}</span>
               </div>
@@ -354,7 +354,7 @@ export default function VoiceChat({ floating = false }: { floating?: boolean }) 
           className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-colors relative ${
             joined
               ? anySpeaking
-                ? "bg-green-600 hover:bg-green-700"
+                ? "bg-green-700 hover:bg-green-800"
                 : "bg-green-700 hover:bg-green-800"
               : "bg-gray-700 hover:bg-gray-600"
           }`}

@@ -38,7 +38,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-gray-950 text-white min-h-screen" suppressHydrationWarning>
-        <NextScript src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
+        {/* Google Sign-In script is lazy-loaded by GoogleSignIn.tsx only when an
+            unauthenticated user actually needs the button — saves ~96 KB transfer
+            (258 KB raw) on every page for everyone else. */}
         <NextScript id="sw-register" strategy="afterInteractive">{`
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -46,7 +48,7 @@ export default function RootLayout({
         `}</NextScript>
         <InviteToast />
         <PartyBar />
-        {children}
+        <main>{children}</main>
       </body>
     </html>
   );

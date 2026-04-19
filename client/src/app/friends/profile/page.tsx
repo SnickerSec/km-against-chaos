@@ -167,7 +167,7 @@ function FriendProfilePage() {
     return (
       <div className="max-w-lg mx-auto px-4 py-8">
         <Link href="/friends" className="text-gray-400 hover:text-white">&larr; Back to Friends</Link>
-        <p className="text-gray-500 mt-8 text-center">No friend selected.</p>
+        <p className="text-gray-400 mt-8 text-center">No friend selected.</p>
       </div>
     );
   }
@@ -188,7 +188,7 @@ function FriendProfilePage() {
               )}
               <div>
                 <h1 className="text-lg font-bold leading-tight">{friend.nickname || friend.name}</h1>
-                {friend.nickname && <p className="text-xs text-gray-500">{friend.name}</p>}
+                {friend.nickname && <p className="text-xs text-gray-400">{friend.name}</p>}
               </div>
             </div>
           )}
@@ -210,7 +210,7 @@ function FriendProfilePage() {
             <div className="flex flex-col flex-1">
               <div className="flex-1 overflow-y-auto space-y-2 mb-4 min-h-[300px] max-h-[60vh]">
                 {messages.length === 0 && (
-                  <p className="text-gray-500 text-sm text-center py-8">No messages yet. Say hi!</p>
+                  <p className="text-gray-400 text-sm text-center py-8">No messages yet. Say hi!</p>
                 )}
                 {messages.map((msg) => {
                   const isMe = msg.sender_id === user.id;
@@ -218,7 +218,7 @@ function FriendProfilePage() {
                     <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[75%] px-3 py-2 rounded-lg text-sm ${isMe ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-200"}`}>
                         <p>{msg.content}</p>
-                        <p className={`text-xs mt-0.5 ${isMe ? "text-purple-300" : "text-gray-500"}`}>{timeAgo(msg.created_at)}</p>
+                        <p className={`text-xs mt-0.5 ${isMe ? "text-purple-300" : "text-gray-400"}`}>{timeAgo(msg.created_at)}</p>
                       </div>
                     </div>
                   );
@@ -239,7 +239,7 @@ function FriendProfilePage() {
                   placeholder="Type a message..."
                   className="flex-1 px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
                 />
-                <button onClick={handleSend} disabled={!msgInput.trim()} className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg font-medium text-sm transition-colors">Send</button>
+                <button onClick={handleSend} disabled={!msgInput.trim()} className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-400 rounded-lg font-medium text-sm transition-colors">Send</button>
               </div>
             </div>
           )}
@@ -265,7 +265,7 @@ function FriendProfilePage() {
 
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Recent Games Together</h2>
               {games.length === 0 ? (
-                <p className="text-gray-500 text-sm">No games played together yet.</p>
+                <p className="text-gray-400 text-sm">No games played together yet.</p>
               ) : (
                 <div className="space-y-2 mb-6">
                   {games.map((g) => (
@@ -274,7 +274,7 @@ function FriendProfilePage() {
                         <p className="text-sm font-medium">{g.deck_name}</p>
                         <div className="flex items-center gap-1.5">
                           <GameTypeBadge gameType={g.game_type} />
-                          <span className="text-xs text-gray-500">{timeAgo(g.ended_at)}</span>
+                          <span className="text-xs text-gray-400">{timeAgo(g.ended_at)}</span>
                         </div>
                       </div>
                       <div className="text-right text-sm">

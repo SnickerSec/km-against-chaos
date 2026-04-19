@@ -6,10 +6,10 @@ type Variant = "primary" | "success" | "vote" | "secondary";
 type Size = "sm" | "md" | "lg";
 
 const VARIANT: Record<Variant, string> = {
-  primary:   "bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:shadow-none text-white hover-glow-purple",
-  success:   "bg-green-600  hover:bg-green-700  disabled:bg-gray-700 disabled:text-gray-500 disabled:shadow-none text-white hover-glow-green",
-  vote:      "bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-700 disabled:text-gray-500 disabled:shadow-none text-white hover-glow-yellow",
-  secondary: "bg-gray-700   hover:bg-gray-600   disabled:bg-gray-800 disabled:text-gray-500 text-gray-200",
+  primary:   "bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-400 disabled:shadow-none text-white hover-glow-purple",
+  success:   "bg-green-700  hover:bg-green-800  disabled:bg-gray-700 disabled:text-gray-400 disabled:shadow-none text-white hover-glow-green",
+  vote:      "bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-700 disabled:text-gray-400 disabled:shadow-none text-white hover-glow-yellow",
+  secondary: "bg-gray-700   hover:bg-gray-600   disabled:bg-gray-800 disabled:text-gray-400 text-gray-200",
 };
 
 const SIZE: Record<Size, string> = {

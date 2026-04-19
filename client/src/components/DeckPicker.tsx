@@ -59,7 +59,7 @@ function TrendingCard({
         {deck.ownerName && <span className="truncate">by {deck.ownerName}</span>}
       </div>
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 text-xs text-gray-500">
+        <div className="flex items-center gap-1 text-xs text-gray-400">
           <Icon icon="mdi:play-circle" width={14} />
           <span>{deck.playCount || 0} plays</span>
         </div>
@@ -111,7 +111,7 @@ function DeckCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap mb-3">
+        <div className="flex items-center gap-2 text-xs text-gray-400 flex-wrap mb-3">
           <GameTypeBadge gameType={deck.gameType} />
           {deck.ownerName && <span>by {deck.ownerName}</span>}
           <span className="text-gray-700">|</span>
@@ -140,7 +140,7 @@ function DeckCard({
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 text-xs text-gray-500">
+            <div className="flex items-center gap-1 text-xs text-gray-400">
               <Icon icon="mdi:play-circle" width={14} />
               <span>{deck.playCount || 0}</span>
             </div>
@@ -150,7 +150,7 @@ function DeckCard({
               size="text-sm"
             />
             {(deck.avgRating || 0) > 0 && (
-              <span className="text-xs text-gray-500">{(deck.avgRating || 0).toFixed(1)}</span>
+              <span className="text-xs text-gray-400">{(deck.avgRating || 0).toFixed(1)}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -176,7 +176,7 @@ function DeckCard({
             </Link>
             <button
               onClick={() => onSelect(deck.id)}
-              className="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg font-semibold text-xs text-white transition-colors"
+              className="px-4 py-1.5 bg-green-700 hover:bg-green-800 rounded-lg font-semibold text-xs text-white transition-colors"
             >
               {buttonLabel || "Host"}
             </button>
@@ -291,7 +291,7 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
       {/* Search — only render inline when not externally controlled */}
       {!onSearchChange && (
         <div className="relative mb-4">
-          <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={18} />
+          <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width={18} />
           <input
             type="text"
             placeholder="Search by name or description..."
@@ -344,7 +344,7 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
               maturity === value
                 ? "bg-gray-600 text-white"
-                : "bg-gray-800/50 text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+                : "bg-gray-800/50 text-gray-400 hover:text-gray-300 hover:bg-gray-800"
             }`}
           >
             {label}
@@ -359,7 +359,7 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
               className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 sort === value
                   ? "bg-gray-700 text-white"
-                  : "text-gray-500 hover:text-gray-300"
+                  : "text-gray-400 hover:text-gray-300"
               }`}
               title={label}
             >
@@ -378,7 +378,7 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
       ) : displayDecks.length === 0 ? (
         <div className="text-center py-12">
           <Icon icon={showFavorites ? "mdi:heart-outline" : "mdi:cards-playing-outline"} className="text-4xl text-gray-700 mx-auto mb-3" />
-          <p className="text-gray-500">
+          <p className="text-gray-400">
             {showFavorites ? "No favorites yet. Heart some decks to save them here." : "No decks found. Try a different search or filter."}
           </p>
         </div>
@@ -405,7 +405,7 @@ export default function DeckPicker({ onSelect, title, buttonLabel, showCreateLin
       >
         <Icon icon="mdi:plus-circle-outline" className="text-3xl text-purple-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
         <p className="text-purple-400 font-semibold text-lg">Create Your Own</p>
-        <p className="text-gray-500 text-sm mt-1">Build a custom card game with your own prompts and answers</p>
+        <p className="text-gray-400 text-sm mt-1">Build a custom card game with your own prompts and answers</p>
       </Link>}
     </div>
   );

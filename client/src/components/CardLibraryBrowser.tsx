@@ -94,7 +94,7 @@ export default function CardLibraryBrowser({ open, onClose, onImport, gameType: 
               {total} AI-generated cards — select cards to add to your deck
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors p-1">
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-1">
             <Icon icon="mdi:close" width={22} />
           </button>
         </div>
@@ -150,14 +150,14 @@ export default function CardLibraryBrowser({ open, onClose, onImport, gameType: 
         {/* Card list */}
         <div className="flex-1 overflow-y-auto p-4">
           {loading && results.length === 0 ? (
-            <div className="flex items-center justify-center py-12 text-gray-500">
+            <div className="flex items-center justify-center py-12 text-gray-400">
               <Icon icon="mdi:loading" className="animate-spin mr-2" width={20} />
               Loading...
             </div>
           ) : results.length === 0 ? (
             <div className="text-center py-12">
               <Icon icon="mdi:cards-outline" className="text-gray-600 mx-auto mb-2" width={40} />
-              <p className="text-gray-500 text-sm">No cards found</p>
+              <p className="text-gray-400 text-sm">No cards found</p>
               <p className="text-gray-600 text-xs mt-1">Generate cards with AI and they will appear here for reuse</p>
             </div>
           ) : (
@@ -186,7 +186,7 @@ export default function CardLibraryBrowser({ open, onClose, onImport, gameType: 
                         {card.cardType === "chaos" ? "Prompt" : "Answer"}
                       </span>
                       {card.pick > 1 && (
-                        <span className="text-[10px] text-gray-500">Pick {card.pick}</span>
+                        <span className="text-[10px] text-gray-400">Pick {card.pick}</span>
                       )}
                       {card.useCount > 0 && (
                         <span className="text-[10px] text-gray-600">Used {card.useCount}x</span>

@@ -3,7 +3,7 @@ export default function PrivacyPolicy() {
     <main className="max-w-2xl mx-auto px-6 py-12 text-gray-300">
       <h1 className="text-3xl font-bold text-white mb-8">Privacy Policy</h1>
 
-      <p className="mb-6 text-sm text-gray-500">Last updated: March 2026</p>
+      <p className="mb-6 text-sm text-gray-400">Last updated: March 2026</p>
 
       <section className="mb-8">
         <h2 className="text-xl font-semibold text-white mb-3">What we collect</h2>

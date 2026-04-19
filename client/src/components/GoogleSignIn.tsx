@@ -34,6 +34,9 @@ function ProfileDropdown({ user, onLogout }: { user: { name: string; picture?: s
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
+        aria-label={`Account menu for ${user.name}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
         className="flex items-center gap-1 rounded-full hover:ring-2 hover:ring-gray-600 transition-all"
       >
         {user.picture ? (
@@ -89,6 +92,23 @@ function ProfileDropdown({ user, onLogout }: { user: { name: string; picture?: s
 
 let gsiInitialized = false;
 let gsiCallback: ((credential: string) => void) | null = null;
+let gsiLoadPromise: Promise<void> | null = null;
+
+function loadGsiScript(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (window.google) return Promise.resolve();
+  if (gsiLoadPromise) return gsiLoadPromise;
+  gsiLoadPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Google Sign-In script"));
+    document.head.appendChild(script);
+  });
+  return gsiLoadPromise;
+}
 
 export default function GoogleSignIn() {
   const { user, loading, login, logout, restore } = useAuthStore();
@@ -116,8 +136,9 @@ export default function GoogleSignIn() {
       }
     };
 
-    const renderButton = () => {
-      if (!window.google || !buttonRef.current || !iconButtonRef.current || rendered.current) return;
+    let cancelled = false;
+    loadGsiScript().then(() => {
+      if (cancelled || !window.google || !buttonRef.current || !iconButtonRef.current || rendered.current) return;
       rendered.current = true;
 
       if (!gsiInitialized) {
@@ -139,19 +160,11 @@ export default function GoogleSignIn() {
         size: "medium",
         shape: "circle",
       });
-    };
+    }).catch(() => {
+      if (!cancelled) setError("Couldn't load Google Sign-In. Try again.");
+    });
 
-    if (window.google) {
-      renderButton();
-    } else {
-      const check = setInterval(() => {
-        if (window.google) {
-          clearInterval(check);
-          renderButton();
-        }
-      }, 100);
-      return () => clearInterval(check);
-    }
+    return () => { cancelled = true; };
   }, [loading, user, login]);
 
   // Reset rendered flag when user logs out so button can re-render

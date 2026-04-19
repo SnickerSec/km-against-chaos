@@ -112,7 +112,7 @@ export default function NotificationBell() {
           </div>
           <div className="max-h-64 overflow-y-auto">
             {notifications.length === 0 ? (
-              <p className="text-gray-500 text-sm p-4 text-center">No notifications</p>
+              <p className="text-gray-400 text-sm p-4 text-center">No notifications</p>
             ) : (
               notifications.slice(0, 20).map((n) => (
                 <button
@@ -128,7 +128,7 @@ export default function NotificationBell() {
                     {n.type === "game_invite" && `${n.data?.fromName || "Someone"} invited you to play ${n.data?.deckName || ""}`}
                     {!["friend_request", "friend_accepted", "game_invite"].includes(n.type) && (n.data?.message || "New notification")}
                   </p>
-                  <p className="text-xs text-gray-500 mt-0.5">{timeAgo(n.created_at)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{timeAgo(n.created_at)}</p>
                 </button>
               ))
             )}

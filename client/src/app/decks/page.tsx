@@ -247,7 +247,7 @@ export default function DecksPage() {
           {pack.description && (
             <p className="text-gray-400 text-xs mt-1 line-clamp-2">{pack.description}</p>
           )}
-          <p className="text-gray-500 text-xs mt-1">
+          <p className="text-gray-400 text-xs mt-1">
             {pack.gameType === "joking_hazard" ? `${pack.knowledgeCount} panels` : `${pack.chaosCount} prompts · ${pack.knowledgeCount} answers`}
             {pack.deckName && ` · from "${pack.deckName}"`}
           </p>
@@ -317,7 +317,7 @@ export default function DecksPage() {
           <div className="flex items-center gap-3 mb-4 flex-wrap">
             <div className="flex-1 min-w-[200px]">
               <div className="relative">
-                <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" width={16} />
+                <Icon icon="mdi:magnify" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width={16} />
                 <input
                   type="text"
                   placeholder="Search decks..."
@@ -361,7 +361,7 @@ export default function DecksPage() {
           ) : browseDecks.length === 0 ? (
             <div className="text-center py-12 bg-gray-900 rounded-xl">
               <p className="text-gray-400 text-lg mb-2">No decks found</p>
-              <p className="text-gray-500 text-sm">Try a different search or filter</p>
+              <p className="text-gray-400 text-sm">Try a different search or filter</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -375,14 +375,14 @@ export default function DecksPage() {
                   <div className="flex-1 min-w-0">
                     <Link href={`/decks/view?id=${deck.id}`} className="font-semibold text-lg hover:text-purple-400 transition-colors">{deck.name}</Link>
                     {deck.ownerName && (
-                      <p className="text-gray-500 text-xs">by {deck.ownerName}</p>
+                      <p className="text-gray-400 text-xs">by {deck.ownerName}</p>
                     )}
                     {deck.description && (
                       <p className="text-gray-400 text-sm truncate">{deck.description}</p>
                     )}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <GameTypeBadge gameType={deck.gameType} />
-                      <span className="text-gray-500 text-xs">
+                      <span className="text-gray-400 text-xs">
                         {deck.gameType === "uno"
                           ? "108 cards"
                           : deck.gameType === "joking_hazard"
@@ -390,7 +390,7 @@ export default function DecksPage() {
                           : `${deck.chaosCount} prompts · ${deck.knowledgeCount} answers`}
                       </span>
                       {(deck.playCount ?? 0) > 0 && (
-                        <span className="text-gray-500 text-xs flex items-center gap-0.5">
+                        <span className="text-gray-400 text-xs flex items-center gap-0.5">
                           <Icon icon="mdi:play" width={12} /> {deck.playCount}
                         </span>
                       )}
@@ -447,7 +447,7 @@ export default function DecksPage() {
           )}
 
           {!user && (
-            <p className="text-gray-500 text-sm mb-6">
+            <p className="text-gray-400 text-sm mb-6">
               Sign in with Google to create and manage your own decks.
             </p>
           )}
@@ -493,7 +493,7 @@ export default function DecksPage() {
                 <p className="text-gray-400 text-lg mb-2">
                   {gameTypeFilter !== "all" ? "No decks match this filter" : "No custom decks yet"}
                 </p>
-                <p className="text-gray-500 text-sm">
+                <p className="text-gray-400 text-sm">
                   {gameTypeFilter !== "all"
                     ? "Try a different game type or create a new deck"
                     : user ? "Create one or import a JSON file to get started" : "Sign in to create decks"}
@@ -523,14 +523,14 @@ export default function DecksPage() {
                           <span className="font-semibold text-lg">{deck.name}</span>
                         )}
                       {deck.ownerName && (
-                        <p className="text-gray-500 text-xs">by {deck.ownerName}</p>
+                        <p className="text-gray-400 text-xs">by {deck.ownerName}</p>
                       )}
                       {deck.description && (
                         <p className="text-gray-400 text-sm truncate">{deck.description}</p>
                       )}
                       <div className="flex items-center gap-2 mt-1">
                         <GameTypeBadge gameType={deck.gameType} />
-                        <span className="text-gray-500 text-xs">
+                        <span className="text-gray-400 text-xs">
                           {deck.gameType === "uno"
                             ? "108 cards · Custom themed Uno"
                             : deck.gameType === "joking_hazard"
@@ -582,7 +582,7 @@ export default function DecksPage() {
           ) : packs.length === 0 && packsLoaded ? (
             <div className="text-center py-12 bg-gray-900 rounded-xl">
               <p className="text-gray-400 text-lg mb-2">No packs available yet</p>
-              <p className="text-gray-500 text-sm">Create a deck with packs to see them here</p>
+              <p className="text-gray-400 text-sm">Create a deck with packs to see them here</p>
             </div>
           ) : (
             <>
@@ -590,7 +590,7 @@ export default function DecksPage() {
               {basePacks.length > 0 && (
                 <div>
                   <h2 className="text-lg font-semibold text-white mb-1">Base Games</h2>
-                  <p className="text-gray-500 text-xs mb-3">Select one base game (required)</p>
+                  <p className="text-gray-400 text-xs mb-3">Select one base game (required)</p>
                   <div className="space-y-2">
                     {basePacks.map((pack) => (
                       <PackCard
@@ -610,7 +610,7 @@ export default function DecksPage() {
               {expansionPacks.length > 0 && (
                 <div>
                   <h2 className="text-lg font-semibold text-yellow-400 mb-1">Expansion Boxes</h2>
-                  <p className="text-gray-500 text-xs mb-3">Add any expansions you like</p>
+                  <p className="text-gray-400 text-xs mb-3">Add any expansions you like</p>
                   <div className="space-y-2">
                     {expansionPacks.map((pack) => (
                       <PackCard
@@ -630,7 +630,7 @@ export default function DecksPage() {
               {themedPacks.length > 0 && (
                 <div>
                   <h2 className="text-lg font-semibold text-cyan-400 mb-1">Themed Packs</h2>
-                  <p className="text-gray-500 text-xs mb-3">Mix in themed card sets</p>
+                  <p className="text-gray-400 text-xs mb-3">Mix in themed card sets</p>
                   <div className="space-y-2">
                     {themedPacks.map((pack) => (
                       <PackCard
@@ -672,7 +672,7 @@ export default function DecksPage() {
                     </div>
 
                     {!user && (
-                      <p className="text-xs text-gray-500 mt-2">Sign in to build a custom deck from these packs.</p>
+                      <p className="text-xs text-gray-400 mt-2">Sign in to build a custom deck from these packs.</p>
                     )}
 
                     {showBuildForm && user && (

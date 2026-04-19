@@ -140,7 +140,7 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
       )}
 
       {!isHost && (
-        <p className="text-gray-500 text-sm">
+        <p className="text-gray-400 text-sm">
           Waiting for host to start next round...
         </p>
       )}

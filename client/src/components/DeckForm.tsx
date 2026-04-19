@@ -563,7 +563,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
           <option value="codenames">Codenames (Word Grid)</option>
           <option value="superfight">Superfight (Debate Battle)</option>
         </select>
-        <p className="text-gray-500 text-xs mt-1">
+        <p className="text-gray-400 text-xs mt-1">
           {gameType === "joking-hazard"
             ? "3-panel comic strip game — the Judge plays Panel 2, others compete for the funniest Panel 3"
             : gameType === "apples-to-apples"
@@ -722,7 +722,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
         {ttsVoices.length > 0 && (
           <div className="bg-gray-900 rounded-xl p-4">
             <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Card Reader Voice</label>
-            <p className="text-xs text-gray-500 mb-2">The voice used to read submissions aloud during judging.</p>
+            <p className="text-xs text-gray-400 mb-2">The voice used to read submissions aloud during judging.</p>
             <div className="flex gap-2 flex-wrap">
               <select
                 value={voiceId}
@@ -758,7 +758,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Game Sounds</p>
               {!soundSectionOpen && <p className="text-xs text-gray-600 mt-0.5">Override sounds for win, lose, victory, and more</p>}
             </div>
-            <Icon icon={soundSectionOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-500 shrink-0" />
+            <Icon icon={soundSectionOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-400 shrink-0" />
           </button>
           {soundSectionOpen && <div className="px-4 pb-4 space-y-2">
             {(Object.keys(SOUND_META) as SoundKey[]).map((key) => {
@@ -768,7 +768,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
                 <div key={key} className="flex items-center gap-2 py-1.5 border-b border-gray-800 last:border-0">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white font-medium">{meta.label}</p>
-                    <p className="text-xs text-gray-500 truncate">{current ? "Custom sound set" : meta.description}</p>
+                    <p className="text-xs text-gray-400 truncate">{current ? "Custom sound set" : meta.description}</p>
                   </div>
                   {current && (
                     <button
@@ -1002,9 +1002,9 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
         <div className="bg-gray-900 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-cyan-400 uppercase tracking-wide">Word Pool</h2>
-            <span className="text-xs text-gray-500">{packs[0]?.knowledgeCards.filter(c => c.text.trim()).length || 0} words (min 25)</span>
+            <span className="text-xs text-gray-400">{packs[0]?.knowledgeCards.filter(c => c.text.trim()).length || 0} words (min 25)</span>
           </div>
-          <p className="text-gray-500 text-xs">Add words or short phrases for the 5x5 grid. The game picks 25 randomly each round. More words = more variety.</p>
+          <p className="text-gray-400 text-xs">Add words or short phrases for the 5x5 grid. The game picks 25 randomly each round. More words = more variety.</p>
           <div className="space-y-1.5">
             {(packs[0]?.knowledgeCards || []).map((card, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -1141,7 +1141,7 @@ function CardPackEditor({
             <Icon icon={pack.open ? "mdi:chevron-up" : "mdi:chevron-down"} width={18} />
           </button>
           <h3 className={`font-semibold ${style.color}`}>{pack.name || (pack.type === "expansion" ? "Expansion Box" : "Themed Pack")}</h3>
-          <span className="text-gray-500 text-xs whitespace-nowrap">
+          <span className="text-gray-400 text-xs whitespace-nowrap">
             {gameType === "joking-hazard"
               ? `${knowledgeCardCount} panels`
               : `${chaosCardCount} ${gameType === "apples-to-apples" ? "green" : "prompts"} · ${knowledgeCardCount} ${gameType === "apples-to-apples" ? "red" : "answers"}`}
@@ -1160,7 +1160,7 @@ function CardPackEditor({
             <button
               type="button"
               onClick={onRemove}
-              className="text-gray-500 hover:text-red-400 text-sm transition-colors"
+              className="text-gray-400 hover:text-red-400 text-sm transition-colors"
             >
               Remove
             </button>
@@ -1388,12 +1388,12 @@ function CardListEditor({
         <h4 className={`text-sm font-semibold ${labelColor}`}>
           {label} — {count}
         </h4>
-        <Icon icon={open ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-500" width={16} />
+        <Icon icon={open ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-400" width={16} />
       </button>
       {open && (
         <>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-gray-500 text-xs">{hint}</p>
+            <p className="text-gray-400 text-xs">{hint}</p>
             <button
               onClick={onAdd}
               className={`px-3 py-1 text-xs rounded border transition-colors ${addButtonColor}`}
@@ -1438,7 +1438,7 @@ function CardListEditor({
                         className={`shrink-0 px-2 py-2 rounded-lg text-xs font-semibold border transition-colors ${
                           card.bonus
                             ? "bg-red-600/30 border-red-500 text-red-300"
-                            : "bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-500"
+                            : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500"
                         }`}
                         title={card.bonus ? "Bonus card (red) — worth 2 pts" : "Make this a bonus card (red border)"}
                       >
@@ -1447,7 +1447,7 @@ function CardListEditor({
                     )}
                     <button
                       onClick={() => setArtBrowseIndex(i)}
-                      className="p-1 text-gray-500 hover:text-purple-400 transition-colors"
+                      className="p-1 text-gray-400 hover:text-purple-400 transition-colors"
                       title="Browse art library"
                     >
                       <Icon icon="mdi:image-search" width={16} />
@@ -1455,7 +1455,7 @@ function CardListEditor({
                     {cards.length > 1 && (
                       <button
                         onClick={() => onRemove(i)}
-                        className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                        className="p-1 text-gray-400 hover:text-red-400 transition-colors"
                       >
                         <Icon icon="mdi:close" width={16} />
                       </button>
@@ -1521,7 +1521,7 @@ function BulkAdd({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        className="text-xs text-gray-400 hover:text-gray-300 transition-colors"
       >
         <Icon icon={open ? "mdi:chevron-up" : "mdi:chevron-down"} width={14} className="inline" />
         {open ? " Hide" : " Show"} Bulk Add
@@ -1682,7 +1682,7 @@ function AIGenerationPanel({
             {isCreate ? "AI Deck Generator" : "Generation Settings"}
           </span>
           {!open && (
-            <span className="text-xs text-gray-500 ml-1">
+            <span className="text-xs text-gray-400 ml-1">
               {[
                 MATURITY_LEVELS.find((m) => m.id === maturity)?.label,
                 flavorThemes.length > 0 ? `${flavorThemes.length} theme${flavorThemes.length !== 1 ? "s" : ""}` : null,
@@ -1692,7 +1692,7 @@ function AIGenerationPanel({
             </span>
           )}
         </div>
-        <Icon icon={open ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-500" width={18} />
+        <Icon icon={open ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-400" width={18} />
       </button>
 
       {open && (
@@ -1705,7 +1705,7 @@ function AIGenerationPanel({
               <span className="ml-2 text-purple-400 normal-case font-normal">{flavorThemes.length} selected</span>
             )}
           </label>
-          <p className="text-gray-500 text-xs mb-2">
+          <p className="text-gray-400 text-xs mb-2">
             Select preset themes below, type a custom theme, or both
           </p>
 
@@ -1860,7 +1860,7 @@ function AIGenerationPanel({
               <label className="block text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">Cards to Generate</label>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">{gameType === "superfight" ? "Character cards" : "Prompt cards"}</label>
+                  <label className="block text-xs text-gray-400 mb-1">{gameType === "superfight" ? "Character cards" : "Prompt cards"}</label>
                   <input
                     type="text" inputMode="numeric" pattern="[0-9]*"
                     value={chaosCount}
@@ -1871,7 +1871,7 @@ function AIGenerationPanel({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">{gameType === "superfight" ? "Attribute cards" : "Answer cards"}</label>
+                  <label className="block text-xs text-gray-400 mb-1">{gameType === "superfight" ? "Attribute cards" : "Answer cards"}</label>
                   <input
                     type="text" inputMode="numeric" pattern="[0-9]*"
                     value={knowledgeCount}
@@ -1894,7 +1894,7 @@ function AIGenerationPanel({
               type="button"
               onClick={handleGenerate}
               disabled={generating || (!theme.trim() && flavorThemes.length === 0)}
-              className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg font-semibold text-lg transition-colors"
+              className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-400 rounded-lg font-semibold text-lg transition-colors"
             >
               {generating ? "Generating..." : "Generate Deck"}
             </button>
@@ -2073,7 +2073,7 @@ function AIGenerationPanel({
                 <button
                   type="button"
                   onClick={() => { setPremiumArt(false); setPreviewUrl(null); }}
-                  className="text-xs text-gray-500 hover:text-gray-300"
+                  className="text-xs text-gray-400 hover:text-gray-300"
                 >
                   Remove
                 </button>
@@ -2175,7 +2175,7 @@ function AIGenerate({
         <button
           onClick={handleGenerate}
           disabled={generating || !theme.trim()}
-          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
+          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:text-gray-400 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
         >
           {generating ? "Generating..." : "Generate"}
         </button>

@@ -59,7 +59,7 @@ export default function InstallPrompt() {
         </button>
         <button
           onClick={handleDismiss}
-          className="text-gray-500 hover:text-gray-300 shrink-0"
+          className="text-gray-400 hover:text-gray-300 shrink-0"
         >
           <Icon icon="mdi:close" width={16} />
         </button>

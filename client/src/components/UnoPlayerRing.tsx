@@ -40,10 +40,10 @@ export default function UnoPlayerRing() {
               <span className={`text-xs font-medium truncate max-w-[80px] ${isTurn ? "text-white" : "text-gray-400"}`}>
                 {player.name}
               </span>
-              {player.isBot && <Icon icon="mdi:robot" width={12} className="text-gray-500" />}
+              {player.isBot && <Icon icon="mdi:robot" width={12} className="text-gray-400" />}
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-gray-500">{cardCount} cards</span>
+              <span className="text-[10px] text-gray-400">{cardCount} cards</span>
               <span className="text-[10px] text-purple-400">{score}pts</span>
             </div>
             {cardCount === 1 && (
