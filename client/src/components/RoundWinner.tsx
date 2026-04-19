@@ -18,11 +18,23 @@ interface Props {
 }
 
 export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
-  const { gameType, round, lobby } = useGameStore();
+  const { gameType, round, lobby, voteTally } = useGameStore();
   const isJH = gameType === "joking_hazard";
   const audiencePick = winnerInfo.audiencePick;
   const audiencePickName = audiencePick ? lobby?.players.find(p => p.id === audiencePick)?.name : null;
   const showAudiencePick = audiencePick && audiencePick !== winnerInfo.winnerId && audiencePickName;
+
+  // Bot-czar vote reveal: shown instead of "Audience Pick" when the round was
+  // decided by votes. Sorted high-to-low so the winning tally reads naturally.
+  const tallyRows = voteTally
+    ? Object.entries(voteTally)
+        .map(([pid, count]) => {
+          const name = lobby?.players.find((p) => p.id === pid)?.name || "???";
+          return { pid, name, count };
+        })
+        .sort((a, b) => b.count - a.count)
+    : [];
+  const totalVotes = tallyRows.reduce((n, r) => n + r.count, 0);
 
   const [cardBackUrl, setCardBackUrl] = useState<string | null>(null);
   const [voiceId, setVoiceId] = useState<string | null>(null);
@@ -76,6 +88,25 @@ export default function RoundWinner({ winnerInfo, onNext, isHost }: Props) {
             Audience Pick: <strong>{audiencePickName}</strong>
           </span>
         </p>
+      )}
+
+      {voteTally && tallyRows.length > 0 && (
+        <div className="mb-4 inline-block bg-purple-600/10 border border-purple-600/30 rounded-lg px-4 py-2 text-left">
+          <p className="text-xs text-purple-300 uppercase tracking-wider mb-1 text-center">
+            Vote Tally ({totalVotes})
+          </p>
+          <ul className="text-sm space-y-0.5">
+            {tallyRows.map((r) => (
+              <li
+                key={r.pid}
+                className={`flex justify-between gap-4 ${r.pid === winnerInfo.winnerId ? "text-green-400 font-semibold" : "text-gray-300"}`}
+              >
+                <span>{r.name}</span>
+                <span className="tabular-nums">{r.count}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {isJH && round ? (

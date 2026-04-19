@@ -189,6 +189,7 @@ interface GameStore {
   votedPlayers: Set<string>;
   selectedCards: string[];
   winnerInfo: { winnerId: string; winnerName: string; cards: KnowledgeCard[]; audiencePick?: string | null } | null;
+  voteTally: Record<string, number> | null;
 
   // Game type
   gameType: GameType;
@@ -243,6 +244,7 @@ interface GameStore {
   toggleCardSelection: (cardId: string, maxPick: number) => void;
   setHasSubmitted: (v: boolean) => void;
   setWinnerInfo: (info: { winnerId: string; winnerName: string; cards: KnowledgeCard[]; audiencePick?: string | null } | null) => void;
+  setVoteTally: (tally: Record<string, number> | null) => void;
   setScores: (scores: Record<string, number>) => void;
   addChatMessage: (msg: ChatMessage) => void;
   setChatOpen: (open: boolean) => void;
@@ -277,6 +279,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   votedPlayers: new Set(),
   selectedCards: [],
   winnerInfo: null,
+  voteTally: null,
   chatMessages: [],
   chatOpen: false,
   unreadCount: 0,
@@ -321,6 +324,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       votedPlayers: new Set(),
       selectedCards: [],
       winnerInfo: null,
+      voteTally: null,
     }),
 
   setRoundPhase: (phase) => {
@@ -364,6 +368,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setHasSubmitted: (v) => set({ hasSubmitted: v }),
 
   setWinnerInfo: (info) => set({ winnerInfo: info }),
+
+  setVoteTally: (tally) => set({ voteTally: tally }),
 
   setScores: (scores) => set({ scores }),
 
@@ -433,6 +439,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       votedPlayers: new Set(),
       selectedCards: [],
       winnerInfo: null,
+      voteTally: null,
       chatMessages: [],
       chatOpen: false,
       unreadCount: 0,

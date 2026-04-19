@@ -31,6 +31,7 @@ export function useSocket() {
     addSubmittedPlayer,
     addVotedPlayer,
     setWinnerInfo,
+    setVoteTally,
     setScores,
     addChatMessage,
     setActiveSticker,
@@ -95,6 +96,10 @@ export function useSocket() {
       addVotedPlayer(playerId);
     });
 
+    socket.on("game:vote-tally" as any, (tally: Record<string, number>) => {
+      setVoteTally(tally);
+    });
+
     socket.on("game:judging", (submissions: Submission[], _chaosCard: ChaosCard) => {
       setSubmissions(submissions);
     });
@@ -125,6 +130,7 @@ export function useSocket() {
         votedPlayers: new Set(),
         selectedCards: [],
         winnerInfo: null,
+        voteTally: null,
       });
       setScreen("lobby");
     });
@@ -275,6 +281,7 @@ export function useSocket() {
     addSubmittedPlayer,
     addVotedPlayer,
     setWinnerInfo,
+    setVoteTally,
     setScores,
     addChatMessage,
     setActiveSticker,
