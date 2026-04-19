@@ -38,7 +38,7 @@ interface InternalGameState {
 }
 
 const SUBMIT_TIME_MS = 60_000;
-const JUDGE_TIME_MS = 30_000;
+const JUDGE_TIME_MS = 60_000;
 const CZAR_SETUP_TIME_MS = 30_000;
 
 interface InternalRound {
