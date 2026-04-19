@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import type { Lobby, Player, LobbyState, PlayerInfo } from "./types.js";
-import { redis } from "./redis.js";
+import { redis, withGameLock } from "./redis.js";
 
 // ── Storage ──────────────────────────────────────────────────────────────────
 // Lobbies live in Redis (one JSON blob per lobby) when REDIS_URL is set, so
@@ -8,10 +8,9 @@ import { redis } from "./redis.js";
 // back to local Maps — same behaviour as before, fine for tests and
 // single-replica dev.
 //
-// Atomicity: the current implementation reads → mutates → writes back without
-// explicit locking. Prod is still running a single replica so cross-replica
-// races can't happen yet. When we flip numReplicas > 1 we'll layer Redis
-// locks or Lua scripts on top of this without changing the call sites.
+// Atomicity: every public mutation is wrapped in withGameLock("lobby", code)
+// so concurrent load → mutate → save sequences from two replicas don't
+// clobber each other.
 
 const LOBBY_KEY = (code: string) => `lobby:${code}`;
 const PL_KEY = "player-lobby"; // hash socketId -> code
@@ -231,6 +230,7 @@ export async function joinLobby(
   }
 
   const upperCode = code.toUpperCase();
+  return withGameLock("lobby", upperCode, async () => {
   const lobby = await getLobby(upperCode);
 
   if (!lobby) {
@@ -254,6 +254,7 @@ export async function joinLobby(
   await setPlayerLobbyCode(socketId, upperCode);
 
   return { lobby: lobbyToState(lobby), player: playerToInfo(player) };
+  });
 }
 
 export async function joinAsSpectator(
@@ -266,6 +267,7 @@ export async function joinAsSpectator(
   }
 
   const upperCode = code.toUpperCase();
+  return withGameLock("lobby", upperCode, async () => {
   const lobby = await getLobby(upperCode);
 
   if (!lobby) {
@@ -286,6 +288,7 @@ export async function joinAsSpectator(
   await setPlayerLobbyCode(socketId, upperCode);
 
   return { lobby: lobbyToState(lobby), player: playerToInfo(player) };
+  });
 }
 
 export async function getActivePlayers(code: string): Promise<string[] | null> {
@@ -304,7 +307,7 @@ export async function leaveLobby(socketId: string): Promise<{
 } | null> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return null;
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) {
     await deletePlayerLobbyCode(socketId);
@@ -333,13 +336,14 @@ export async function leaveLobby(socketId: string): Promise<{
   await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby), newHostId };
+  });
 }
 
 // Mark player as disconnected but keep them in the lobby
 export async function disconnectPlayer(socketId: string): Promise<{ code: string; lobby: LobbyState } | null> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return null;
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return null;
 
@@ -350,13 +354,14 @@ export async function disconnectPlayer(socketId: string): Promise<{ code: string
   await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
+  });
 }
 
 // Mark player as connected again
 export async function reconnectPlayer(socketId: string): Promise<{ code: string; lobby: LobbyState } | null> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return null;
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return null;
 
@@ -367,6 +372,7 @@ export async function reconnectPlayer(socketId: string): Promise<{ code: string;
   await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
+  });
 }
 
 const BOT_NAMES = [
@@ -378,7 +384,7 @@ const BOT_NAMES = [
 export async function addBot(socketId: string): Promise<{ lobby: LobbyState; botId: string } | { error: string }> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
@@ -409,12 +415,13 @@ export async function addBot(socketId: string): Promise<{ lobby: LobbyState; bot
   // Don't add to playerLobby — bots don't have real sockets
 
   return { lobby: lobbyToState(lobby), botId };
+  });
 }
 
 export async function removeBot(socketId: string, botId: string): Promise<{ lobby: LobbyState } | { error: string }> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
@@ -428,12 +435,13 @@ export async function removeBot(socketId: string, botId: string): Promise<{ lobb
   lobby.players.delete(botId);
   await saveLobby(lobby);
   return { lobby: lobbyToState(lobby) };
+  });
 }
 
 export async function kickPlayer(socketId: string, targetId: string): Promise<{ lobby: LobbyState; code: string } | { error: string }> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
@@ -453,6 +461,7 @@ export async function kickPlayer(socketId: string, targetId: string): Promise<{ 
   await deletePlayerLobbyCode(targetId);
 
   return { lobby: lobbyToState(lobby), code };
+  });
 }
 
 export async function getBotsInLobby(code: string): Promise<string[]> {
@@ -466,7 +475,7 @@ export async function getBotsInLobby(code: string): Promise<string[]> {
 export async function startGame(socketId: string): Promise<{ code: string } | { error: string }> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
@@ -482,12 +491,13 @@ export async function startGame(socketId: string): Promise<{ code: string } | { 
   lobby.status = "playing";
   await saveLobby(lobby);
   return { code };
+  });
 }
 
 export async function changeLobbyDeck(socketId: string, deckId: string, deckName: string, gameType: string, winCondition: { mode: string; value: number }): Promise<{ code: string; lobby: LobbyState } | { error: string }> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
@@ -501,12 +511,13 @@ export async function changeLobbyDeck(socketId: string, deckId: string, deckName
   await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
+  });
 }
 
 export async function voteRematch(socketId: string): Promise<{ code: string; lobby: LobbyState; voteCount: number; totalPlayers: number } | { error: string }> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
@@ -514,12 +525,13 @@ export async function voteRematch(socketId: string): Promise<{ code: string; lob
   await saveLobby(lobby);
   const activePlayers = Array.from(lobby.players.values()).filter(p => !p.isSpectator && !p.isBot);
   return { code, lobby: lobbyToState(lobby), voteCount: lobby.rematchVotes.size, totalPlayers: activePlayers.length };
+  });
 }
 
 export async function resetLobbyForRematch(socketId: string): Promise<{ code: string; lobby: LobbyState } | { error: string }> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
@@ -538,6 +550,7 @@ export async function resetLobbyForRematch(socketId: string): Promise<{ code: st
   await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
+  });
 }
 
 export async function getLobbyForSocket(socketId: string): Promise<string | undefined> {
@@ -577,7 +590,7 @@ export async function isPlayerBot(code: string, playerId: string): Promise<boole
 export async function setLobbyHouseRules(socketId: string, houseRules: { unoStacking?: boolean }): Promise<{ code: string; lobby: LobbyState } | { error: string }> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
@@ -588,12 +601,13 @@ export async function setLobbyHouseRules(socketId: string, houseRules: { unoStac
   await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
+  });
 }
 
 export async function setMaxPlayers(socketId: string, maxPlayers: number): Promise<{ code: string; lobby: LobbyState } | { error: string }> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return { error: "Lobby not found" };
 
@@ -606,6 +620,7 @@ export async function setMaxPlayers(socketId: string, maxPlayers: number): Promi
   await saveLobby(lobby);
 
   return { code, lobby: lobbyToState(lobby) };
+  });
 }
 
 export async function getLobbyHouseRules(code: string): Promise<{ unoStacking?: boolean } | undefined> {
@@ -666,7 +681,7 @@ export async function remapPlayer(
 ): Promise<{ code: string; lobby: LobbyState } | null> {
   const code = await getPlayerLobbyCode(oldSocketId);
   if (!code) return null;
-
+  return withGameLock("lobby", code, async () => {
   const lobby = await getLobby(code);
   if (!lobby) return null;
 
@@ -689,4 +704,5 @@ export async function remapPlayer(
   await setPlayerLobbyCode(newSocketId, code);
 
   return { code, lobby: lobbyToState(lobby) };
+  });
 }

@@ -10,7 +10,7 @@ import type {
   GameType,
 } from "./types.js";
 import { CHAOS_CARDS, KNOWLEDGE_CARDS, shuffled } from "./deck.js";
-import { redis } from "./redis.js";
+import { redis, withGameLock } from "./redis.js";
 
 const HAND_SIZE = 7;
 const DEFAULT_MAX_ROUNDS = 10;
@@ -267,6 +267,7 @@ export async function createGame(
 }
 
 export async function startRound(lobbyCode: string): Promise<RoundState | null> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game || game.gameOver) return null;
 
@@ -335,6 +336,7 @@ export async function startRound(lobbyCode: string): Promise<RoundState | null> 
     phaseDeadline,
     isBonus,
   };
+  });
 }
 
 export async function getPlayerView(lobbyCode: string, playerId: string): Promise<PlayerGameView | null> {
@@ -415,14 +417,17 @@ export async function czarSetup(
   czarId: string,
   cardId: string
 ): Promise<{ success: boolean; error?: string; czarSetupCard?: KnowledgeCard }> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   const result = czarSetupOn(game, czarId, cardId);
   if (result.success) await saveGame(game);
   return result;
+  });
 }
 
 export async function botCzarSetup(lobbyCode: string, botCzarId: string): Promise<{ success: boolean; czarSetupCard?: KnowledgeCard }> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game?.currentRound || game.currentRound.phase !== "czar_setup") return { success: false };
   if (game.currentRound.czarId !== botCzarId) return { success: false };
@@ -434,9 +439,11 @@ export async function botCzarSetup(lobbyCode: string, botCzarId: string): Promis
   const result = czarSetupOn(game, botCzarId, hand[randomIdx].id);
   if (result.success) await saveGame(game);
   return result;
+  });
 }
 
 export async function forceCzarSetup(lobbyCode: string): Promise<KnowledgeCard | null> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game?.currentRound || game.currentRound.phase !== "czar_setup") return null;
 
@@ -448,6 +455,7 @@ export async function forceCzarSetup(lobbyCode: string): Promise<KnowledgeCard |
   const result = czarSetupOn(game, czarId, hand[randomIdx].id);
   if (result.success) await saveGame(game);
   return result.czarSetupCard || null;
+  });
 }
 
 export async function getGameType(lobbyCode: string): Promise<GameType | undefined> {
@@ -519,11 +527,13 @@ export async function submitCards(
   playerId: string,
   cardIds: string[]
 ): Promise<{ success: boolean; allSubmitted: boolean; error?: string }> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, allSubmitted: false, error: "Game not found" };
   const result = submitCardsOn(game, playerId, cardIds);
   if (result.success) await saveGame(game);
   return result;
+  });
 }
 
 export async function getJudgingData(lobbyCode: string): Promise<{
@@ -563,6 +573,7 @@ export function resolveMetaTargets(
 }
 
 export async function resetPlayerHand(lobbyCode: string, playerId: string): Promise<KnowledgeCard[]> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return [];
 
@@ -577,6 +588,7 @@ export async function resetPlayerHand(lobbyCode: string, playerId: string): Prom
   game.hands.set(playerId, newHand);
   await saveGame(game);
   return newHand;
+  });
 }
 
 // ── Pick Winner ──────────────────────────────────────────────────────────────
@@ -661,11 +673,13 @@ export async function pickWinner(
     playerIds: string[];
   };
 }> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   const result = pickWinnerOn(game, czarId, winnerId);
   if (result.success) await saveGame(game);
   return result;
+  });
 }
 
 export async function getWinnerCards(lobbyCode: string): Promise<KnowledgeCard[] | null> {
@@ -677,11 +691,13 @@ export async function getWinnerCards(lobbyCode: string): Promise<KnowledgeCard[]
 }
 
 export async function advanceRound(lobbyCode: string): Promise<void> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return;
   game.czarIndex++;
   game.currentRound = null;
   await saveGame(game);
+  });
 }
 
 export async function getScores(lobbyCode: string): Promise<Record<string, number> | null> {
@@ -703,15 +719,19 @@ export async function getWinInfo(lobbyCode: string): Promise<{ mode: "rounds" | 
 }
 
 export async function endGame(lobbyCode: string): Promise<void> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (game) {
     game.gameOver = true;
     await saveGame(game);
   }
+  });
 }
 
 export async function cleanupGame(lobbyCode: string): Promise<void> {
-  await deleteGame(lobbyCode);
+  return withGameLock("cah", lobbyCode, async () => {
+    await deleteGame(lobbyCode);
+  });
 }
 
 export async function getPlayerIds(lobbyCode: string): Promise<string[]> {
@@ -723,6 +743,7 @@ export async function getCzarId(lobbyCode: string): Promise<string | undefined> 
 }
 
 export async function addPlayerToGame(lobbyCode: string, playerId: string): Promise<boolean> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game || game.gameOver) return false;
 
@@ -740,9 +761,11 @@ export async function addPlayerToGame(lobbyCode: string, playerId: string): Prom
 
   await saveGame(game);
   return true;
+  });
 }
 
 export async function removePlayerFromGame(lobbyCode: string, playerId: string): Promise<void> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return;
 
@@ -758,9 +781,11 @@ export async function removePlayerFromGame(lobbyCode: string, playerId: string):
   }
 
   await saveGame(game);
+  });
 }
 
 export async function botSubmitCards(lobbyCode: string, botId: string): Promise<{ success: boolean; allSubmitted: boolean }> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, allSubmitted: false };
 
@@ -798,9 +823,11 @@ export async function botSubmitCards(lobbyCode: string, botId: string): Promise<
 
   await saveGame(game);
   return { success: true, allSubmitted };
+  });
 }
 
 export async function forceSubmitForMissing(lobbyCode: string): Promise<string[]> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game?.currentRound || game.currentRound.phase !== "submitting") return [];
 
@@ -832,6 +859,7 @@ export async function forceSubmitForMissing(lobbyCode: string): Promise<string[]
   round.phaseDeadline = Date.now() + JUDGE_TIME_MS;
   await saveGame(game);
   return missing;
+  });
 }
 
 export async function getPhaseDeadline(lobbyCode: string): Promise<number | null> {
@@ -840,6 +868,7 @@ export async function getPhaseDeadline(lobbyCode: string): Promise<number | null
 }
 
 export async function botPickWinner(lobbyCode: string, botCzarId: string): Promise<{ winnerId: string | null; metaEffect?: any }> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game?.currentRound || game.currentRound.phase !== "judging") return { winnerId: null };
   if (game.currentRound.czarId !== botCzarId) return { winnerId: null };
@@ -855,6 +884,7 @@ export async function botPickWinner(lobbyCode: string, botCzarId: string): Promi
     return { winnerId, metaEffect: result.metaEffect };
   }
   return { winnerId: null };
+  });
 }
 
 export async function spectatorVote(
@@ -862,6 +892,7 @@ export async function spectatorVote(
   spectatorId: string,
   votedForId: string
 ): Promise<{ success: boolean; error?: string }> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
 
@@ -881,6 +912,7 @@ export async function spectatorVote(
   round.spectatorVotes.set(spectatorId, votedForId);
   await saveGame(game);
   return { success: true };
+  });
 }
 
 export async function getAudiencePick(lobbyCode: string): Promise<string | null> {
@@ -935,6 +967,7 @@ export async function remapGamePlayer(
   oldPlayerId: string,
   newPlayerId: string
 ): Promise<void> {
+  return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return;
 
@@ -973,4 +1006,5 @@ export async function remapGamePlayer(
   }
 
   await saveGame(game);
+  });
 }

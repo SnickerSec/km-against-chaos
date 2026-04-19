@@ -2,7 +2,7 @@
 // keyed codenames:{code}) when REDIS_URL is set, otherwise in a local Map.
 // Public API is async throughout so every replica reads the same state.
 
-import { redis } from "./redis.js";
+import { redis, withGameLock } from "./redis.js";
 
 // Types
 export type CodenamesColor = "red" | "blue" | "neutral" | "assassin";
@@ -199,6 +199,7 @@ export async function getCodenamesPlayerView(lobbyCode: string, playerId: string
 
 // Team selection phase
 export async function joinTeam(lobbyCode: string, playerId: string, team: CodenamesTeam, asSpymaster: boolean): Promise<{ success: boolean; error?: string }> {
+  return withGameLock("codenames", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   if (game.phase !== "team_pick") return { success: false, error: "Not in team pick phase" };
@@ -220,9 +221,11 @@ export async function joinTeam(lobbyCode: string, playerId: string, team: Codena
 
   await saveGame(game);
   return { success: true };
+  });
 }
 
 export async function startCodenamesRound(lobbyCode: string): Promise<{ success: boolean; error?: string }> {
+  return withGameLock("codenames", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
 
@@ -238,10 +241,12 @@ export async function startCodenamesRound(lobbyCode: string): Promise<{ success:
   game.currentTeam = "red";
   await saveGame(game);
   return { success: true };
+  });
 }
 
 // Spymaster gives a clue
 export async function giveClue(lobbyCode: string, playerId: string, word: string, count: number): Promise<{ success: boolean; error?: string }> {
+  return withGameLock("codenames", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   if (game.phase !== "spymaster_clue") return { success: false, error: "Not clue phase" };
@@ -266,10 +271,12 @@ export async function giveClue(lobbyCode: string, playerId: string, word: string
 
   await saveGame(game);
   return { success: true };
+  });
 }
 
 // Guesser selects a word
 export async function guessWord(lobbyCode: string, playerId: string, wordIndex: number): Promise<{ success: boolean; error?: string; color?: CodenamesColor; gameOver?: boolean; turnOver?: boolean }> {
+  return withGameLock("codenames", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   if (game.phase !== "guessing") return { success: false, error: "Not guessing phase" };
@@ -347,6 +354,7 @@ export async function guessWord(lobbyCode: string, playerId: string, wordIndex: 
   switchTeam(game);
   await saveGame(game);
   return { success: true, color, turnOver: true };
+  });
 }
 
 function switchTeam(game: InternalCodenamesGame): void {
@@ -358,6 +366,7 @@ function switchTeam(game: InternalCodenamesGame): void {
 
 // Pass turn (guessers can end their turn early)
 export async function passTurn(lobbyCode: string, playerId: string): Promise<{ success: boolean; error?: string }> {
+  return withGameLock("codenames", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   if (game.phase !== "guessing") return { success: false, error: "Not guessing phase" };
@@ -369,10 +378,13 @@ export async function passTurn(lobbyCode: string, playerId: string): Promise<{ s
   switchTeam(game);
   await saveGame(game);
   return { success: true };
+  });
 }
 
 export async function cleanupCodenamesGame(lobbyCode: string): Promise<void> {
-  await deleteGame(lobbyCode);
+  return withGameLock("codenames", lobbyCode, async () => {
+    await deleteGame(lobbyCode);
+  });
 }
 
 /**
@@ -381,6 +393,7 @@ export async function cleanupCodenamesGame(lobbyCode: string): Promise<void> {
  * reassign.
  */
 export async function removePlayerFromCodenamesGame(lobbyCode: string, playerId: string): Promise<void> {
+  return withGameLock("codenames", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return;
 
@@ -396,6 +409,7 @@ export async function removePlayerFromCodenamesGame(lobbyCode: string, playerId:
   }
 
   await saveGame(game);
+  });
 }
 
 export async function getCodenamesScores(lobbyCode: string): Promise<Record<string, number> | null> {

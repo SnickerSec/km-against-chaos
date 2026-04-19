@@ -1,5 +1,5 @@
 import { UnoCard, UnoColor, UnoCardType, UnoTurnState, UnoPlayerView, UnoDeckTemplate } from "./types";
-import { redis } from "./redis.js";
+import { redis, withGameLock } from "./redis.js";
 
 const HAND_SIZE = 7;
 const TURN_TIME_MS = 30_000;
@@ -544,11 +544,13 @@ export async function playCard(
   cardId: string,
   chosenColor?: UnoColor | null,
 ): Promise<PlayCardResult> {
+  return withGameLock("uno", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   const result = playCardOn(game, playerId, cardId, chosenColor);
   if (result.success) await saveGame(game);
   return result;
+  });
 }
 
 function advanceTurn(game: InternalUnoGame): void {
@@ -606,11 +608,13 @@ function drawCardOn(game: InternalUnoGame, playerId: string): DrawCardResult {
 }
 
 export async function drawCard(lobbyCode: string, playerId: string): Promise<DrawCardResult> {
+  return withGameLock("uno", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
   const result = drawCardOn(game, playerId);
   if (result.success) await saveGame(game);
   return result;
+  });
 }
 
 // ── Uno Call / Challenge ──
@@ -626,14 +630,17 @@ function callUnoOn(game: InternalUnoGame, playerId: string): boolean {
 }
 
 export async function callUno(lobbyCode: string, playerId: string): Promise<boolean> {
+  return withGameLock("uno", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return false;
   const ok = callUnoOn(game, playerId);
   if (ok) await saveGame(game);
   return ok;
+  });
 }
 
 export async function challengeUno(lobbyCode: string, challengerId: string, targetId: string): Promise<{ success: boolean; penalized: boolean }> {
+  return withGameLock("uno", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, penalized: false };
 
@@ -649,6 +656,7 @@ export async function challengeUno(lobbyCode: string, challengerId: string, targ
   await saveGame(game);
 
   return { success: true, penalized: true };
+  });
 }
 
 // ── Scoring ──
@@ -673,6 +681,7 @@ function computeRoundScore(game: InternalUnoGame): number {
 // ── Round Management ──
 
 export async function advanceUnoRound(lobbyCode: string): Promise<{ started: boolean; gameOver: boolean }> {
+  return withGameLock("uno", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { started: false, gameOver: false };
 
@@ -739,11 +748,13 @@ export async function advanceUnoRound(lobbyCode: string): Promise<{ started: boo
 
   await saveGame(game);
   return { started: true, gameOver: false };
+  });
 }
 
 // ── Bot AI ──
 
 export async function botPlayUnoTurn(lobbyCode: string, botId: string): Promise<PlayCardResult | DrawCardResult> {
+  return withGameLock("uno", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game || game.playerIds[game.currentPlayerIndex] !== botId) return { success: false };
 
@@ -780,17 +791,20 @@ export async function botPlayUnoTurn(lobbyCode: string, botId: string): Promise<
   const result = drawCardOn(game, botId);
   if (result.success) await saveGame(game);
   return result;
+  });
 }
 
 // ── Timeout Handler ──
 
 export async function handleUnoTurnTimeout(lobbyCode: string): Promise<DrawCardResult> {
+  return withGameLock("uno", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game || game.phase !== "playing") return { success: false };
   const pid = game.playerIds[game.currentPlayerIndex];
   const result = drawCardOn(game, pid);
   if (result.success) await saveGame(game);
   return result;
+  });
 }
 
 // ── Utility Exports ──
@@ -814,8 +828,10 @@ export async function isUnoGame(lobbyCode: string): Promise<boolean> {
 }
 
 export async function cleanupUnoGame(lobbyCode: string): Promise<void> {
-  await deleteGame(lobbyCode);
-  playerNameOverrides.delete(lobbyCode);
+  return withGameLock("uno", lobbyCode, async () => {
+    await deleteGame(lobbyCode);
+    playerNameOverrides.delete(lobbyCode);
+  });
 }
 
 /**
@@ -824,6 +840,7 @@ export async function cleanupUnoGame(lobbyCode: string): Promise<void> {
  * and the turn rotation is adjusted so play continues cleanly.
  */
 export async function removePlayerFromUnoGame(lobbyCode: string, playerId: string): Promise<void> {
+  return withGameLock("uno", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return;
 
@@ -853,9 +870,11 @@ export async function removePlayerFromUnoGame(lobbyCode: string, playerId: strin
   }
 
   await saveGame(game);
+  });
 }
 
 export async function remapUnoGamePlayer(lobbyCode: string, oldId: string, newId: string): Promise<void> {
+  return withGameLock("uno", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return;
   const idx = game.playerIds.indexOf(oldId);
@@ -876,6 +895,7 @@ export async function remapUnoGamePlayer(lobbyCode: string, oldId: string, newId
   }
   if (game.vulnerablePlayer === oldId) game.vulnerablePlayer = newId;
   await saveGame(game);
+  });
 }
 
 export async function getUnoScores(lobbyCode: string): Promise<Record<string, number>> {
