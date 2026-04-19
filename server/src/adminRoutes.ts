@@ -631,13 +631,4 @@ router.put("/image-model", async (req, res) => {
   }
 });
 
-// Temporary: verify server-side Sentry pipeline end-to-end. Admin-only.
-// Remove once a server-side issue has been confirmed in the Sentry dashboard.
-router.get("/sentry-test", (req, res) => {
-  const eventId = Sentry.captureException(
-    new Error(`sentry-test from server (${process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || "local"})`)
-  );
-  res.json({ ok: true, eventId });
-});
-
 export default router;
