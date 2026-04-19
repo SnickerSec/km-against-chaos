@@ -305,3 +305,65 @@ describe("doubleDown", () => {
     expect((r as { success: false; error: string }).error).toMatch(/chip/i);
   });
 });
+
+import { split } from "../blackjackGame.js";
+
+describe("split (non-ace pairs)", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+  });
+
+  it("splits a pair into two hands, each with one card to start", async () => {
+    await rigHand(LOBBY, "p1", [{ suit: "S", rank: "8" }, { suit: "H", rank: "8" }]);
+    await rigShoe(LOBBY, [{ suit: "C", rank: "3" }, { suit: "D", rank: "5" }]);
+    // shoe top (popped first) = first card of test array → so 3 deals first.
+    const r = await split(LOBBY, "p1");
+    expect(r.success).toBe(true);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.hands.p1).toHaveLength(2);
+    // Each split hand starts with the original card + one new draw
+    expect(v.hands.p1[0].cards).toHaveLength(2);
+    expect(v.hands.p1[1].cards).toHaveLength(2);
+    // Bets duplicated, chips deducted twice
+    expect(v.hands.p1[0].bet).toBe(100);
+    expect(v.hands.p1[1].bet).toBe(100);
+    expect(v.chips.p1).toBe(800); // 1000 − 100 (initial) − 100 (split)
+    expect(v.hands.p1[0].fromSplit).toBe(true);
+    expect(v.hands.p1[1].fromSplit).toBe(true);
+    expect(v.activePlayerId).toBe("p1"); // still p1's turn, on hand 0
+    expect(v.activeHandIndex).toBe(0);
+  });
+
+  it("rejects when cards aren't a pair", async () => {
+    await rigHand(LOBBY, "p1", [{ suit: "S", rank: "5" }, { suit: "H", rank: "6" }]);
+    const r = await split(LOBBY, "p1");
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects when chips < bet", async () => {
+    await rigHand(LOBBY, "p1", [{ suit: "S", rank: "8" }, { suit: "H", rank: "8" }]);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.chips.p1 = 50;
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+    const r = await split(LOBBY, "p1");
+    expect(r.success).toBe(false);
+  });
+
+  it("plays the second split hand after the first is resolved", async () => {
+    await rigHand(LOBBY, "p1", [{ suit: "S", rank: "8" }, { suit: "H", rank: "8" }]);
+    await rigShoe(LOBBY, [
+      { suit: "C", rank: "3" }, { suit: "D", rank: "5" },           // split deals
+      { suit: "S", rank: "9" }, { suit: "H", rank: "9" },            // hits
+    ]);
+    await split(LOBBY, "p1");
+    await stand(LOBBY, "p1"); // resolve first split hand
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.activePlayerId).toBe("p1");
+    expect(v.activeHandIndex).toBe(1);
+  });
+});

@@ -113,6 +113,10 @@ async function getAllGames(): Promise<InternalBlackjackGame[]> {
 const SUITS: Suit[] = ["S", "H", "D", "C"];
 const RANKS: Rank[] = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
 
+function isPair(cards: Card[]): boolean {
+  return cards.length === 2 && cards[0].rank === cards[1].rank;
+}
+
 function freshShoe(): Card[] {
   const shoe: Card[] = [];
   for (const s of SUITS) for (const r of RANKS) shoe.push({ suit: s, rank: r });
@@ -408,6 +412,41 @@ export async function doubleDown(lobbyCode: string, playerId: string): Promise<A
     cur.hand.cards.push(dealOne(g));
     cur.hand.resolved = true;
     advanceTurn(g);
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
+export async function split(lobbyCode: string, playerId: string): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "playing") return { success: false, error: "Not the playing phase" };
+    const cur = activeHand(g);
+    if (!cur || cur.pid !== playerId) return { success: false, error: "Not your turn" };
+    if (cur.hand.fromSplit) return { success: false, error: "Re-split is not allowed" };
+    if (!isPair(cur.hand.cards)) return { success: false, error: "Split only legal on a pair" };
+    if (g.chips[playerId] < cur.hand.bet) return { success: false, error: "Not enough chips to split" };
+
+    const original = cur.hand;
+    const isAcePair = original.cards[0].rank === "A";
+
+    g.chips[playerId] -= original.bet;
+    const handA: Hand = { cards: [original.cards[0], dealOne(g)], bet: original.bet, doubled: false, resolved: false, fromSplit: true };
+    const handB: Hand = { cards: [original.cards[1], dealOne(g)], bet: original.bet, doubled: false, resolved: false, fromSplit: true };
+
+    // Split aces auto-resolve both hands (T10 will pin this with its own test).
+    if (isAcePair) {
+      handA.resolved = true;
+      handB.resolved = true;
+    }
+
+    g.hands[playerId] = [handA, handB];
+    g.activeHandIndex = 0;
+    g.phaseDeadline = Date.now() + TURN_TIME_MS;
+
+    if (isAcePair) advanceTurn(g);  // Both hands done → next player
+
     await saveGame(g);
     return { success: true };
   });
