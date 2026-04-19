@@ -41,6 +41,7 @@ const log = createLogger("server");
 import { registerCahHandlers } from "./handlers/cahHandlers.js";
 import { registerUnoHandlers } from "./handlers/unoHandlers.js";
 import { registerCodenamesHandlers } from "./handlers/codenamesHandlers.js";
+import { registerBlackjackHandlers } from "./handlers/blackjackHandlers.js";
 import { registerSocialHandlers } from "./handlers/socialHandlers.js";
 
 // ── Express Setup ────────────────────────────────────────────────────────────
@@ -254,6 +255,7 @@ io.on("connection", async (socket) => {
   registerCahHandlers(io, socket);
   registerUnoHandlers(io, socket);
   registerCodenamesHandlers(io, socket);
+  registerBlackjackHandlers(io, socket);
 
   // ── Disconnect ──
   socket.on("disconnect", async () => {

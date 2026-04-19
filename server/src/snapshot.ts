@@ -11,9 +11,11 @@ import {
   restoreChatHistory,
   scheduleRoundTimer,
   scheduleUnoTurnTimer,
+  scheduleBlackjackTimer,
 } from "./socketHelpers.js";
 import { createCahTimerCallback } from "./handlers/cahHandlers.js";
 import { createUnoTimerCallback } from "./handlers/unoHandlers.js";
+import { createBlackjackTimerCallback } from "./handlers/blackjackHandlers.js";
 import type { ClientEvents, ServerEvents } from "./types.js";
 
 const log = createLogger("snapshot");
@@ -147,6 +149,15 @@ export async function restoreAll(
         rearmedUno++;
       }
     }
+    let rearmedBlackjack = 0;
+    const blackjackCallback = createBlackjackTimerCallback(io);
+    for (const row of blackjackGames.rows) {
+      const state = row.state;
+      if (state?.phase && state.phase !== "gameOver") {
+        await scheduleBlackjackTimer(state.lobbyCode, blackjackCallback);
+        rearmedBlackjack++;
+      }
+    }
 
     log.info("snapshot restored", {
       lobbies: lobbies.rowCount,
@@ -157,6 +168,7 @@ export async function restoreAll(
       chats: chats.rowCount,
       rearmedCah,
       rearmedUno,
+      rearmedBlackjack,
     });
   } catch (err) {
     log.error("restore failed", { error: String(err) });
