@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { Icon } from "@iconify/react";
 import DeckPicker from "./DeckPicker";
@@ -149,12 +150,12 @@ export default function LobbyScreen() {
           <Button onClick={shareInviteLink} variant="primary" size="sm">
             Share
           </Button>
-          <a
+          <Link
             href="/friends"
             className="inline-flex items-center justify-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs font-medium transition-colors"
           >
             Invite Friends
-          </a>
+          </Link>
         </div>
       </div>
 
