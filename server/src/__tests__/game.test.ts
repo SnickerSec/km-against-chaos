@@ -29,6 +29,9 @@ import {
   getPhaseDeadline,
   getCurrentPhase,
   getGameType,
+  spectatorVote,
+  tallyVotesAndPick,
+  isBotCzarMode,
 } from "../game.js";
 import type { ChaosCard, KnowledgeCard } from "../types.js";
 
@@ -686,6 +689,84 @@ describe("botCzar mode", () => {
     const r2 = await startRound(BC_LOBBY);
     expect(r2).toBeNull();
     expect(await isGameOver(BC_LOBBY)).toBe(true);
+  });
+});
+
+// ── botCzar vote-driven judging ───────────────────────────────────────────────
+
+describe("botCzar vote-driven judging", () => {
+  const VC_LOBBY = "test-vc";
+  const HUMANS = ["h1", "h2", "h3"];
+  const BOT = "bot-zzz";
+
+  afterEach(async () => { await cleanupGame(VC_LOBBY); });
+
+  async function setupVoteRound() {
+    await cleanupGame(VC_LOBBY);
+    await createGame(VC_LOBBY, [...HUMANS, BOT], CHAOS, KNOWLEDGE, { mode: "rounds", value: 3 }, "cah", { botCzar: true });
+    expect(await isBotCzarMode(VC_LOBBY)).toBe(true);
+    const round = (await startRound(VC_LOBBY))!;
+    expect(round.czarId).toBe(BOT);
+    // All 3 humans submit (czar is the bot, so they're all eligible submitters)
+    for (const p of HUMANS) {
+      const v = (await getPlayerView(VC_LOBBY, p))!;
+      await submitCards(VC_LOBBY, p, [v.hand[0].id]);
+    }
+    return round;
+  }
+
+  it("highest-voted submission wins", async () => {
+    await setupVoteRound();
+    // h1 votes for h2; h3 votes for h2 → h2 wins
+    expect((await spectatorVote(VC_LOBBY, "h1", "h2")).success).toBe(true);
+    expect((await spectatorVote(VC_LOBBY, "h3", "h2")).success).toBe(true);
+    // h2 votes for h1 (one vote)
+    const last = await spectatorVote(VC_LOBBY, "h2", "h1");
+    expect(last.success).toBe(true);
+    expect(last.allPlayersVoted).toBe(true);
+
+    const result = await tallyVotesAndPick(VC_LOBBY);
+    expect(result.winnerId).toBe("h2");
+    expect(result.votes).toEqual({ h2: 2, h1: 1 });
+  });
+
+  it("czar bot cannot vote", async () => {
+    await setupVoteRound();
+    const r = await spectatorVote(VC_LOBBY, BOT, "h1");
+    expect(r.success).toBe(false);
+    expect(r.error).toMatch(/czar/i);
+  });
+
+  it("player cannot vote twice", async () => {
+    await setupVoteRound();
+    expect((await spectatorVote(VC_LOBBY, "h1", "h2")).success).toBe(true);
+    const dup = await spectatorVote(VC_LOBBY, "h1", "h3");
+    expect(dup.success).toBe(false);
+  });
+
+  it("falls back to a random submitter if no votes", async () => {
+    await setupVoteRound();
+    const result = await tallyVotesAndPick(VC_LOBBY);
+    expect(result.winnerId).not.toBeNull();
+    expect(HUMANS).toContain(result.winnerId);
+  });
+
+  it("allPlayersVoted true only after every non-czar player votes", async () => {
+    await setupVoteRound();
+    const r1 = await spectatorVote(VC_LOBBY, "h1", "h2");
+    expect(r1.allPlayersVoted).toBe(false);
+    const r2 = await spectatorVote(VC_LOBBY, "h2", "h3");
+    expect(r2.allPlayersVoted).toBe(false);
+    const r3 = await spectatorVote(VC_LOBBY, "h3", "h1");
+    expect(r3.allPlayersVoted).toBe(true);
+  });
+
+  it("tallyVotesAndPick is a no-op outside bot-czar mode", async () => {
+    await cleanupGame(VC_LOBBY);
+    await createGame(VC_LOBBY, HUMANS, CHAOS, KNOWLEDGE, { mode: "rounds", value: 3 }); // no botCzar
+    await startRound(VC_LOBBY);
+    const result = await tallyVotesAndPick(VC_LOBBY);
+    expect(result.winnerId).toBeNull();
   });
 });
 

@@ -912,7 +912,7 @@ export async function spectatorVote(
   lobbyCode: string,
   spectatorId: string,
   votedForId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; allPlayersVoted?: boolean }> {
   return withGameLock("cah", lobbyCode, async () => {
   const game = await loadGame(lobbyCode);
   if (!game) return { success: false, error: "Game not found" };
@@ -920,6 +920,11 @@ export async function spectatorVote(
   const round = game.currentRound;
   if (!round || round.phase !== "judging") {
     return { success: false, error: "Not in judging phase" };
+  }
+
+  // The bot czar never votes (it's "judging" cosmetically).
+  if (spectatorId === round.czarId) {
+    return { success: false, error: "Czar cannot vote" };
   }
 
   if (!round.submissions.has(votedForId)) {
@@ -932,8 +937,68 @@ export async function spectatorVote(
 
   round.spectatorVotes.set(spectatorId, votedForId);
   await saveGame(game);
-  return { success: true };
+
+  // True when every non-czar in-game player has cast a vote. Used by the
+  // bot-czar flow to tally early instead of waiting for the judging timer.
+  // Spectators aren't tracked in the game module, so we ignore them here —
+  // they still vote during the window, just don't trigger the early tally.
+  const expectedVoters = game.playerIds.filter((id) => id !== round.czarId);
+  const allPlayersVoted = expectedVoters.every((id) => round.spectatorVotes.has(id));
+
+  return { success: true, allPlayersVoted };
   });
+}
+
+/** Tally bot-czar votes and pick the winning submission (random tie-break,
+ *  random submitter if no votes at all). Applies scoring via pickWinnerOn. */
+export async function tallyVotesAndPick(lobbyCode: string): Promise<{
+  winnerId: string | null;
+  metaEffect?: any;
+  votes?: Record<string, number>;
+}> {
+  return withGameLock("cah", lobbyCode, async () => {
+  const game = await loadGame(lobbyCode);
+  if (!game?.currentRound || game.currentRound.phase !== "judging") return { winnerId: null };
+  if (!game.botCzar) return { winnerId: null };
+
+  const round = game.currentRound;
+  const submitters = Array.from(round.submissions.keys());
+  if (submitters.length === 0) return { winnerId: null };
+
+  // Tally only votes that point at a real submission (defensive — votes for
+  // since-removed players get filtered out).
+  const tally = new Map<string, number>();
+  for (const votedFor of round.spectatorVotes.values()) {
+    if (round.submissions.has(votedFor)) {
+      tally.set(votedFor, (tally.get(votedFor) || 0) + 1);
+    }
+  }
+
+  let winnerId: string;
+  if (tally.size === 0) {
+    // No usable votes — pick a random submitter so the round still resolves.
+    winnerId = submitters[Math.floor(Math.random() * submitters.length)];
+  } else {
+    const max = Math.max(...tally.values());
+    const tied = Array.from(tally.entries()).filter(([, n]) => n === max).map(([id]) => id);
+    winnerId = tied[Math.floor(Math.random() * tied.length)];
+  }
+
+  const result = pickWinnerOn(game, round.czarId, winnerId);
+  if (!result.success) return { winnerId: null };
+  await saveGame(game);
+  return {
+    winnerId,
+    metaEffect: result.metaEffect,
+    votes: Object.fromEntries(tally),
+  };
+  });
+}
+
+/** Read-only check used by handlers to decide between bot-czar judging and
+ *  vote-driven judging. */
+export async function isBotCzarMode(lobbyCode: string): Promise<boolean> {
+  return (await loadGame(lobbyCode))?.botCzar || false;
 }
 
 export async function getAudiencePick(lobbyCode: string): Promise<string | null> {

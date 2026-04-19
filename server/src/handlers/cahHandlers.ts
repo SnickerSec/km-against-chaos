@@ -6,6 +6,7 @@ import {
   resolveMetaTargets, resetPlayerHand, botSubmitCards, botPickWinner,
   getCzarId, forceSubmitForMissing, czarSetup, botCzarSetup, forceCzarSetup,
   getGameType, getCurrentPhase, spectatorVote, getAudiencePick,
+  isBotCzarMode, tallyVotesAndPick,
 } from "../game.js";
 import { getBotsInLobby, getPlayerNameInLobby } from "../lobby.js";
 import {
@@ -88,7 +89,7 @@ async function triggerBotSubmissions(io: Server<ClientEvents, ServerEvents>, cod
           const judgingData = await getJudgingData(code);
           if (judgingData) {
             io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
-            triggerBotCzarPick(io, code);
+            kickoffJudging(io, code);
           }
         }
       }
@@ -119,6 +120,67 @@ async function triggerBotCzarPick(io: Server<ClientEvents, ServerEvents>, code: 
   }, 8000 + Math.random() * 4000);
 }
 
+/** Bot-czar judging: non-czar bots auto-vote (random) so the round can
+ *  resolve even if no humans are around. Each vote triggers the same
+ *  early-tally check that human votes do. */
+async function triggerBotVotes(io: Server<ClientEvents, ServerEvents>, code: string) {
+  const judgingData = await getJudgingData(code);
+  if (!judgingData) return;
+
+  const submitters = judgingData.submissions.map((s) => s.playerId);
+  if (submitters.length === 0) return;
+
+  const botIds = await getBotsInLobby(code);
+  const czarId = await getCzarId(code);
+
+  let delay = 2000;
+  for (const botId of botIds) {
+    if (botId === czarId) continue;
+    setTimeout(async () => {
+      const choice = submitters[Math.floor(Math.random() * submitters.length)];
+      const result = await spectatorVote(code, botId, choice);
+      if (result.success) {
+        io.to(code).emit("game:player-voted" as any, botId);
+        if (result.allPlayersVoted) {
+          await resolveBotCzarRound(io, code);
+        }
+      }
+    }, delay);
+    delay += 600 + Math.random() * 800;
+  }
+}
+
+/** Tally votes and emit the round winner. Idempotent — safe to call from
+ *  the timer-expiry path AND from the early "everyone voted" path. The
+ *  underlying tallyVotesAndPick is a no-op if the round isn't in judging. */
+async function resolveBotCzarRound(io: Server<ClientEvents, ServerEvents>, code: string) {
+  clearRoundTimer(code);
+  const result = await tallyVotesAndPick(code);
+  if (!result.winnerId) return;
+
+  const scores = await getScores(code);
+  const winnerCards = await getWinnerCards(code);
+  const winnerName = await getPlayerNameInLobby(code, result.winnerId);
+
+  io.to(code).emit("game:round-winner", result.winnerId, winnerName || "Unknown", winnerCards || [], scores || {}, null);
+  // Surface the tally so the client can show a leaderboard if it wants.
+  io.to(code).emit("game:vote-tally" as any, result.votes || {});
+
+  if (result.metaEffect) {
+    const { effect, winnerId: wId, czarId: cId, playerIds } = result.metaEffect;
+    await emitMetaEffect(io, code, effect, wId, cId, playerIds);
+  }
+}
+
+/** Decide between the classic bot-judge flow and the bot-czar vote flow. */
+async function kickoffJudging(io: Server<ClientEvents, ServerEvents>, code: string) {
+  if (await isBotCzarMode(code)) {
+    triggerBotVotes(io, code);
+  } else {
+    triggerBotCzarPick(io, code);
+  }
+}
+
 // ── Timer Expiry ─────────────────────────────────────────────────────────────
 
 async function handleTimerExpiry(io: Server<ClientEvents, ServerEvents>, code: string) {
@@ -142,8 +204,15 @@ async function handleTimerExpiry(io: Server<ClientEvents, ServerEvents>, code: s
     if (judgingData) {
       io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
       await scheduleRoundTimer(code, (c) => handleTimerExpiry(io, c));
-      triggerBotCzarPick(io, code);
+      kickoffJudging(io, code);
     }
+    return;
+  }
+
+  // Already in judging — timer expired waiting for a decision. Bot-czar mode
+  // tallies whatever votes came in (even none — falls back to random).
+  if (await isBotCzarMode(code)) {
+    await resolveBotCzarRound(io, code);
     return;
   }
 
@@ -204,7 +273,7 @@ export function registerCahHandlers(
       if (judgingData) {
         io.to(code).emit("game:judging", judgingData.submissions, judgingData.chaosCard);
         await scheduleRoundTimer(code, (c) => handleTimerExpiry(io, c));
-        triggerBotCzarPick(io, code);
+        kickoffJudging(io, code);
       }
     }
   });
@@ -236,7 +305,16 @@ export function registerCahHandlers(
     if (!code) { callback({ success: false, error: "Not in a game" }); return; }
 
     const result = await spectatorVote(code, socket.id, votedForId);
-    callback(result);
+    callback({ success: result.success, error: result.error });
+    if (!result.success) return;
+
+    socket.to(code).emit("game:player-voted" as any, socket.id);
+    // Bot-czar mode: tally + emit winner the moment all in-game players have
+    // voted. Spectator votes still arrive within the judging window but don't
+    // gate the resolution.
+    if (result.allPlayersVoted && await isBotCzarMode(code)) {
+      await resolveBotCzarRound(io, code);
+    }
   });
 
   socket.on("game:next-round", async () => {

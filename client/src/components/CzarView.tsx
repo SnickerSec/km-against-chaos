@@ -21,7 +21,10 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
 
   const socket = getSocket();
   const isSpectator = lobby?.players.find(p => p.id === socket.id)?.isSpectator;
-  const canVote = isSpectator && !isCzar && !hasVoted;
+  const botCzarMode = !!lobby?.houseRules?.botCzar;
+  // In bot-czar mode, every non-czar player + spectator gets to vote.
+  // In normal mode, only spectators vote (czar still picks the winner).
+  const canVote = !isCzar && !hasVoted && (isSpectator || botCzarMode);
 
   const [cardBackUrl, setCardBackUrl] = useState<string | null>(null);
   const deckId = lobby?.deckId;
@@ -87,8 +90,10 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
         {isCzar
           ? isJH ? "Pick the funniest punchline!" : "Pick the funniest answer!"
           : hasVoted
-            ? "Voted! Waiting for the " + (isJH ? "Judge" : "Czar") + " to decide..."
-            : isSpectator
+            ? botCzarMode
+              ? "Voted! Waiting for the rest..."
+              : "Voted! Waiting for the " + (isJH ? "Judge" : "Czar") + " to decide..."
+            : canVote
               ? "Vote for your favorite!"
               : isJH ? "The Judge is choosing a winner..." : "The Czar is choosing a winner..."}
       </p>
