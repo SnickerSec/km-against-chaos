@@ -367,3 +367,34 @@ describe("split (non-ace pairs)", () => {
     expect(v.activeHandIndex).toBe(1);
   });
 });
+
+describe("split rule edges", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+  });
+
+  it("split aces: each hand gets exactly one card and both auto-stand", async () => {
+    await rigHand(LOBBY, "p1", [{ suit: "S", rank: "A" }, { suit: "H", rank: "A" }]);
+    await rigShoe(LOBBY, [{ suit: "C", rank: "5" }, { suit: "D", rank: "9" }]);
+    const r = await split(LOBBY, "p1");
+    expect(r.success).toBe(true);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.hands.p1[0].cards).toHaveLength(2);
+    expect(v.hands.p1[1].cards).toHaveLength(2);
+    expect(v.hands.p1[0].resolved).toBe(true);
+    expect(v.hands.p1[1].resolved).toBe(true);
+    expect(v.activePlayerId).toBe("p2");
+  });
+
+  it("re-split is rejected even if a split hand draws into a new pair", async () => {
+    await rigHand(LOBBY, "p1", [{ suit: "S", rank: "8" }, { suit: "H", rank: "8" }]);
+    await rigShoe(LOBBY, [{ suit: "C", rank: "8" }, { suit: "D", rank: "8" }]);
+    await split(LOBBY, "p1");
+    const r = await split(LOBBY, "p1");
+    expect(r.success).toBe(false);
+    expect((r as { success: false; error: string }).error).toMatch(/re-?split/i);
+  });
+});

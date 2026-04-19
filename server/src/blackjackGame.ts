@@ -209,21 +209,26 @@ function activeHand(g: InternalBlackjackGame): { pid: string; hand: Hand } | nul
 
 /** Move to the next playable hand, or to the dealer phase if no hands remain. */
 function advanceTurn(g: InternalBlackjackGame): void {
-  // Try the next hand of the current player.
+  // Try the next unresolved hand of the current player. Split-aces marks both
+  // new hands resolved up front, so we have to skip resolved hands rather
+  // than just incrementing the index.
   const curPid = g.playerIds[g.activePlayerIndex];
   if (curPid) {
     const hands = g.hands[curPid] || [];
-    if (g.activeHandIndex + 1 < hands.length) {
-      g.activeHandIndex++;
-      g.phaseDeadline = Date.now() + TURN_TIME_MS;
-      return;
+    for (let i = g.activeHandIndex + 1; i < hands.length; i++) {
+      if (!hands[i].resolved) {
+        g.activeHandIndex = i;
+        g.phaseDeadline = Date.now() + TURN_TIME_MS;
+        return;
+      }
     }
   }
-  // Otherwise advance to the next seat that has at least one hand.
+  // Otherwise advance to the next seat that has any unresolved hand.
   for (let i = g.activePlayerIndex + 1; i < g.playerIds.length; i++) {
-    if ((g.hands[g.playerIds[i]] || []).length > 0) {
+    const hands = g.hands[g.playerIds[i]] || [];
+    if (hands.some(h => !h.resolved)) {
       g.activePlayerIndex = i;
-      g.activeHandIndex = 0;
+      g.activeHandIndex = hands.findIndex(h => !h.resolved);
       g.phaseDeadline = Date.now() + TURN_TIME_MS;
       return;
     }
