@@ -1065,6 +1065,7 @@ export async function exportGames(): Promise<any[]> {
 }
 
 const ABANDONED_GAME_STALENESS_MS = 60 * 60 * 1000; // 1h past phaseDeadline → zombie
+const POST_RESTORE_GRACE_MS = 3 * 60 * 1000; // extra time on top of the normal phase window after a deploy/restore
 
 export async function restoreGames(snapshots: any[]): Promise<void> {
   for (const s of snapshots) {
@@ -1076,14 +1077,16 @@ export async function restoreGames(snapshots: any[]): Promise<void> {
     if (game.currentRound && Date.now() - game.currentRound.phaseDeadline > ABANDONED_GAME_STALENESS_MS) {
       continue;
     }
-    // Phase timers don't survive; give the new round a fresh deadline
-    // from now so timers restart cleanly on the new instance.
+    // Phase timers don't survive; give the new round a fresh deadline from
+    // now so timers restart cleanly on the new instance. Add a 3-minute grace
+    // period so users who were mid-round when the deploy hit get enough time
+    // to reconnect, re-read cards, and click — instead of having the clock
+    // snap to the normal phase window the moment the server comes back.
     if (game.currentRound) {
-      game.currentRound.phaseDeadline = Date.now() + (
-        game.currentRound.phase === "judging" ? JUDGE_TIME_MS
+      const baseWindow = game.currentRound.phase === "judging" ? JUDGE_TIME_MS
         : game.currentRound.phase === "czar_setup" ? CZAR_SETUP_TIME_MS
-        : SUBMIT_TIME_MS
-      );
+        : SUBMIT_TIME_MS;
+      game.currentRound.phaseDeadline = Date.now() + baseWindow + POST_RESTORE_GRACE_MS;
     }
     await saveGame(game);
   }
