@@ -392,6 +392,27 @@ export async function stand(lobbyCode: string, playerId: string): Promise<Action
   });
 }
 
+export async function doubleDown(lobbyCode: string, playerId: string): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "playing") return { success: false, error: "Not the playing phase" };
+    const cur = activeHand(g);
+    if (!cur || cur.pid !== playerId) return { success: false, error: "Not your turn" };
+    if (cur.hand.cards.length !== 2) return { success: false, error: "Double only legal on a 2-card hand" };
+    if (g.chips[playerId] < cur.hand.bet) return { success: false, error: "Not enough chips to double" };
+
+    g.chips[playerId] -= cur.hand.bet;
+    cur.hand.bet *= 2;
+    cur.hand.doubled = true;
+    cur.hand.cards.push(dealOne(g));
+    cur.hand.resolved = true;
+    advanceTurn(g);
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
 export async function isBlackjackGame(lobbyCode: string): Promise<boolean> {
   return gameExists(lobbyCode);
 }

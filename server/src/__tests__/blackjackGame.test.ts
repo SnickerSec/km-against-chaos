@@ -260,3 +260,48 @@ describe("stand", () => {
     expect(r.success).toBe(false);
   });
 });
+
+import { doubleDown } from "../blackjackGame.js";
+
+describe("doubleDown", () => {
+  beforeEach(async () => {
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+  });
+
+  it("doubles the bet, deals one card, auto-stands", async () => {
+    await rigHand(LOBBY, "p1", [{ suit: "S", rank: "5" }, { suit: "H", rank: "6" }]);
+    await rigShoe(LOBBY, [{ suit: "C", rank: "9" }]);
+    const r = await doubleDown(LOBBY, "p1");
+    expect(r.success).toBe(true);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.hands.p1[0].cards).toHaveLength(3);
+    expect(v.hands.p1[0].bet).toBe(200);
+    expect(v.hands.p1[0].doubled).toBe(true);
+    expect(v.hands.p1[0].resolved).toBe(true);
+    expect(v.chips.p1).toBe(800); // 1000 − 100 (initial) − 100 (double)
+    expect(v.activePlayerId).toBe("p2");
+  });
+
+  it("rejects when hand is not 2 cards", async () => {
+    await rigHand(LOBBY, "p1", [
+      { suit: "S", rank: "5" }, { suit: "H", rank: "6" }, { suit: "C", rank: "2" },
+    ]);
+    const r = await doubleDown(LOBBY, "p1");
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects when chips < bet", async () => {
+    // Force chip balance to less than bet
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.chips.p1 = 50;
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+    const r = await doubleDown(LOBBY, "p1");
+    expect(r.success).toBe(false);
+    expect((r as { success: false; error: string }).error).toMatch(/chip/i);
+  });
+});
