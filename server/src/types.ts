@@ -54,7 +54,7 @@ export interface PlayerInfo {
   isSpectator?: boolean;
 }
 
-export type GameType = "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames" | "superfight";
+export type GameType = "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames" | "superfight" | "blackjack";
 
 // ── Game Types ──
 

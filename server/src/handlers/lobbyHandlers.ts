@@ -12,6 +12,7 @@ import { getDeck } from "../deckStore.js";
 import { createGame, startRound, getPlayerView, getScores, endGame, cleanupGame, addPlayerToGame, removePlayerFromGame } from "../game.js";
 import { createUnoGame, isUnoGame, cleanupUnoGame, getUnoPlayerView, removePlayerFromUnoGame, setUnoPlayerNames } from "../unoGame.js";
 import { createCodenamesGame, isCodenamesGame, cleanupCodenamesGame, getCodenamesPlayerView, removePlayerFromCodenamesGame } from "../codenamesGame.js";
+import { removePlayerFromBlackjackGame } from "../blackjackGame.js";
 import { setInGame, setNotInGame, getUserIdForSocket } from "../presence.js";
 import pool from "../db.js";
 import {
@@ -22,6 +23,9 @@ import {
 import { createLogger } from "../logger.js";
 import { triggerBotActions, createCahTimerCallback } from "./cahHandlers.js";
 import { triggerUnoBotTurn, createUnoTimerCallback } from "./unoHandlers.js";
+import { createBlackjackGame, getBlackjackPlayerView } from "../blackjackGame.js";
+import { scheduleBlackjackTimer } from "../socketHelpers.js";
+import { createBlackjackTimerCallback } from "./blackjackHandlers.js";
 
 const log = createLogger("lobby");
 
@@ -40,6 +44,7 @@ export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socket
     await removePlayerFromGame(code, socketId);
     await removePlayerFromUnoGame(code, socketId);
     await removePlayerFromCodenamesGame(code, socketId);
+    await removePlayerFromBlackjackGame(code, socketId);
   }
 
   if (result.lobby) {
@@ -199,7 +204,7 @@ export function registerLobbyHandlers(
       let customChaos = undefined;
       let customKnowledge = undefined;
       let winCondition = undefined;
-      let gameType: "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames" | undefined = undefined;
+      let gameType: "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames" | "blackjack" | undefined = undefined;
       let unoTemplate: UnoDeckTemplate | undefined = undefined;
       if (deckId) {
         const deck = await getDeck(deckId);
@@ -267,6 +272,21 @@ export function registerLobbyHandlers(
           await sendUnoTurnToPlayers(io, code);
           await triggerUnoBotTurn(io, code);
           scheduleUnoTurnTimer(code, createUnoTimerCallback(io));
+        } else if (gameType === "blackjack") {
+          await createBlackjackGame(code, playerIds, {
+            startingChips: 1000,
+            minBet: 10,
+            maxBet: 500,
+          });
+          io.to(code).emit("lobby:started");
+          for (const pid of playerIds) {
+            const view = await getBlackjackPlayerView(code, pid);
+            if (view) {
+              const sock = io.sockets.sockets.get(pid);
+              if (sock) sock.emit("blackjack:update" as any, view);
+            }
+          }
+          await scheduleBlackjackTimer(code, createBlackjackTimerCallback(io));
         } else {
           const houseRules = await getLobbyHouseRules(code);
           await createGame(code, playerIds, customChaos, customKnowledge, winCondition, gameType, { botCzar: houseRules?.botCzar });

@@ -23,6 +23,7 @@ import RoundTimer from "./RoundTimer";
 import Chat from "./Chat";
 import UnoGameScreen from "./UnoGameScreen";
 import CodenamesGameScreen from "./CodenamesGameScreen";
+import BlackjackGameScreen from "./BlackjackGameScreen";
 
 export default function GameScreen() {
   const { round, hasSubmitted, winnerInfo, lobby, roundNumber, maxRounds, handBlurred, iconsRandomized, gameType } =
@@ -43,6 +44,7 @@ export default function GameScreen() {
   const cardBackSrc = cardBackUrl ? (cardBackUrl.startsWith("http") ? cardBackUrl : `${API_URL}${cardBackUrl}`) : null;
 
   if (gameType === "codenames") return <CodenamesGameScreen />;
+  if (gameType === "blackjack") return <BlackjackGameScreen />;
   if (gameType === "uno") return <UnoGameScreen />;
   const socket = getSocket();
   const isCzar = round?.czarId === socket.id;

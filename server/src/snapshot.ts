@@ -5,14 +5,17 @@ import { exportLobbies, restoreLobbies } from "./lobby.js";
 import { exportGames, restoreGames } from "./game.js";
 import { exportUnoGames, restoreUnoGames } from "./unoGame.js";
 import { exportCodenamesGames, restoreCodenamesGames } from "./codenamesGame.js";
+import { exportBlackjackGames, restoreBlackjackGames } from "./blackjackGame.js";
 import {
   exportChatHistory,
   restoreChatHistory,
   scheduleRoundTimer,
   scheduleUnoTurnTimer,
+  scheduleBlackjackTimer,
 } from "./socketHelpers.js";
 import { createCahTimerCallback } from "./handlers/cahHandlers.js";
 import { createUnoTimerCallback } from "./handlers/unoHandlers.js";
+import { createBlackjackTimerCallback } from "./handlers/blackjackHandlers.js";
 import type { ClientEvents, ServerEvents } from "./types.js";
 
 const log = createLogger("snapshot");
@@ -22,13 +25,14 @@ const log = createLogger("snapshot");
 const MAX_SNAPSHOT_AGE_MINUTES = 15;
 
 const SNAPSHOT_TABLES =
-  "lobby_snapshots, cah_game_snapshots, uno_game_snapshots, codenames_game_snapshots, chat_snapshots";
+  "lobby_snapshots, cah_game_snapshots, uno_game_snapshots, codenames_game_snapshots, blackjack_game_snapshots, chat_snapshots";
 
 export async function snapshotAll(): Promise<void> {
   const lobbies = await exportLobbies();
   const cahGames = (await exportGames()).filter((g: any) => g.gameType === "cah");
   const unoGames = await exportUnoGames();
   const codenamesGames = await exportCodenamesGames();
+  const blackjackGames = await exportBlackjackGames();
   const allChats = await exportChatHistory();
   const chats = allChats.filter(c => lobbies.some((l: any) => l.code === c.code));
 
@@ -60,6 +64,12 @@ export async function snapshotAll(): Promise<void> {
         [g.lobbyCode, JSON.stringify(g)]
       );
     }
+    for (const g of blackjackGames) {
+      await client.query(
+        "INSERT INTO blackjack_game_snapshots (lobby_code, state) VALUES ($1, $2)",
+        [g.lobbyCode, JSON.stringify(g)]
+      );
+    }
     for (const c of chats) {
       await client.query(
         "INSERT INTO chat_snapshots (code, messages) VALUES ($1, $2)",
@@ -72,6 +82,7 @@ export async function snapshotAll(): Promise<void> {
       cahGames: cahGames.length,
       unoGames: unoGames.length,
       codenamesGames: codenamesGames.length,
+      blackjackGames: blackjackGames.length,
       chats: chats.length,
     });
   } catch (err) {
@@ -99,6 +110,9 @@ export async function restoreAll(
     const codenamesGames = await pool.query(
       `SELECT state FROM codenames_game_snapshots WHERE created_at > ${cutoff}`
     );
+    const blackjackGames = await pool.query(
+      `SELECT state FROM blackjack_game_snapshots WHERE created_at > ${cutoff}`
+    );
     const chats = await pool.query(
       `SELECT code, messages FROM chat_snapshots WHERE created_at > ${cutoff}`
     );
@@ -107,6 +121,7 @@ export async function restoreAll(
     await restoreGames(cahGames.rows.map(r => r.state));
     await restoreUnoGames(unoGames.rows.map(r => r.state));
     await restoreCodenamesGames(codenamesGames.rows.map(r => r.state));
+    await restoreBlackjackGames(blackjackGames.rows.map(r => r.state));
     await restoreChatHistory(chats.rows.map(r => ({ code: r.code, messages: r.messages })));
 
     // Snapshots are one-shot — clear after restoring so a later crash
@@ -134,15 +149,26 @@ export async function restoreAll(
         rearmedUno++;
       }
     }
+    let rearmedBlackjack = 0;
+    const blackjackCallback = createBlackjackTimerCallback(io);
+    for (const row of blackjackGames.rows) {
+      const state = row.state;
+      if (state?.phase && state.phase !== "gameOver") {
+        await scheduleBlackjackTimer(state.lobbyCode, blackjackCallback);
+        rearmedBlackjack++;
+      }
+    }
 
     log.info("snapshot restored", {
       lobbies: lobbies.rowCount,
       cahGames: cahGames.rowCount,
       unoGames: unoGames.rowCount,
       codenamesGames: codenamesGames.rowCount,
+      blackjackGames: blackjackGames.rowCount,
       chats: chats.rowCount,
       rearmedCah,
       rearmedUno,
+      rearmedBlackjack,
     });
   } catch (err) {
     log.error("restore failed", { error: String(err) });

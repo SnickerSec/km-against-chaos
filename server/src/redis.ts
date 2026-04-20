@@ -52,7 +52,7 @@ const LOCK_TTL_SECONDS = 5;
 const LOCK_POLL_MS = 25;
 const LOCK_MAX_WAIT_MS = 5_000;
 
-export type GameLockNamespace = "cah" | "uno" | "codenames" | "lobby";
+export type GameLockNamespace = "cah" | "uno" | "codenames" | "lobby" | "blackjack";
 
 export async function withGameLock<T>(
   ns: GameLockNamespace,
