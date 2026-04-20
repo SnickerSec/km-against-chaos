@@ -629,6 +629,107 @@ describe("removePlayerFromBlackjackGame", () => {
   });
 });
 
+describe("handleBettingTimeout", () => {
+  it("auto-sits-out null-bet players and starts dealing", async () => {
+    const { handleBettingTimeout } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    // p2, p3 never bet
+
+    await handleBettingTimeout(LOBBY);
+
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.phase).toBe("playing");
+    expect(v.bets.p2).toBe("sitting_out");
+    expect(v.bets.p3).toBe("sitting_out");
+    expect(v.hands.p1.length).toBe(1);
+    expect(v.hands.p2.length).toBe(0);
+    expect(v.activePlayerId).toBe("p1");
+  });
+
+  it("is a no-op when not in betting phase", async () => {
+    const { handleBettingTimeout } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+    // now in playing phase
+    await handleBettingTimeout(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.phase).toBe("playing");
+  });
+});
+
+describe("handleTurnTimeout", () => {
+  it("auto-stands the active hand so the table keeps moving", async () => {
+    const { handleTurnTimeout } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+    await placeBet(LOBBY, "p2", 100);
+    await placeBet(LOBBY, "p3", 100);
+    // in playing phase, p1 active
+
+    await handleTurnTimeout(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.hands.p1[0].resolved).toBe(true);
+    expect(v.activePlayerId).toBe("p2");
+  });
+});
+
+describe("botPlaceBet", () => {
+  it("places the minimum bet for a bot", async () => {
+    const { botPlaceBet } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1", "bot-xyz"], CONFIG);
+
+    const r = await botPlaceBet(LOBBY, "bot-xyz");
+    expect(r.success).toBe(true);
+
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.bets["bot-xyz"]).toBe(CONFIG.minBet);
+    expect(v.chips["bot-xyz"]).toBe(CONFIG.startingChips - CONFIG.minBet);
+  });
+
+  it("sits the bot out when it cannot afford the minimum", async () => {
+    const { botPlaceBet } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1", "bot-xyz"], CONFIG);
+    // drain the bot's chips below minBet
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.chips["bot-xyz"] = 5;
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await botPlaceBet(LOBBY, "bot-xyz");
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.bets["bot-xyz"]).toBe("sitting_out");
+  });
+});
+
+describe("botPlayTurn", () => {
+  it("hits until reaching 17+ then stands", async () => {
+    const { botPlayTurn } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["bot-x", "p2"], CONFIG);
+    // Rig the bot's starting hand to 12 and set the shoe so the first draw
+    // is a 5 (→17, stands).
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "playing";
+    g.activePlayerIndex = 0;
+    g.activeHandIndex = 0;
+    g.hands["bot-x"] = [{ cards: [{ suit: "S", rank: "7" }, { suit: "H", rank: "5" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    g.hands["p2"] = [{ cards: [{ suit: "D", rank: "10" }, { suit: "C", rank: "10" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    g.shoe = [{ suit: "C", rank: "5" }]; // top draw
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await botPlayTurn(LOBBY, "bot-x");
+    const v = (await getBlackjackPlayerView(LOBBY, "p2"))!;
+    expect(v.hands["bot-x"][0].resolved).toBe(true);
+    expect(v.hands["bot-x"][0].cards.length).toBe(3);
+    expect(v.activePlayerId).toBe("p2"); // advanced
+  });
+});
+
 describe("restoreBlackjackGames zombie filter", () => {
   it("skips games whose createdAt is more than 2h in the past", async () => {
     await createBlackjackGame(LOBBY, PLAYERS, CONFIG);

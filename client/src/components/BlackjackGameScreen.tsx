@@ -2,33 +2,64 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Icon } from "@iconify/react";
-import { useBlackjackStore, type Card, type Suit } from "@/lib/blackjackStore";
+import { useBlackjackStore, type Card, type Suit, type Hand } from "@/lib/blackjackStore";
 import { useGameStore } from "@/lib/store";
+import { useSocket } from "@/lib/useSocket";
 import { getSocket } from "@/lib/socket";
+import { useSounds } from "@/lib/useSounds";
+import PlayerAvatar from "./PlayerAvatar";
+import ScoreBar from "./ScoreBar";
+import RoundTimer from "./RoundTimer";
+import ReactionBar from "./ReactionBar";
+import ReactionOverlay from "./ReactionOverlay";
+import StickerOverlay from "./StickerOverlay";
+import GifOverlay from "./GifOverlay";
+import VoiceChat from "./VoiceChat";
 import Chat from "./Chat";
 
-const SUIT_GLYPH: Record<Suit, string> = { S: "♠", H: "♥", D: "♦", C: "♣", "?": "?" };
+// ── Card rendering ───────────────────────────────────────────────────────────
+
+const SUIT_GLYPH: Record<Suit, string> = { S: "♠", H: "♥", D: "♦", C: "♣", "?": "" };
 const SUIT_COLOR: Record<Suit, string> = {
-  S: "text-gray-100", H: "text-red-400", D: "text-red-400", C: "text-gray-100", "?": "text-gray-400",
+  S: "text-gray-900", H: "text-red-600", D: "text-red-600", C: "text-gray-900", "?": "text-gray-400",
 };
 
-function CardChip({ card }: { card: Card }) {
+function PlayingCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "lg" }) {
+  const dims = size === "lg"
+    ? "w-16 h-24 text-2xl"
+    : size === "sm"
+    ? "w-10 h-14 text-sm"
+    : "w-12 h-18 text-lg";
+
+  if (card.suit === "?") {
+    return (
+      <div className={`${dims} rounded-md bg-gradient-to-br from-red-900 to-red-700 border-2 border-white/60 shadow-lg flex items-center justify-center`}>
+        <div className="w-full h-full rounded-sm border-2 border-red-950/50 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(0,0,0,0.2)_4px,rgba(0,0,0,0.2)_8px)]" />
+      </div>
+    );
+  }
+
+  const color = SUIT_COLOR[card.suit];
   return (
-    <div className="inline-flex flex-col items-center justify-center w-12 h-16 rounded bg-gray-800 border border-gray-600 mr-1">
-      <span className={`text-xl font-bold ${SUIT_COLOR[card.suit]}`}>{card.rank}</span>
-      <span className={`text-xl ${SUIT_COLOR[card.suit]}`}>{SUIT_GLYPH[card.suit]}</span>
+    <div className={`${dims} rounded-md bg-white border border-gray-300 shadow-lg flex flex-col items-center justify-between p-1 select-none`}>
+      <span className={`self-start leading-none font-bold ${color}`}>{card.rank}</span>
+      <span className={`leading-none ${color}`}>{SUIT_GLYPH[card.suit]}</span>
+      <span className={`self-end leading-none font-bold rotate-180 ${color}`}>{card.rank}</span>
     </div>
   );
 }
 
+// ── Hand evaluation (client-side, matches the server) ────────────────────────
+
 function handTotal(cards: Card[]): number {
   const RANK_VALUE: Record<string, number> = {
-    "A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
-    "10": 10, "J": 10, "Q": 10, "K": 10, "?": 0,
+    A: 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
+    "10": 10, J: 10, Q: 10, K: 10, "?": 0,
   };
   let total = 0;
   let aces = 0;
   for (const c of cards) {
+    if (c.suit === "?") continue; // hole card is hidden
     total += RANK_VALUE[c.rank] || 0;
     if (c.rank === "A") aces++;
   }
@@ -36,21 +67,63 @@ function handTotal(cards: Card[]): number {
   return total;
 }
 
+function handDisplay(cards: Card[]): string {
+  const visible = cards.filter(c => c.suit !== "?");
+  if (visible.length < cards.length) return `${handTotal(cards)}+`; // hole card hidden
+  const t = handTotal(cards);
+  if (t > 21) return `${t} · BUST`;
+  if (visible.length === 2 && t === 21) return "BLACKJACK";
+  return String(t);
+}
+
+// ── Chip stack ───────────────────────────────────────────────────────────────
+
+function ChipStack({ amount }: { amount: number }) {
+  if (amount <= 0) return null;
+  return (
+    <div className="flex items-center gap-1 text-yellow-300 font-semibold">
+      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-yellow-900 text-[10px] font-black border border-yellow-600">$</span>
+      <span className="tabular-nums">{amount}</span>
+    </div>
+  );
+}
+
+// ── Settlement badge ─────────────────────────────────────────────────────────
+
+function OutcomeBadge({ outcome }: { outcome: "win" | "lose" | "push" | "blackjack" }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    blackjack: { label: "BLACKJACK!", cls: "bg-yellow-400 text-black" },
+    win:       { label: "WIN",        cls: "bg-green-500 text-white" },
+    push:      { label: "PUSH",       cls: "bg-gray-500 text-white" },
+    lose:      { label: "LOSE",       cls: "bg-red-600 text-white" },
+  };
+  const m = map[outcome];
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide ${m.cls}`}>
+      {m.label}
+    </span>
+  );
+}
+
+// ── Main screen ──────────────────────────────────────────────────────────────
+
 export default function BlackjackGameScreen() {
   const view = useBlackjackStore(s => s.view);
   const lobby = useGameStore(s => s.lobby);
+  const { leaveLobby } = useSocket();
+  useSounds();
   const socket = getSocket();
   const myId = socket.id;
+
   const [betAmount, setBetAmount] = useState<number>(0);
 
-  // Subscribe once for blackjack:update events.
   useEffect(() => {
     const handler = (v: any) => useBlackjackStore.getState().setView(v);
     socket.on("blackjack:update" as any, handler);
     return () => { socket.off("blackjack:update" as any, handler); };
   }, [socket]);
 
-  // Default the bet slider to the table minimum once the view loads.
+  // Default the bet to the table minimum once the view loads.
   useEffect(() => {
     if (view && betAmount === 0) setBetAmount(view.config.minBet);
   }, [view, betAmount]);
@@ -58,116 +131,302 @@ export default function BlackjackGameScreen() {
   const myChips = view && myId ? view.chips[myId] ?? 0 : 0;
   const myBet = view && myId ? view.bets[myId] : null;
   const isMyTurn = view?.activePlayerId === myId;
-  const eligible = useMemo(() => view ? myChips >= view.config.minBet : false, [view, myChips]);
+  const canBet = useMemo(() => !!view && myChips >= view.config.minBet, [view, myChips]);
 
-  if (!view) return <div className="p-8 text-gray-400">Waiting for blackjack state…</div>;
+  if (!view) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-emerald-950">
+        <p className="text-gray-400 text-lg">Dealing you in…</p>
+      </div>
+    );
+  }
 
-  const ack = (event: string, ...args: any[]) => {
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+  const ack = (event: string, ...args: any[]) =>
+    new Promise<{ success: boolean; error?: string }>((resolve) => {
       socket.emit(event as any, ...args, (res: any) => resolve(res));
     });
-  };
 
-  const onBet = async () => { await ack("blackjack:bet", betAmount); };
-  const onSitOut = async () => { await ack("blackjack:sit-out"); };
-  const onHit = async () => { await ack("blackjack:hit"); };
-  const onStand = async () => { await ack("blackjack:stand"); };
-  const onDouble = async () => { await ack("blackjack:double"); };
-  const onSplit = async () => { await ack("blackjack:split"); };
+  const onBet = () => ack("blackjack:bet", betAmount);
+  const onSitOut = () => ack("blackjack:sit-out");
+  const onHit = () => ack("blackjack:hit");
+  const onStand = () => ack("blackjack:stand");
+  const onDouble = () => ack("blackjack:double");
+  const onSplit = () => ack("blackjack:split");
 
   const myHands = view.hands[myId ?? ""] || [];
-  const myActiveHand = isMyTurn ? myHands[view.activeHandIndex] : undefined;
+  const myActiveHand: Hand | undefined = isMyTurn ? myHands[view.activeHandIndex] : undefined;
   const canDouble = !!myActiveHand && myActiveHand.cards.length === 2 && myChips >= myActiveHand.bet;
-  const canSplit = !!myActiveHand && myActiveHand.cards.length === 2
+  const canSplit = !!myActiveHand
+    && myActiveHand.cards.length === 2
     && myActiveHand.cards[0].rank === myActiveHand.cards[1].rank
     && !myActiveHand.fromSplit
     && myChips >= myActiveHand.bet;
 
+  const phaseLabel =
+    view.phase === "betting" ? "Place your bets"
+    : view.phase === "dealing" ? "Dealing…"
+    : view.phase === "playing" ? (isMyTurn ? "Your turn" : `${lobby?.players.find(p => p.id === view.activePlayerId)?.name ?? "…"}'s turn`)
+    : view.phase === "dealer" ? "Dealer draws"
+    : view.phase === "settle" ? "Round results"
+    : "Game over";
+
+  // Chip quick-picks that scale with table limits. Clamp to max allowed.
+  const chipValues = [
+    view.config.minBet,
+    view.config.minBet * 5,
+    view.config.minBet * 10,
+    view.config.minBet * 25,
+    view.config.minBet * 50,
+  ].filter(v => v <= Math.min(view.config.maxBet, myChips));
+
   return (
-    <div className="min-h-screen bg-green-900 text-white p-4 flex flex-col">
-      {/* Dealer */}
-      <div className="text-center mb-6">
-        <div className="text-sm text-gray-300 mb-1">Dealer{view.phase !== "playing" && view.phase !== "dealing" ? ` — ${handTotal(view.dealerHand)}` : ""}</div>
-        <div className="flex justify-center">{view.dealerHand.map((c, i) => <CardChip key={i} card={c} />)}</div>
-      </div>
+    <div className="relative min-h-screen flex flex-col overflow-hidden text-white
+      bg-[radial-gradient(ellipse_at_center,_#14532d_0%,_#052e16_70%,_#000_100%)]">
+      {/* Overlays */}
+      <ReactionOverlay />
+      <StickerOverlay />
+      <GifOverlay />
 
-      {/* Players */}
-      <div className="flex flex-wrap justify-center gap-4 mb-6">
-        {view.playerIds.map(pid => {
-          const player = lobby?.players.find(p => p.id === pid);
-          const name = player?.name ?? pid;
-          const chips = view.chips[pid] ?? 0;
-          const bet = view.bets[pid];
-          const hands = view.hands[pid] || [];
-          const isActive = view.activePlayerId === pid;
-          const isEliminated = chips < view.config.minBet && view.phase !== "betting";
-          return (
-            <div key={pid} className={`p-3 rounded border ${isActive ? "border-yellow-400" : "border-gray-700"} ${isEliminated ? "opacity-50" : ""} bg-gray-900`}>
-              <div className="flex items-center justify-between mb-1 text-sm">
-                <span className="font-bold">{name}{pid === myId ? " (you)" : ""}</span>
-                <span className="text-yellow-300 ml-3">🪙 {chips}</span>
-              </div>
-              <div className="text-xs text-gray-400 mb-1">
-                {bet === "sitting_out" ? "sitting out" : bet ? `bet ${bet}` : view.phase === "betting" ? "…" : ""}
-              </div>
-              {hands.map((h, hi) => (
-                <div key={hi} className={`mb-1 ${isActive && view.activeHandIndex === hi ? "ring-2 ring-yellow-400 rounded p-1" : ""}`}>
-                  <div className="flex">{h.cards.map((c, i) => <CardChip key={i} card={c} />)}</div>
-                  <div className="text-xs text-gray-300 mt-1">total {handTotal(h.cards)}{h.doubled ? " · doubled" : ""}{h.resolved ? " · done" : ""}</div>
-                </div>
-              ))}
+      {/* Top bar */}
+      <div className="relative z-10 flex items-center justify-between px-4 py-2 bg-black/40 backdrop-blur border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <button onClick={leaveLobby} className="text-gray-400 hover:text-white text-sm flex items-center gap-1">
+            <Icon icon="mdi:exit-to-app" /> Leave
+          </button>
+          <span className="text-xs text-gray-400">Round {view.roundNumber}</span>
+          <span className="text-xs text-gray-500">· Shoe {view.shoeRemaining}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {(view.phase === "betting" || view.phase === "playing") && view.phaseDeadline > Date.now() && (
+            <div className="flex items-center gap-1">
+              <Icon icon="mdi:timer-outline" className="text-gray-400 text-base" />
+              <RoundTimer deadline={view.phaseDeadline} />
             </div>
-          );
-        })}
+          )}
+          <VoiceChat />
+          <ScoreBar />
+        </div>
       </div>
 
-      {/* Action bar */}
-      {view.phase === "betting" && eligible && myBet === null && (
-        <div className="bg-gray-900 rounded p-4 max-w-md mx-auto">
-          <div className="text-sm mb-2">Place your bet (min {view.config.minBet}, max {Math.min(view.config.maxBet, myChips)})</div>
-          <input
-            type="range"
-            min={view.config.minBet}
-            max={Math.min(view.config.maxBet, myChips)}
-            value={betAmount}
-            onChange={e => setBetAmount(Number(e.target.value))}
-            className="w-full"
-          />
-          <div className="text-center text-lg font-bold my-2">🪙 {betAmount}</div>
-          <div className="flex justify-center gap-2">
-            <button onClick={onBet} className="bg-yellow-500 text-black px-4 py-2 rounded font-bold">Bet</button>
-            <button onClick={onSitOut} className="bg-gray-700 px-4 py-2 rounded">Sit out</button>
+      {/* Felt table */}
+      <div className="relative z-0 flex-1 flex flex-col items-center justify-between px-4 py-6 gap-4">
+        {/* Dealer */}
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex items-center gap-2 text-xs text-yellow-200/80 uppercase tracking-widest">
+            <Icon icon="mdi:account-tie" /> Dealer
+            {view.dealerHand.length > 0 && view.phase !== "playing" && view.phase !== "dealing" && (
+              <span className="text-white/90 font-bold text-sm">· {handDisplay(view.dealerHand)}</span>
+            )}
+          </div>
+          <div className="flex gap-1.5 min-h-[6rem]">
+            {view.dealerHand.length === 0
+              ? <div className="text-gray-500 text-sm italic self-center">waiting…</div>
+              : view.dealerHand.map((c, i) => <PlayingCard key={i} card={c} size="lg" />)}
           </div>
         </div>
-      )}
 
-      {view.phase === "playing" && isMyTurn && myActiveHand && (
-        <div className="flex justify-center gap-2 mb-4">
-          <button onClick={onHit} className="bg-blue-600 px-4 py-2 rounded font-bold">Hit</button>
-          <button onClick={onStand} className="bg-gray-700 px-4 py-2 rounded font-bold">Stand</button>
-          <button onClick={onDouble} disabled={!canDouble} className="bg-purple-600 px-4 py-2 rounded font-bold disabled:opacity-40">Double</button>
-          <button onClick={onSplit} disabled={!canSplit} className="bg-green-600 px-4 py-2 rounded font-bold disabled:opacity-40">Split</button>
+        {/* Phase label */}
+        <div className="text-center text-lg font-bold tracking-wider text-yellow-200 drop-shadow">
+          {phaseLabel}
         </div>
-      )}
 
-      {view.phase === "settle" && view.lastSettlement && (
-        <div className="bg-black/40 rounded p-3 max-w-lg mx-auto text-center">
-          <div className="font-bold mb-1">Round results</div>
-          {view.lastSettlement.map((s, i) => {
-            const name = lobby?.players.find(p => p.id === s.playerId)?.name ?? s.playerId;
-            return <div key={i} className="text-sm">{name}: {s.outcome} ({s.delta >= 0 ? "+" : ""}{s.delta - (view.hands[s.playerId]?.[s.handIndex]?.bet ?? 0)})</div>;
+        {/* Player seats */}
+        <div className="flex flex-wrap justify-center gap-3 w-full max-w-6xl">
+          {view.playerIds.map(pid => {
+            const player = lobby?.players.find(p => p.id === pid);
+            const name = player?.name ?? pid;
+            const isBot = !!player?.isBot;
+            const isMe = pid === myId;
+            const chips = view.chips[pid] ?? 0;
+            const bet = view.bets[pid];
+            const hands = view.hands[pid] || [];
+            const isActive = view.activePlayerId === pid;
+            const isEliminated = chips < view.config.minBet && view.phase !== "betting";
+            const mySettlements = view.lastSettlement?.filter(s => s.playerId === pid) || [];
+
+            return (
+              <div
+                key={pid}
+                className={`relative rounded-xl p-3 min-w-[200px] border-2 transition-all ${
+                  isActive ? "border-yellow-400 shadow-[0_0_24px_rgba(250,204,21,0.4)] bg-emerald-900/70"
+                  : isEliminated ? "border-gray-700 bg-black/30 opacity-50"
+                  : isMe ? "border-emerald-400/60 bg-emerald-900/50"
+                  : "border-emerald-700/50 bg-emerald-900/40"
+                }`}
+              >
+                {/* Name + chips */}
+                <div className="flex items-center gap-2 mb-2">
+                  <PlayerAvatar name={name} isBot={isBot} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold truncate">
+                      {name}{isMe && <span className="text-emerald-300 font-normal"> (you)</span>}
+                    </div>
+                    <ChipStack amount={chips} />
+                  </div>
+                </div>
+
+                {/* Bet status */}
+                <div className="h-5 text-xs mb-2">
+                  {bet === "sitting_out" ? (
+                    <span className="text-gray-400 italic">sitting out</span>
+                  ) : typeof bet === "number" ? (
+                    <span className="text-yellow-300">Bet: <span className="font-bold">{bet}</span></span>
+                  ) : view.phase === "betting" ? (
+                    <span className="text-gray-400 animate-pulse">choosing…</span>
+                  ) : null}
+                </div>
+
+                {/* Hands */}
+                <div className="space-y-2 min-h-[6rem]">
+                  {hands.length === 0 && view.phase !== "betting" && (
+                    <div className="text-gray-500 italic text-xs">—</div>
+                  )}
+                  {hands.map((h, hi) => {
+                    const handActive = isActive && view.activeHandIndex === hi;
+                    const settlement = mySettlements.find(s => s.handIndex === hi);
+                    return (
+                      <div
+                        key={hi}
+                        className={`rounded-md p-1.5 ${
+                          handActive ? "ring-2 ring-yellow-400 bg-yellow-400/10" : ""
+                        }`}
+                      >
+                        <div className="flex gap-1">
+                          {h.cards.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)}
+                        </div>
+                        <div className="flex items-center justify-between mt-1 text-[11px] text-gray-200">
+                          <span>{handDisplay(h.cards)}{h.doubled ? " · 2x" : ""}</span>
+                          {settlement && <OutcomeBadge outcome={settlement.outcome} />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {isEliminated && (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
+                    <span className="text-red-400 font-bold uppercase tracking-widest text-sm">Busted out</span>
+                  </div>
+                )}
+              </div>
+            );
           })}
         </div>
-      )}
+      </div>
 
-      {view.phase === "gameOver" && (
-        <div className="text-center text-2xl font-bold mt-4">
-          <Icon icon="mdi:trophy" className="inline mr-2" />
-          Game over — last player standing wins
+      {/* Action dock */}
+      <div className="relative z-10 bg-black/60 backdrop-blur border-t border-white/10 px-4 py-3">
+        {/* Betting controls */}
+        {view.phase === "betting" && canBet && myBet === null && (
+          <div className="max-w-xl mx-auto">
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="text-xs text-gray-400 uppercase tracking-wider">Your bet</span>
+              <span className="text-2xl font-black text-yellow-300 tabular-nums">${betAmount}</span>
+            </div>
+            <div className="flex gap-1.5 flex-wrap mb-2">
+              {chipValues.map(v => (
+                <button
+                  key={v}
+                  onClick={() => setBetAmount(v)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition-colors ${
+                    betAmount === v
+                      ? "bg-yellow-400 text-black border-yellow-600"
+                      : "bg-emerald-800/60 text-yellow-200 border-yellow-700/50 hover:bg-emerald-700/70"
+                  }`}
+                >
+                  ${v}
+                </button>
+              ))}
+            </div>
+            <input
+              type="range"
+              min={view.config.minBet}
+              max={Math.min(view.config.maxBet, myChips)}
+              value={betAmount}
+              onChange={e => setBetAmount(Number(e.target.value))}
+              className="w-full accent-yellow-400"
+            />
+            <div className="flex justify-between text-[10px] text-gray-400 mb-2 tabular-nums">
+              <span>min ${view.config.minBet}</span>
+              <span>max ${Math.min(view.config.maxBet, myChips)}</span>
+            </div>
+            <div className="flex justify-center gap-2">
+              <button
+                onClick={onBet}
+                className="px-6 py-2 rounded-full bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider text-sm shadow-lg"
+              >
+                Place Bet
+              </button>
+              <button
+                onClick={onSitOut}
+                className="px-4 py-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white text-sm"
+              >
+                Sit out
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Betting wait state */}
+        {view.phase === "betting" && myBet !== null && (
+          <div className="text-center text-sm text-gray-300">
+            {myBet === "sitting_out"
+              ? "Sitting out this round — waiting on others…"
+              : <>Bet locked in. Waiting on the table…</>}
+          </div>
+        )}
+
+        {/* Betting blocked (broke) */}
+        {view.phase === "betting" && !canBet && (
+          <div className="text-center text-sm text-red-300">
+            Not enough chips to meet the minimum (${view.config.minBet}).
+          </div>
+        )}
+
+        {/* Turn actions */}
+        {view.phase === "playing" && isMyTurn && myActiveHand && (
+          <div className="flex justify-center gap-2 flex-wrap">
+            <button onClick={onHit} className="px-5 py-2 rounded-full bg-blue-600 hover:bg-blue-500 font-bold uppercase tracking-wider text-sm shadow-lg">
+              Hit
+            </button>
+            <button onClick={onStand} className="px-5 py-2 rounded-full bg-gray-700 hover:bg-gray-600 font-bold uppercase tracking-wider text-sm shadow-lg">
+              Stand
+            </button>
+            <button
+              onClick={onDouble}
+              disabled={!canDouble}
+              className="px-5 py-2 rounded-full bg-purple-600 hover:bg-purple-500 disabled:bg-gray-800 disabled:text-gray-600 font-bold uppercase tracking-wider text-sm shadow-lg"
+            >
+              Double
+            </button>
+            <button
+              onClick={onSplit}
+              disabled={!canSplit}
+              className="px-5 py-2 rounded-full bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-600 font-bold uppercase tracking-wider text-sm shadow-lg"
+            >
+              Split
+            </button>
+          </div>
+        )}
+
+        {view.phase === "playing" && !isMyTurn && (
+          <div className="text-center text-sm text-gray-300">
+            Waiting for {lobby?.players.find(p => p.id === view.activePlayerId)?.name ?? "next player"}…
+          </div>
+        )}
+
+        {view.phase === "settle" && view.lastSettlement && (
+          <div className="text-center text-sm text-gray-200">
+            Next round in <RoundTimer deadline={view.phaseDeadline} />…
+          </div>
+        )}
+
+        <div className="flex justify-center mt-2">
+          <ReactionBar />
         </div>
-      )}
+      </div>
 
-      <div className="mt-auto"><Chat /></div>
+      <Chat />
     </div>
   );
 }

@@ -25,7 +25,7 @@ import { triggerBotActions, createCahTimerCallback } from "./cahHandlers.js";
 import { triggerUnoBotTurn, createUnoTimerCallback } from "./unoHandlers.js";
 import { createBlackjackGame, getBlackjackPlayerView } from "../blackjackGame.js";
 import { scheduleBlackjackTimer } from "../socketHelpers.js";
-import { createBlackjackTimerCallback } from "./blackjackHandlers.js";
+import { createBlackjackTimerCallback, triggerBlackjackBots } from "./blackjackHandlers.js";
 
 const log = createLogger("lobby");
 
@@ -291,6 +291,7 @@ export function registerLobbyHandlers(
             }
           }
           await scheduleBlackjackTimer(code, createBlackjackTimerCallback(io));
+          await triggerBlackjackBots(io, code);
         } else {
           const houseRules = await getLobbyHouseRules(code);
           await createGame(code, playerIds, customChaos, customKnowledge, winCondition as any, gameType, { botCzar: houseRules?.botCzar });

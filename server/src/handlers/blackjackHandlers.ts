@@ -4,10 +4,14 @@ import {
   placeBet, sitOut, hit, stand, doubleDown, split,
   isBlackjackGame, runDealer, settleRound, startNextRound,
   getBlackjackScores, getBlackjackPlayerView,
+  handleBettingTimeout, handleTurnTimeout, botPlaceBet, botPlayTurn,
 } from "../blackjackGame.js";
+import { getBotsInLobby } from "../lobby.js";
 import {
   findPlayerLobby, sendBlackjackUpdate, scheduleBlackjackTimer,
 } from "../socketHelpers.js";
+
+const BOT_ACTION_DELAY_MS = 1200;
 
 export function registerBlackjackHandlers(
   io: Server<ClientEvents, ServerEvents>,
@@ -109,36 +113,107 @@ async function afterMutation(
   io: Server<ClientEvents, ServerEvents>,
   code: string,
 ): Promise<void> {
-  const view = await getBlackjackPlayerView(code, "_observer_");
-  if (!view) return;
+  // Drive any auto-transitions whose deadline has passed, in priority order.
+  // The engine enforces its own phase guards, so these are all safe no-ops
+  // when called on the wrong phase.
+  //
+  //   betting  + deadline passed → auto-sit-out null-bet players, deal
+  //   playing  + deadline passed → auto-stand active hand
+  //   dealer                      → run dealer
+  //   settle   + no settlement    → settle
+  //   settle   + deadline passed  → next round (or gameOver)
+  //
+  // Multiple transitions can chain within one afterMutation (e.g. betting
+  // timeout → dealing → playing), so re-read the view after each step.
 
-  // Drive the dealer + settle phases automatically — they take no human input.
-  if (view.phase === "dealer") {
+  const vBetting = await getBlackjackPlayerView(code, "_observer_");
+  if (vBetting?.phase === "betting" && Date.now() >= vBetting.phaseDeadline) {
+    await handleBettingTimeout(code);
+    await sendBlackjackUpdate(io, code);
+  }
+
+  const vPlaying = await getBlackjackPlayerView(code, "_observer_");
+  if (vPlaying?.phase === "playing" && Date.now() >= vPlaying.phaseDeadline) {
+    await handleTurnTimeout(code);
+    await sendBlackjackUpdate(io, code);
+  }
+
+  const vDealer = await getBlackjackPlayerView(code, "_observer_");
+  if (vDealer?.phase === "dealer") {
     await runDealer(code);
     await sendBlackjackUpdate(io, code);
   }
-  const v2 = await getBlackjackPlayerView(code, "_observer_");
-  if (v2?.phase === "settle" && !v2.lastSettlement) {
+
+  const vSettle = await getBlackjackPlayerView(code, "_observer_");
+  if (vSettle?.phase === "settle" && !vSettle.lastSettlement) {
     await settleRound(code);
     await sendBlackjackUpdate(io, code);
   }
-  // Settle reveal already shown (lastSettlement populated). When the timer
-  // fires us back here after SETTLE_DELAY_MS, advance to the next round (or
-  // gameOver). Without this branch the round-loop stalls on the settle phase
-  // forever; player actions can't fire the transition because no inputs are
-  // accepted in settle phase.
-  const v25 = await getBlackjackPlayerView(code, "_observer_");
-  if (v25?.phase === "settle" && v25.lastSettlement && Date.now() >= v25.phaseDeadline) {
+
+  const vSettleDone = await getBlackjackPlayerView(code, "_observer_");
+  if (vSettleDone?.phase === "settle" && vSettleDone.lastSettlement && Date.now() >= vSettleDone.phaseDeadline) {
     await startNextRound(code);
     await sendBlackjackUpdate(io, code);
   }
-  // Re-arm the timer for whatever phase we ended in. A no-op if no deadline
-  // applies (e.g., gameOver).
+
+  // Re-arm the timer for the final phase.
   await scheduleBlackjackTimer(code, createBlackjackTimerCallback(io));
 
-  const v3 = await getBlackjackPlayerView(code, "_observer_");
-  if (v3?.phase === "gameOver") {
+  // Kick bots if they owe an action in the new state.
+  await triggerBlackjackBots(io, code);
+
+  const vFinal = await getBlackjackPlayerView(code, "_observer_");
+  if (vFinal?.phase === "gameOver") {
     const scores = await getBlackjackScores(code);
     if (scores) io.to(code).emit("game:over", scores);
+  }
+}
+
+/**
+ * Fire bot actions for whichever phase the table is in:
+ *   - betting: every bot that hasn't bet places the min bet
+ *   - playing: if the active player is a bot, it plays its hand
+ *
+ * Each bot action is delayed so the humans can see what's happening. The bot
+ * action calls back into afterMutation, which advances the table and
+ * re-triggers bots as needed.
+ */
+export async function triggerBlackjackBots(
+  io: Server<ClientEvents, ServerEvents>,
+  code: string,
+): Promise<void> {
+  const view = await getBlackjackPlayerView(code, "_observer_");
+  if (!view) return;
+
+  if (view.phase === "betting") {
+    const botIds = (await getBotsInLobby(code)) || [];
+    for (const botId of botIds) {
+      if (view.bets[botId] !== null) continue;
+      if (!view.playerIds.includes(botId)) continue;
+      setTimeout(async () => {
+        if (!(await isBlackjackGame(code))) return;
+        const still = await getBlackjackPlayerView(code, "_observer_");
+        if (still?.phase !== "betting" || still.bets[botId] !== null) return;
+        await botPlaceBet(code, botId);
+        await sendBlackjackUpdate(io, code);
+        await afterMutation(io, code);
+      }, BOT_ACTION_DELAY_MS);
+    }
+    return;
+  }
+
+  if (view.phase === "playing" && view.activePlayerId) {
+    const botIds = (await getBotsInLobby(code)) || [];
+    const activeIsBot = botIds.includes(view.activePlayerId);
+    if (!activeIsBot) return;
+    const botId = view.activePlayerId;
+    setTimeout(async () => {
+      if (!(await isBlackjackGame(code))) return;
+      const still = await getBlackjackPlayerView(code, "_observer_");
+      if (still?.phase !== "playing" || still.activePlayerId !== botId) return;
+      await botPlayTurn(code, botId);
+      await sendBlackjackUpdate(io, code);
+      await afterMutation(io, code);
+    }, BOT_ACTION_DELAY_MS);
   }
 }

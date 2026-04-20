@@ -631,6 +631,90 @@ export async function restoreBlackjackGames(snapshots: any[]): Promise<void> {
   }
 }
 
+/**
+ * Called when the betting-phase deadline fires. Any player who hasn't chosen
+ * (bet or sit-out) is treated as sitting out. Then deal the round.
+ */
+export async function handleBettingTimeout(lobbyCode: string): Promise<void> {
+  await withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return;
+    if (g.phase !== "betting") return;
+
+    for (const pid of g.playerIds) {
+      if (g.bets[pid] === null) g.bets[pid] = "sitting_out";
+    }
+    startDealing(g);
+    await saveGame(g);
+  });
+}
+
+/**
+ * Called when the turn-phase deadline fires. The active hand auto-stands so
+ * the table keeps moving even if a player disconnects or goes AFK.
+ */
+export async function handleTurnTimeout(lobbyCode: string): Promise<void> {
+  await withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return;
+    if (g.phase !== "playing") return;
+    const cur = activeHand(g);
+    if (!cur) return;
+
+    cur.hand.resolved = true;
+    advanceTurn(g);
+    await saveGame(g);
+  });
+}
+
+/**
+ * Bot action: place the minimum bet. Safe to call repeatedly — no-ops if the
+ * bot has already bet or the phase isn't betting.
+ */
+export async function botPlaceBet(lobbyCode: string, botId: string): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "betting") return { success: false, error: "Not betting phase" };
+    if (!g.playerIds.includes(botId)) return { success: false, error: "Not in game" };
+    if (g.bets[botId] !== null) return { success: false, error: "Already bet" };
+
+    if (g.chips[botId] < g.config.minBet) {
+      g.bets[botId] = "sitting_out";
+    } else {
+      const amount = g.config.minBet;
+      g.chips[botId] -= amount;
+      g.bets[botId] = amount;
+    }
+    if (allBetsIn(g)) startDealing(g);
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
+/**
+ * Bot action: hit until hard 17+ or bust. Hits on soft 17 (dealer-style is
+ * harmless for a bot; keeps the code simple). No double/split — keeping it
+ * deterministic and easy to reason about.
+ */
+export async function botPlayTurn(lobbyCode: string, botId: string): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "playing") return { success: false, error: "Not playing phase" };
+    const cur = activeHand(g);
+    if (!cur || cur.pid !== botId) return { success: false, error: "Not bot's turn" };
+
+    while (cur.hand.cards.length > 0 && handValue(cur.hand.cards) < 17 && g.shoe.length > 0) {
+      cur.hand.cards.push(dealOne(g));
+    }
+    cur.hand.resolved = true;
+    advanceTurn(g);
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
 export async function removePlayerFromBlackjackGame(
   lobbyCode: string,
   playerId: string,
