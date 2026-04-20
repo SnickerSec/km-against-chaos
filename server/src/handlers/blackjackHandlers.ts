@@ -122,6 +122,16 @@ async function afterMutation(
     await settleRound(code);
     await sendBlackjackUpdate(io, code);
   }
+  // Settle reveal already shown (lastSettlement populated). When the timer
+  // fires us back here after SETTLE_DELAY_MS, advance to the next round (or
+  // gameOver). Without this branch the round-loop stalls on the settle phase
+  // forever; player actions can't fire the transition because no inputs are
+  // accepted in settle phase.
+  const v25 = await getBlackjackPlayerView(code, "_observer_");
+  if (v25?.phase === "settle" && v25.lastSettlement && Date.now() >= v25.phaseDeadline) {
+    await startNextRound(code);
+    await sendBlackjackUpdate(io, code);
+  }
   // Re-arm the timer for whatever phase we ended in. A no-op if no deadline
   // applies (e.g., gameOver).
   await scheduleBlackjackTimer(code, createBlackjackTimerCallback(io));

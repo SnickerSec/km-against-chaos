@@ -12,6 +12,7 @@ import { getDeck } from "../deckStore.js";
 import { createGame, startRound, getPlayerView, getScores, endGame, cleanupGame, addPlayerToGame, removePlayerFromGame } from "../game.js";
 import { createUnoGame, isUnoGame, cleanupUnoGame, getUnoPlayerView, removePlayerFromUnoGame, setUnoPlayerNames } from "../unoGame.js";
 import { createCodenamesGame, isCodenamesGame, cleanupCodenamesGame, getCodenamesPlayerView, removePlayerFromCodenamesGame } from "../codenamesGame.js";
+import { removePlayerFromBlackjackGame } from "../blackjackGame.js";
 import { setInGame, setNotInGame, getUserIdForSocket } from "../presence.js";
 import pool from "../db.js";
 import {
@@ -43,6 +44,7 @@ export async function handleLeave(io: Server<ClientEvents, ServerEvents>, socket
     await removePlayerFromGame(code, socketId);
     await removePlayerFromUnoGame(code, socketId);
     await removePlayerFromCodenamesGame(code, socketId);
+    await removePlayerFromBlackjackGame(code, socketId);
   }
 
   if (result.lobby) {
