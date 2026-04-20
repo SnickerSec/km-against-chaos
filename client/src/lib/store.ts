@@ -74,7 +74,7 @@ export interface RoundState {
   isBonus?: boolean;
 }
 
-export type GameType = "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames" | "superfight";
+export type GameType = "cah" | "joking_hazard" | "apples_to_apples" | "uno" | "codenames" | "superfight" | "blackjack";
 
 export interface CodenamesPlayerView {
   grid: { word: string; color?: string; revealed: boolean }[];
