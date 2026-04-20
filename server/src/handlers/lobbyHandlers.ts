@@ -257,7 +257,7 @@ export function registerLobbyHandlers(
         } else if (gameType === "uno") {
           const template = unoTemplate || { colorNames: { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" } };
           const houseRules = await getLobbyHouseRules(code);
-          createUnoGame(code, playerIds, template, winCondition, houseRules);
+          createUnoGame(code, playerIds, template, winCondition as any, houseRules);
           // Push display names into unoGame so its lastAction strings use
           // real names instead of internal bot-hex IDs. lobby.ts is now
           // async and we avoid hitting it on every card play from
@@ -273,10 +273,14 @@ export function registerLobbyHandlers(
           await triggerUnoBotTurn(io, code);
           scheduleUnoTurnTimer(code, createUnoTimerCallback(io));
         } else if (gameType === "blackjack") {
+          const bjWin = winCondition?.mode === "timed" && typeof winCondition.value === "number" && winCondition.value > 0
+            ? { mode: "timed" as const, durationMs: winCondition.value * 60_000 }
+            : { mode: "elimination" as const };
           await createBlackjackGame(code, playerIds, {
             startingChips: 1000,
             minBet: 10,
             maxBet: 500,
+            winCondition: bjWin,
           });
           io.to(code).emit("lobby:started");
           for (const pid of playerIds) {
@@ -289,7 +293,7 @@ export function registerLobbyHandlers(
           await scheduleBlackjackTimer(code, createBlackjackTimerCallback(io));
         } else {
           const houseRules = await getLobbyHouseRules(code);
-          await createGame(code, playerIds, customChaos, customKnowledge, winCondition, gameType, { botCzar: houseRules?.botCzar });
+          await createGame(code, playerIds, customChaos, customKnowledge, winCondition as any, gameType, { botCzar: houseRules?.botCzar });
           const round = await startRound(code);
           if (round) {
             io.to(code).emit("lobby:started");

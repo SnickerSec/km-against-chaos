@@ -34,10 +34,15 @@ export interface Settlement {
   delta: number;               // chips returned to player on settle (0 for lose)
 }
 
+export type BlackjackWinCondition =
+  | { mode: "elimination" }
+  | { mode: "timed"; durationMs: number };
+
 export interface BlackjackConfig {
   startingChips: number;
   minBet: number;
   maxBet: number;
+  winCondition?: BlackjackWinCondition;
 }
 
 interface InternalBlackjackGame {
@@ -535,6 +540,12 @@ function eligible(g: InternalBlackjackGame, pid: string): boolean {
   return (g.chips[pid] ?? 0) >= g.config.minBet;
 }
 
+function timedExpired(g: InternalBlackjackGame): boolean {
+  const wc = g.config.winCondition;
+  if (!wc || wc.mode !== "timed") return false;
+  return Date.now() - g.createdAt >= wc.durationMs;
+}
+
 export async function startNextRound(lobbyCode: string): Promise<void> {
   await withGameLock("blackjack", lobbyCode, async () => {
     const g = await loadGame(lobbyCode);
@@ -542,7 +553,7 @@ export async function startNextRound(lobbyCode: string): Promise<void> {
     if (g.phase !== "settle") return;
 
     const eligibleCount = g.playerIds.filter(p => eligible(g, p)).length;
-    if (eligibleCount <= 1) {
+    if (eligibleCount <= 1 || timedExpired(g)) {
       g.phase = "gameOver";
       g.phaseDeadline = Date.now();
       await saveGame(g);
@@ -570,9 +581,16 @@ export async function startNextRound(lobbyCode: string): Promise<void> {
 export async function getBlackjackScores(lobbyCode: string): Promise<Record<string, number> | null> {
   const g = await loadGame(lobbyCode);
   if (!g) return null;
-  // Last player standing gets 1; others 0.
-  const survivors = g.playerIds.filter(p => eligible(g, p));
   const out: Record<string, number> = {};
+  // Timed mode: chip leader wins (the elimination rule never fires unless
+  // everyone but one player is broke by the buzzer).
+  if (g.config.winCondition?.mode === "timed") {
+    const top = [...g.playerIds].sort((a, b) => (g.chips[b] ?? 0) - (g.chips[a] ?? 0))[0];
+    for (const pid of g.playerIds) out[pid] = pid === top ? 1 : 0;
+    return out;
+  }
+  // Elimination: last player standing gets 1; others 0.
+  const survivors = g.playerIds.filter(p => eligible(g, p));
   for (const pid of g.playerIds) out[pid] = survivors.includes(pid) ? 1 : 0;
   // Tie-break: if multiple eligible players (gameOver shouldn't fire then,
   // but defensively) award 1 to the highest chip count.

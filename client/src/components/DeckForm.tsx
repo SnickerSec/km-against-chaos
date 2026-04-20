@@ -133,7 +133,7 @@ interface CardInput {
 }
 
 interface WinCondition {
-  mode: "rounds" | "points" | "single_round" | "lowest_score";
+  mode: "rounds" | "points" | "single_round" | "lowest_score" | "elimination" | "timed";
   value: number;
 }
 
@@ -200,6 +200,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
     : initial?.gameType === "uno" ? "uno"
     : initial?.gameType === "codenames" ? "codenames"
     : initial?.gameType === "superfight" ? "superfight"
+    : initial?.gameType === "blackjack" ? "blackjack"
     : "cards-against-humanity"
   );
 
@@ -364,11 +365,15 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
     const isJH = gameType === "joking-hazard";
     const isUno = gameType === "uno";
     const isCodenames = gameType === "codenames";
+    const isBlackjack = gameType === "blackjack";
 
     let allChaos: CardInput[];
     let allKnowledge: CardInput[];
 
-    if (isCodenames) {
+    if (isBlackjack) {
+      allChaos = [];
+      allKnowledge = [];
+    } else if (isCodenames) {
       allChaos = [];
       allKnowledge = packs.flatMap((p) => p.knowledgeCards).filter((c) => c.text.trim());
       if (allKnowledge.length < (isAdmin ? 1 : 25)) { setError(`Need at least ${isAdmin ? 1 : 25} words for the word pool`); return null; }
@@ -423,7 +428,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
       flavorThemes,
       chaosLevel,
       wildcard: wildcard.trim(),
-      gameType: isCodenames ? "codenames" : isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : gameType === "superfight" ? "superfight" : "cah",
+      gameType: isBlackjack ? "blackjack" : isCodenames ? "codenames" : isUno ? "uno" : isJH ? "joking_hazard" : gameType === "apples-to-apples" ? "apples_to_apples" : gameType === "superfight" ? "superfight" : "cah",
       premiumArt,
       artStyle,
       voiceId: voiceId || null,
@@ -541,7 +546,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
           onChange={(e) => {
             const gt = e.target.value;
             setGameType(gt);
-            if ((gt === "apples-to-apples" || gt === "uno" || gt === "codenames") && (maturity === "adult" || maturity === "raunchy")) {
+            if ((gt === "apples-to-apples" || gt === "uno" || gt === "codenames" || gt === "blackjack") && (maturity === "adult" || maturity === "raunchy")) {
               setMaturity("kid-friendly");
             }
             if (gt === "uno") {
@@ -550,7 +555,10 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
             } else if (gt === "codenames") {
               setWinMode("single_round");
               setWinValue(1);
-            } else if (gameType === "uno" || gameType === "codenames") {
+            } else if (gt === "blackjack") {
+              setWinMode("elimination");
+              setWinValue(0);
+            } else if (gameType === "uno" || gameType === "codenames" || gameType === "blackjack") {
               setWinMode("rounds");
               setWinValue(10);
             }
@@ -562,6 +570,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
           <option value="uno">Uno (Custom Theme)</option>
           <option value="codenames">Codenames (Word Grid)</option>
           <option value="superfight">Superfight (Debate Battle)</option>
+          <option value="blackjack">Blackjack (Casino)</option>
         </select>
         <p className="text-gray-400 text-xs mt-1">
           {gameType === "joking-hazard"
@@ -574,12 +583,15 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
             ? "Team word-guessing game — Spymasters give clues to help their team find words on a 5x5 grid"
             : gameType === "superfight"
             ? "Debate battle game — combine a Character + Attribute to build a fighter, then argue who would win"
+            : gameType === "blackjack"
+            ? "Casino blackjack — standard 52-card deck, each player bets chips and plays against the dealer"
             : "Fill-in-the-blank party game — a Czar reads a prompt, players submit answers"}
         </p>
 
       </div>
 
       {/* AI Generation — settings + generate button merged */}
+      {gameType !== "blackjack" && (
       <AIGenerationPanel
         gameType={gameType}
         isCreate={!initial}
@@ -613,9 +625,10 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
         deckName={name}
         onGenerateArt={onGenerateArt ? handleGenerateArt : undefined}
       />
+      )}
 
       {/* Add packs (edit mode only) */}
-      {initial && (
+      {initial && gameType !== "blackjack" && (
         <div className="flex gap-3">
           <button
             type="button"
@@ -719,7 +732,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
           </div>
         )}
 
-        {ttsVoices.length > 0 && (
+        {ttsVoices.length > 0 && gameType !== "blackjack" && (
           <div className="bg-gray-900 rounded-xl p-4">
             <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Card Reader Voice</label>
             <p className="text-xs text-gray-400 mb-2">The voice used to read submissions aloud during judging.</p>
@@ -872,6 +885,51 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
         <h2 className="text-sm font-semibold text-gray-300 mb-3">Win Condition</h2>
         {gameType === "codenames" ? (
           <p className="text-gray-400 text-sm">First team to find all their words wins. Single round game.</p>
+        ) : gameType === "blackjack" ? (
+          <>
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => { setWinMode("elimination"); setWinValue(0); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+                  winMode === "elimination"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                Last One Standing
+              </button>
+              <button
+                type="button"
+                onClick={() => { setWinMode("timed"); setWinValue(30); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${
+                  winMode === "timed"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                }`}
+              >
+                Timed
+              </button>
+            </div>
+            {winMode === "timed" && (
+              <div className="flex items-center gap-3 mb-2">
+                <label className="text-gray-400 text-sm whitespace-nowrap">Time limit (minutes):</label>
+                <input
+                  type="text" inputMode="numeric" pattern="[0-9]*"
+                  min={5}
+                  max={180}
+                  value={winValue}
+                  onChange={(e) => setWinValue(Math.max(5, Math.min(180, parseInt(e.target.value) || 30)))}
+                  className="w-24 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm text-center focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            )}
+            <p className="text-gray-600 text-xs mt-2">
+              {winMode === "timed"
+                ? `Game ends after ${winValue} minute${winValue !== 1 ? "s" : ""}. Player with the most chips wins.`
+                : "Game continues until only one player has chips left. Last player standing wins."}
+            </p>
+          </>
         ) : gameType === "uno" ? (
           <>
             <div className="flex gap-2 mb-3 flex-wrap">
@@ -982,7 +1040,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
       </div>
 
       {/* Card totals (not for Uno) */}
-      {gameType !== "uno" && gameType !== "codenames" && (
+      {gameType !== "uno" && gameType !== "codenames" && gameType !== "blackjack" && (
         <div className="flex gap-4 text-sm">
           <span className="text-gray-400">
             {gameType === "joking-hazard" ? (
@@ -1046,8 +1104,8 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
         </div>
       )}
 
-      {/* Card Packs (not for Uno or Codenames) */}
-      {gameType !== "uno" && gameType !== "codenames" && packs.map((pack) => (
+      {/* Card Packs (not for Uno, Codenames, or Blackjack) */}
+      {gameType !== "uno" && gameType !== "codenames" && gameType !== "blackjack" && packs.map((pack) => (
         <div
           key={pack.id}
           ref={(el) => {

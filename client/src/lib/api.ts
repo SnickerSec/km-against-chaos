@@ -3,7 +3,7 @@ import { getAuthHeaders } from "./auth";
 export const API_URL = process.env.NEXT_PUBLIC_SERVER_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? "" : "http://localhost:3001");
 
 export interface WinCondition {
-  mode: "rounds" | "points" | "single_round" | "lowest_score";
+  mode: "rounds" | "points" | "single_round" | "lowest_score" | "elimination" | "timed";
   value: number;
 }
 

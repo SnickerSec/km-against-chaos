@@ -9,8 +9,8 @@ const MIN_CHAOS_CARDS = 5;
 const MIN_KNOWLEDGE_CARDS = 15;
 
 export interface WinCondition {
-  mode: "rounds" | "points";
-  value: number; // max rounds or target points
+  mode: "rounds" | "points" | "single_round" | "lowest_score" | "elimination" | "timed";
+  value: number; // max rounds / target points / time limit (minutes) / 0 for elimination
 }
 
 export interface CustomDeck {
