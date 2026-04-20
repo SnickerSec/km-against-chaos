@@ -18,6 +18,7 @@ import {
 } from "./store";
 import { useFriendsStore } from "./friendsStore";
 import { usePartyStore } from "./partyStore";
+import { useBlackjackStore } from "./blackjackStore";
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
@@ -195,6 +196,15 @@ export function useSocket() {
       // the game engine would drag us back onto the game screen.
       if (!useGameStore.getState().lobby) return;
       useGameStore.getState().setCodenamesView(view);
+      if (useGameStore.getState().screen !== "game") {
+        setScreen("game");
+      }
+    });
+
+    socket.on("blackjack:update" as any, (view: any) => {
+      if (!useGameStore.getState().lobby) return;
+      useGameStore.getState().setGameType("blackjack");
+      useBlackjackStore.getState().setView(view);
       if (useGameStore.getState().screen !== "game") {
         setScreen("game");
       }
