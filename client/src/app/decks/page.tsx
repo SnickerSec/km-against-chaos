@@ -20,6 +20,7 @@ const GAME_TYPE_FILTERS = [
   { id: "apples_to_apples", label: "Apples to Apples" },
   { id: "uno", label: "Uno" },
   { id: "superfight", label: "Superfight" },
+  { id: "blackjack", label: "Blackjack" },
 ];
 
 export default function DecksPage() {
