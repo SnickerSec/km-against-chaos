@@ -19,9 +19,14 @@ const GAME_TYPE_DISPLAY: Record<string, { label: string; icon: string; color: st
   apples_to_apples: { label: "Apples to Apples",      icon: "mdi:fruit-cherries",      color: "text-green-400" },
   uno:              { label: "Uno",                    icon: "mdi:cards-playing-outline",color: "text-yellow-400" },
   superfight:       { label: "Superfight",             icon: "mdi:arm-flex",             color: "text-pink-400" },
+  blackjack:        { label: "Blackjack",              icon: "hugeicons:cards-01",       color: "text-emerald-400" },
 };
 
 function formatWinCondition(mode: string, value: number, gameType: string): string {
+  if (gameType === "blackjack") {
+    if (mode === "timed") return `${value}-minute round`;
+    return "Last player with chips wins";
+  }
   if (gameType === "uno") {
     if (mode === "single_round") return "Single round — first to empty hand wins";
     if (mode === "lowest_score") return `Lowest score wins (game ends at ${value} pts)`;
