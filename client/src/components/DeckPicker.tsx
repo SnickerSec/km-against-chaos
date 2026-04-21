@@ -15,7 +15,7 @@ const GAME_TYPE_FILTERS = [
   ["apples_to_apples", "A2A", "mdi:fruit-cherries"],
   ["uno", "Uno", "mdi:numeric"],
   ["superfight", "Superfight", "mdi:arm-flex"],
-  ["blackjack", "Blackjack", "mdi:poker-chip"],
+  ["blackjack", "Blackjack", "hugeicons:cards-01"],
 ] as const;
 
 const MATURITY_FILTERS = [
