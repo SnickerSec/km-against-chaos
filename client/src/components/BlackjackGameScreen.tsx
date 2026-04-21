@@ -126,12 +126,13 @@ function ChipStack({ amount }: { amount: number }) {
 
 // ── Settlement badge ─────────────────────────────────────────────────────────
 
-function OutcomeBadge({ outcome }: { outcome: "win" | "lose" | "push" | "blackjack" }) {
+function OutcomeBadge({ outcome }: { outcome: "win" | "lose" | "push" | "blackjack" | "surrender" }) {
   const map: Record<string, { label: string; cls: string }> = {
     blackjack: { label: "BLACKJACK!", cls: "bg-yellow-400 text-black" },
     win:       { label: "WIN",        cls: "bg-green-500 text-white" },
     push:      { label: "PUSH",       cls: "bg-gray-500 text-white" },
     lose:      { label: "LOSE",       cls: "bg-red-600 text-white" },
+    surrender: { label: "SURRENDER",  cls: "bg-orange-500 text-white" },
   };
   const m = map[outcome];
   return (
@@ -188,6 +189,7 @@ export default function BlackjackGameScreen() {
   const onStand = () => ack("blackjack:stand");
   const onDouble = () => ack("blackjack:double");
   const onSplit = () => ack("blackjack:split");
+  const onSurrender = () => ack("blackjack:surrender");
 
   const myHands = view.hands[myId ?? ""] || [];
   const myActiveHand: Hand | undefined = isMyTurn ? myHands[view.activeHandIndex] : undefined;
@@ -197,6 +199,9 @@ export default function BlackjackGameScreen() {
     && myActiveHand.cards[0].rank === myActiveHand.cards[1].rank
     && !myActiveHand.fromSplit
     && myChips >= myActiveHand.bet;
+  const canSurrender = !!myActiveHand
+    && myActiveHand.cards.length === 2
+    && !myActiveHand.fromSplit;
 
   const phaseLabel =
     view.phase === "betting" ? "Place your bets"
@@ -469,6 +474,14 @@ export default function BlackjackGameScreen() {
               className="px-5 py-2 rounded-full bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-600 font-bold uppercase tracking-wider text-sm shadow-lg"
             >
               Split
+            </button>
+            <button
+              onClick={onSurrender}
+              disabled={!canSurrender}
+              title="Forfeit the hand for half your bet back"
+              className="px-5 py-2 rounded-full bg-orange-600 hover:bg-orange-500 disabled:bg-gray-800 disabled:text-gray-600 font-bold uppercase tracking-wider text-sm shadow-lg"
+            >
+              Surrender
             </button>
           </div>
         )}

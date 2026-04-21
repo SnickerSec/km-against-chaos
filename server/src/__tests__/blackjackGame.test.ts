@@ -783,6 +783,96 @@ describe("basicStrategy", () => {
   });
 });
 
+describe("surrender", () => {
+  it("marks the hand surrendered and advances the turn", async () => {
+    const { surrender } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1", "p2"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "playing";
+    g.activePlayerIndex = 0;
+    g.activeHandIndex = 0;
+    g.hands["p1"] = [{ cards: [{ suit: "S", rank: "K" }, { suit: "H", rank: "6" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    g.hands["p2"] = [{ cards: [{ suit: "D", rank: "10" }, { suit: "C", rank: "10" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    const r = await surrender(LOBBY, "p1");
+    expect(r.success).toBe(true);
+    const v = (await getBlackjackPlayerView(LOBBY, "p2"))!;
+    expect(v.hands["p1"][0].surrendered).toBe(true);
+    expect(v.hands["p1"][0].resolved).toBe(true);
+    expect(v.activePlayerId).toBe("p2");
+  });
+
+  it("rejects surrender after a hit (>2 cards)", async () => {
+    const { surrender } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1", "p2"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "playing";
+    g.activePlayerIndex = 0;
+    g.activeHandIndex = 0;
+    g.hands["p1"] = [{ cards: [{ suit: "S", rank: "K" }, { suit: "H", rank: "6" }, { suit: "D", rank: "2" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    g.hands["p2"] = [{ cards: [{ suit: "D", rank: "10" }, { suit: "C", rank: "10" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    const r = await surrender(LOBBY, "p1");
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects surrender on a split hand", async () => {
+    const { surrender } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1", "p2"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "playing";
+    g.activePlayerIndex = 0;
+    g.activeHandIndex = 0;
+    g.hands["p1"] = [{ cards: [{ suit: "S", rank: "8" }, { suit: "H", rank: "5" }], bet: 10, doubled: false, resolved: false, fromSplit: true }];
+    g.hands["p2"] = [{ cards: [{ suit: "D", rank: "10" }, { suit: "C", rank: "10" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    const r = await surrender(LOBBY, "p1");
+    expect(r.success).toBe(false);
+  });
+
+  it("settles a surrendered hand at half the bet", async () => {
+    const { surrender, runDealer, settleRound } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1", "p2"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "playing";
+    g.activePlayerIndex = 0;
+    g.activeHandIndex = 0;
+    // p1 has the already-staked 10 removed from chips.
+    g.chips["p1"] = CONFIG.startingChips - 10;
+    g.chips["p2"] = CONFIG.startingChips - 10;
+    g.dealerHand = [{ suit: "D", rank: "10" }, { suit: "C", rank: "7" }]; // 17, stands
+    g.hands["p1"] = [{ cards: [{ suit: "S", rank: "K" }, { suit: "H", rank: "6" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    g.hands["p2"] = [{ cards: [{ suit: "D", rank: "10" }, { suit: "C", rank: "8" }], bet: 10, doubled: false, resolved: true, fromSplit: false }];
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await surrender(LOBBY, "p1");
+    // Force into dealer → settle.
+    const g2 = (await exportBlackjackGames()).find((x: any) => x.lobbyCode === LOBBY)!;
+    g2.phase = "dealer";
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g2]);
+    await runDealer(LOBBY);
+    await settleRound(LOBBY);
+
+    const v = (await getBlackjackPlayerView(LOBBY, "p2"))!;
+    const settle = v.lastSettlement!.find(s => s.playerId === "p1")!;
+    expect(settle.outcome).toBe("surrender");
+    expect(settle.delta).toBe(5); // floor(10/2)
+    expect(v.chips["p1"]).toBe(CONFIG.startingChips - 10 + 5); // net -5
+  });
+});
+
 describe("botPlayTurn", () => {
   it("plays basic strategy: hits hard 12 vs 10 then stands on 17", async () => {
     const { botPlayTurn } = await import("../blackjackGame.js");

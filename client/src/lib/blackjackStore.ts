@@ -14,12 +14,13 @@ export interface Hand {
   doubled: boolean;
   resolved: boolean;
   fromSplit: boolean;
+  surrendered?: boolean;
 }
 
 export interface Settlement {
   playerId: string;
   handIndex: number;
-  outcome: "win" | "lose" | "push" | "blackjack";
+  outcome: "win" | "lose" | "push" | "blackjack" | "surrender";
   delta: number;
 }
 

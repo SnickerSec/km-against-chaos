@@ -24,9 +24,10 @@ export interface Hand {
   doubled: boolean;
   resolved: boolean;
   fromSplit: boolean;          // true on hands created by split — blocks re-split
+  surrendered?: boolean;       // true when the player surrenders before acting
 }
 
-export type Outcome = "win" | "lose" | "push" | "blackjack";
+export type Outcome = "win" | "lose" | "push" | "blackjack" | "surrender";
 export interface Settlement {
   playerId: string;
   handIndex: number;
@@ -406,6 +407,30 @@ export async function stand(lobbyCode: string, playerId: string): Promise<Action
   });
 }
 
+/**
+ * Surrender: the player forfeits the hand before taking any other action
+ * (hit / double / split), getting half their bet back on settlement. Classic
+ * "early surrender" isn't supported — the server already checks dealer BJ
+ * before payouts anyway, so this is late surrender in practice.
+ */
+export async function surrender(lobbyCode: string, playerId: string): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "playing") return { success: false, error: "Not the playing phase" };
+    const cur = activeHand(g);
+    if (!cur || cur.pid !== playerId) return { success: false, error: "Not your turn" };
+    if (cur.hand.cards.length !== 2) return { success: false, error: "Surrender only legal on a fresh 2-card hand" };
+    if (cur.hand.fromSplit) return { success: false, error: "Cannot surrender a split hand" };
+
+    cur.hand.surrendered = true;
+    cur.hand.resolved = true;
+    advanceTurn(g);
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
 export async function doubleDown(lobbyCode: string, playerId: string): Promise<ActionResult> {
   return withGameLock("blackjack", lobbyCode, async () => {
     const g = await loadGame(lobbyCode);
@@ -491,6 +516,7 @@ export async function runDealer(lobbyCode: string): Promise<void> {
 }
 
 function classifyHand(hand: Hand, dealerTotal: number, dealerBlackjack: boolean): Outcome {
+  if (hand.surrendered) return "surrender";
   const playerTotal = handValue(hand.cards);
   const playerBlackjack = isBlackjack(hand.cards) && !hand.fromSplit;
   if (playerTotal > 21) return "lose";
@@ -524,6 +550,7 @@ export async function settleRound(lobbyCode: string): Promise<void> {
           case "blackjack": delta = h.bet + Math.ceil(1.5 * h.bet); break;
           case "push":      delta = h.bet; break;
           case "lose":      delta = 0; break;
+          case "surrender": delta = Math.floor(h.bet / 2); break;
         }
         g.chips[pid] += delta;
         settlements.push({ playerId: pid, handIndex: i, outcome, delta });

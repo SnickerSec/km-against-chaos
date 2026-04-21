@@ -1,7 +1,7 @@
 import type { Server, Socket } from "socket.io";
 import type { ClientEvents, ServerEvents } from "../types.js";
 import {
-  placeBet, sitOut, hit, stand, doubleDown, split,
+  placeBet, sitOut, hit, stand, doubleDown, split, surrender,
   isBlackjackGame, runDealer, settleRound, startNextRound,
   getBlackjackScores, getBlackjackPlayerView,
   handleBettingTimeout, handleTurnTimeout, botPlaceBet, botPlayTurn,
@@ -88,6 +88,18 @@ export function registerBlackjackHandlers(
     if (!code) { callback({ success: false, error: "Not in a Blackjack game" }); return; }
 
     const result = await split(code, socket.id);
+    if (!result.success) { callback({ success: false, error: result.error }); return; }
+
+    callback({ success: true });
+    await sendBlackjackUpdate(io, code);
+    await afterMutation(io, code);
+  });
+
+  socket.on("blackjack:surrender" as any, async (callback: (res: any) => void) => {
+    const code = await guard();
+    if (!code) { callback({ success: false, error: "Not in a Blackjack game" }); return; }
+
+    const result = await surrender(code, socket.id);
     if (!result.success) { callback({ success: false, error: result.error }); return; }
 
     callback({ success: true });
