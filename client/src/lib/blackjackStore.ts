@@ -31,11 +31,27 @@ export interface InsuranceSettlement {
   delta: number;
 }
 
+export interface SideBets {
+  perfectPairs: number;
+  twentyOnePlusThree: number;
+}
+
+export type PerfectPairsOutcome = "none" | "mixed" | "colored" | "perfect";
+export type TwentyOnePlusThreeOutcome =
+  | "none" | "flush" | "straight" | "trips" | "straight_flush" | "suited_trips";
+
+export interface SideBetSettlement {
+  playerId: string;
+  perfectPairs: { stake: number; outcome: PerfectPairsOutcome; delta: number };
+  twentyOnePlusThree: { stake: number; outcome: TwentyOnePlusThreeOutcome; delta: number };
+}
+
 export interface BlackjackView {
   gameType: "blackjack";
   phase: BlackjackPhase;
   chips: Record<string, number>;
   bets: Record<string, number | "sitting_out" | null>;
+  sideBets: Record<string, SideBets>;
   hands: Record<string, Hand[]>;
   dealerHand: Card[];
   playerIds: string[];
@@ -46,6 +62,7 @@ export interface BlackjackView {
   phaseDeadline: number;
   shoeRemaining: number;
   lastSettlement?: Settlement[];
+  sideBetSettlement?: SideBetSettlement[];
   insuranceDecisions?: Record<string, "insured" | "declined" | null>;
   insuranceSettlement?: InsuranceSettlement[];
 }

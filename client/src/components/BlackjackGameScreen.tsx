@@ -124,6 +124,46 @@ function ChipStack({ amount }: { amount: number }) {
   );
 }
 
+// ── Side-bet input ───────────────────────────────────────────────────────────
+
+function SideBetInput({
+  label, subtitle, value, onChange, maxChips,
+}: {
+  label: string;
+  subtitle: string;
+  value: number;
+  onChange: (n: number) => void;
+  maxChips: number;
+}) {
+  const safeMax = Math.max(0, maxChips);
+  const clamp = (n: number) => Math.max(0, Math.min(safeMax, Math.floor(n || 0)));
+  return (
+    <div className="bg-black/40 rounded-lg p-2 border border-white/10">
+      <div className="flex items-baseline justify-between mb-1">
+        <span className="text-[10px] uppercase tracking-wider text-gray-300 font-semibold">{label}</span>
+        <span className="text-[9px] text-gray-500">{subtitle}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(0)}
+          className="w-5 h-5 rounded text-[10px] text-gray-400 hover:text-white hover:bg-white/10"
+          title="Clear"
+        >×</button>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={value || ""}
+          placeholder="0"
+          onChange={e => onChange(clamp(Number(e.target.value)))}
+          className="flex-1 bg-black/50 border border-white/20 rounded px-2 py-0.5 text-sm text-yellow-200 placeholder-gray-600 text-right tabular-nums focus:outline-none focus:border-yellow-400"
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Settlement badge ─────────────────────────────────────────────────────────
 
 function OutcomeBadge({ outcome }: { outcome: "win" | "lose" | "push" | "blackjack" | "surrender" }) {
@@ -153,6 +193,9 @@ export default function BlackjackGameScreen() {
   const myId = socket.id;
 
   const [betAmount, setBetAmount] = useState<number>(0);
+  const [ppBet, setPpBet] = useState<number>(0);
+  const [tpBet, setTpBet] = useState<number>(0);
+  const [sideBetsOpen, setSideBetsOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const handler = (v: any) => useBlackjackStore.getState().setView(v);
@@ -183,7 +226,12 @@ export default function BlackjackGameScreen() {
       socket.emit(event as any, ...args, (res: any) => resolve(res));
     });
 
-  const onBet = () => ack("blackjack:bet", betAmount);
+  const onBet = async () => {
+    const res = await ack("blackjack:bet", betAmount, { perfectPairs: ppBet, twentyOnePlusThree: tpBet });
+    // Reset side-bet inputs for the next round so old stakes don't stick.
+    if (res.success) { setPpBet(0); setTpBet(0); }
+    return res;
+  };
   const onSitOut = () => ack("blackjack:sit-out");
   const onHit = () => ack("blackjack:hit");
   const onStand = () => ack("blackjack:stand");
@@ -307,6 +355,13 @@ export default function BlackjackGameScreen() {
             const myInsuranceResult = view.insuranceSettlement?.find(s => s.playerId === pid);
             // Net insurance chip change: delta - amount (won → +amount, lost → -amount, declined → 0)
             const insuranceNet = myInsuranceResult ? myInsuranceResult.delta - myInsuranceResult.amount : 0;
+            const sideBetStakes = view.sideBets?.[pid];
+            const sideBetTotal = (sideBetStakes?.perfectPairs ?? 0) + (sideBetStakes?.twentyOnePlusThree ?? 0);
+            const mySideResult = view.sideBetSettlement?.find(s => s.playerId === pid);
+            const sideNet = mySideResult
+              ? (mySideResult.perfectPairs.delta - mySideResult.perfectPairs.stake)
+                + (mySideResult.twentyOnePlusThree.delta - mySideResult.twentyOnePlusThree.stake)
+              : 0;
 
             return (
               <div
@@ -335,7 +390,7 @@ export default function BlackjackGameScreen() {
                 </div>
 
                 {/* Bet status */}
-                <div className="h-5 text-xs mb-2 flex items-center gap-1.5">
+                <div className="min-h-5 text-xs mb-2 flex items-center gap-1.5 flex-wrap">
                   {bet === "sitting_out" ? (
                     <span className="text-gray-400 italic">sitting out</span>
                   ) : typeof bet === "number" ? (
@@ -343,6 +398,14 @@ export default function BlackjackGameScreen() {
                   ) : view.phase === "betting" ? (
                     <span className="text-gray-400 animate-pulse">choosing…</span>
                   ) : null}
+                  {sideBetTotal > 0 && view.phase !== "betting" && (
+                    <span
+                      title={`Perfect Pairs ${sideBetStakes?.perfectPairs ?? 0} · 21+3 ${sideBetStakes?.twentyOnePlusThree ?? 0}`}
+                      className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-600/30 text-purple-200 border border-purple-500/40"
+                    >
+                      Side ${sideBetTotal}
+                    </span>
+                  )}
                   {view.phase === "insurance" && view.insuranceDecisions?.[pid] === "insured" && (
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/30 text-yellow-200 border border-yellow-500/50">
                       Insured
@@ -410,6 +473,19 @@ export default function BlackjackGameScreen() {
                   </div>
                 )}
 
+                {/* Side-bet chip-delta — offset below the insurance delta so both
+                    can be visible at once when a player had both going. */}
+                {view.lastSettlement && sideNet !== 0 && (
+                  <div
+                    key={`side-${view.roundNumber}-${pid}`}
+                    className={`pointer-events-none absolute left-1/2 -translate-x-1/2 top-5 text-xs font-black tabular-nums animate-chip-float drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] ${
+                      sideNet > 0 ? "text-purple-200" : "text-red-400"
+                    }`}
+                  >
+                    {sideNet > 0 ? `+$${sideNet} side` : `-$${Math.abs(sideNet)} side`}
+                  </div>
+                )}
+
                 {isEliminated && (
                   <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
                     <span className="text-red-400 font-bold uppercase tracking-widest text-sm">Busted out</span>
@@ -457,12 +533,45 @@ export default function BlackjackGameScreen() {
               <span>min ${view.config.minBet}</span>
               <span>max ${Math.min(view.config.maxBet, myChips)}</span>
             </div>
+
+            {/* Optional side bets — Perfect Pairs (25:1 top) and 21+3 (100:1 top) */}
+            <div className="border-t border-white/10 pt-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setSideBetsOpen(o => !o)}
+                className="w-full flex items-center justify-between text-[11px] text-gray-400 hover:text-white"
+              >
+                <span className="uppercase tracking-wider">
+                  Side bets {(ppBet + tpBet > 0) && <span className="text-yellow-300 font-semibold">· ${ppBet + tpBet}</span>}
+                </span>
+                <Icon icon={sideBetsOpen ? "mdi:chevron-up" : "mdi:chevron-down"} width={14} />
+              </button>
+              {sideBetsOpen && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <SideBetInput
+                    label="Perfect Pairs"
+                    subtitle="up to 25:1"
+                    value={ppBet}
+                    onChange={setPpBet}
+                    maxChips={myChips - betAmount - tpBet}
+                  />
+                  <SideBetInput
+                    label="21+3"
+                    subtitle="up to 100:1"
+                    value={tpBet}
+                    onChange={setTpBet}
+                    maxChips={myChips - betAmount - ppBet}
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-center gap-2">
               <button
                 onClick={onBet}
                 className="px-6 py-2 rounded-full bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider text-sm shadow-lg"
               >
-                Place Bet
+                Place Bet{(ppBet + tpBet > 0) && ` · $${betAmount + ppBet + tpBet} total`}
               </button>
               <button
                 onClick={onSitOut}

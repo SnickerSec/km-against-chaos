@@ -44,6 +44,32 @@ export interface InsuranceSettlement {
   delta: number;               // chips returned (3× stake on win, 0 on lose/declined)
 }
 
+// ── Side bets ────────────────────────────────────────────────────────────────
+
+export interface SideBets {
+  perfectPairs: number;        // 0 = not placed
+  twentyOnePlusThree: number;
+}
+
+export type PerfectPairsOutcome = "none" | "mixed" | "colored" | "perfect";
+export type TwentyOnePlusThreeOutcome =
+  | "none" | "flush" | "straight" | "trips" | "straight_flush" | "suited_trips";
+
+export interface SideBetSettlement {
+  playerId: string;
+  perfectPairs: { stake: number; outcome: PerfectPairsOutcome; delta: number };
+  twentyOnePlusThree: { stake: number; outcome: TwentyOnePlusThreeOutcome; delta: number };
+}
+
+// House payouts on each tier (expressed as X:1 → delta multiplier is X+1 when
+// resolved against the stake). Tuned to common live-casino pay tables.
+const PERFECT_PAIRS_PAYOUT: Record<PerfectPairsOutcome, number> = {
+  none: 0, mixed: 6, colored: 12, perfect: 25,
+};
+const TWENTYONE_PLUS_THREE_PAYOUT: Record<TwentyOnePlusThreeOutcome, number> = {
+  none: 0, flush: 5, straight: 10, trips: 30, straight_flush: 40, suited_trips: 100,
+};
+
 export type BlackjackWinCondition =
   | { mode: "elimination" }
   | { mode: "timed"; durationMs: number };
@@ -63,6 +89,7 @@ interface InternalBlackjackGame {
   config: BlackjackConfig;
   phase: BlackjackPhase;
   bets: Record<string, number | "sitting_out" | null>;  // null = no bet yet this round
+  sideBets: Record<string, SideBets>;            // per-player side-bet stakes (0/0 = none)
   hands: Record<string, Hand[]>;
   dealerHand: Card[];
   activePlayerIndex: number;
@@ -70,6 +97,7 @@ interface InternalBlackjackGame {
   phaseDeadline: number;                         // epoch ms — keys at-most-once timer lock
   roundNumber: number;
   lastSettlement?: Settlement[];
+  sideBetSettlement?: SideBetSettlement[];
   createdAt: number;                             // epoch ms — zombie-restore filter
   // Only populated while phase === "insurance"; cleared in startNextRound.
   insuranceDecisions?: Record<string, "insured" | "declined" | null>;
@@ -81,12 +109,24 @@ interface InternalBlackjackGame {
 const KEY = (code: string) => `blackjack:${code}`;
 const local = new Map<string, InternalBlackjackGame>();
 
+/** Back-fill fields added after a game was snapshotted. Lets a Railway deploy
+ *  land mid-round without crashing on missing properties from older shapes. */
+function migrate(g: InternalBlackjackGame): InternalBlackjackGame {
+  if (!g.sideBets) {
+    const sb: Record<string, SideBets> = {};
+    for (const pid of g.playerIds) sb[pid] = { perfectPairs: 0, twentyOnePlusThree: 0 };
+    g.sideBets = sb;
+  }
+  return g;
+}
+
 async function loadGame(code: string): Promise<InternalBlackjackGame | undefined> {
   if (redis) {
     const json = await redis.get(KEY(code));
-    return json ? JSON.parse(json) as InternalBlackjackGame : undefined;
+    return json ? migrate(JSON.parse(json) as InternalBlackjackGame) : undefined;
   }
-  return local.get(code);
+  const g = local.get(code);
+  return g ? migrate(g) : undefined;
 }
 
 async function saveGame(game: InternalBlackjackGame): Promise<void> {
@@ -292,10 +332,12 @@ export async function createBlackjackGame(
 
   const chips: Record<string, number> = {};
   const bets: Record<string, number | "sitting_out" | null> = {};
+  const sideBets: Record<string, SideBets> = {};
   const hands: Record<string, Hand[]> = {};
   for (const pid of playerIds) {
     chips[pid] = config.startingChips;
     bets[pid] = null;
+    sideBets[pid] = { perfectPairs: 0, twentyOnePlusThree: 0 };
     hands[pid] = [];
   }
 
@@ -307,6 +349,7 @@ export async function createBlackjackGame(
     config,
     phase: "betting",
     bets,
+    sideBets,
     hands,
     dealerHand: [],
     activePlayerIndex: 0,
@@ -324,6 +367,7 @@ export interface BlackjackPlayerView {
   phase: BlackjackPhase;
   chips: Record<string, number>;
   bets: Record<string, number | "sitting_out" | null>;
+  sideBets: Record<string, SideBets>;
   hands: Record<string, Hand[]>;
   dealerHand: Array<Card | { suit: "?"; rank: "?" }>;
   playerIds: string[];
@@ -334,6 +378,7 @@ export interface BlackjackPlayerView {
   phaseDeadline: number;
   shoeRemaining: number;
   lastSettlement?: Settlement[];
+  sideBetSettlement?: SideBetSettlement[];
   insuranceDecisions?: Record<string, "insured" | "declined" | null>;
   insuranceSettlement?: InsuranceSettlement[];
 }
@@ -359,6 +404,7 @@ export async function getBlackjackPlayerView(
     phase: g.phase,
     chips: g.chips,
     bets: g.bets,
+    sideBets: g.sideBets,
     hands: g.hands,
     dealerHand,
     playerIds: g.playerIds,
@@ -369,6 +415,7 @@ export async function getBlackjackPlayerView(
     phaseDeadline: g.phaseDeadline,
     shoeRemaining: g.shoe.length,
     lastSettlement: g.lastSettlement,
+    sideBetSettlement: g.sideBetSettlement,
     insuranceDecisions: g.insuranceDecisions,
     insuranceSettlement: g.insuranceSettlement,
   };
@@ -380,6 +427,7 @@ export async function placeBet(
   lobbyCode: string,
   playerId: string,
   amount: number,
+  sideBets?: { perfectPairs?: number; twentyOnePlusThree?: number },
 ): Promise<ActionResult> {
   return withGameLock("blackjack", lobbyCode, async () => {
     const g = await loadGame(lobbyCode);
@@ -390,10 +438,15 @@ export async function placeBet(
     if (!Number.isInteger(amount)) return { success: false, error: "Bet must be a whole number" };
     if (amount < g.config.minBet) return { success: false, error: `Bet below table min (${g.config.minBet})` };
     if (amount > g.config.maxBet) return { success: false, error: `Bet above table max (${g.config.maxBet})` };
-    if (amount > g.chips[playerId]) return { success: false, error: "Not enough chips" };
 
-    g.chips[playerId] -= amount;
+    const pp = Math.max(0, Math.floor(sideBets?.perfectPairs ?? 0));
+    const tp = Math.max(0, Math.floor(sideBets?.twentyOnePlusThree ?? 0));
+    const totalStake = amount + pp + tp;
+    if (totalStake > g.chips[playerId]) return { success: false, error: "Not enough chips" };
+
+    g.chips[playerId] -= totalStake;
     g.bets[playerId] = amount;
+    g.sideBets[playerId] = { perfectPairs: pp, twentyOnePlusThree: tp };
     if (allBetsIn(g)) startDealing(g);
     await saveGame(g);
     return { success: true };
@@ -665,6 +718,63 @@ export async function runDealer(lobbyCode: string): Promise<void> {
   });
 }
 
+/**
+ * Classify a pair of player cards against the Perfect Pairs paytable.
+ *   mixed  — same rank, different colors (e.g. black 8 + red 8)
+ *   colored — same rank, same color, different suits (e.g. ♣8 + ♠8)
+ *   perfect — same rank, same suit (e.g. ♥8 + ♥8)
+ * Returns "none" if they're not a pair at all.
+ */
+export function classifyPerfectPairs(cards: Card[]): PerfectPairsOutcome {
+  if (cards.length !== 2) return "none";
+  const [a, b] = cards;
+  if (a.rank !== b.rank) return "none";
+  if (a.suit === b.suit) return "perfect";
+  // Black = S/C, Red = H/D. Same-color-different-suit is "colored".
+  const isBlack = (s: Suit) => s === "S" || s === "C";
+  if (isBlack(a.suit) === isBlack(b.suit)) return "colored";
+  return "mixed";
+}
+
+/**
+ * Classify the two player cards + dealer's upcard as a 3-card poker hand for
+ * the 21+3 paytable.
+ *   suited_trips — three of a kind, all same suit
+ *   straight_flush — three consecutive ranks, all same suit (A-2-3 and Q-K-A both count)
+ *   trips — three of a kind, mixed suits
+ *   straight — three consecutive ranks, mixed suits
+ *   flush — same suit, not sequential
+ * Returns "none" for any other hand.
+ */
+export function classifyTwentyOnePlusThree(
+  playerCards: Card[],
+  dealerUpcard: Card,
+): TwentyOnePlusThreeOutcome {
+  if (playerCards.length !== 2) return "none";
+  const cards = [...playerCards, dealerUpcard];
+
+  const allSameSuit = cards.every(c => c.suit === cards[0].suit);
+  const allSameRank = cards.every(c => c.rank === cards[0].rank);
+
+  if (allSameRank) return allSameSuit ? "suited_trips" : "trips";
+
+  // Rank ordering for straights: A can be low (A-2-3) or high (Q-K-A).
+  const RANK_ORDER: Record<Rank, number> = {
+    "A": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6,
+    "7": 7, "8": 8, "9": 9, "10": 10, "J": 11, "Q": 12, "K": 13,
+  };
+  const nums = cards.map(c => RANK_ORDER[c.rank]).sort((a, b) => a - b);
+  const isStraight =
+    (nums[1] === nums[0] + 1 && nums[2] === nums[1] + 1) ||
+    // Q-K-A wrap (1,12,13 after sort) — treat the Ace as 14.
+    (nums[0] === 1 && nums[1] === 12 && nums[2] === 13);
+
+  if (isStraight && allSameSuit) return "straight_flush";
+  if (isStraight) return "straight";
+  if (allSameSuit) return "flush";
+  return "none";
+}
+
 function classifyHand(hand: Hand, dealerTotal: number, dealerBlackjack: boolean): Outcome {
   if (hand.surrendered) return "surrender";
   const playerTotal = handValue(hand.cards);
@@ -708,6 +818,54 @@ export async function settleRound(lobbyCode: string): Promise<void> {
     }
 
     g.lastSettlement = settlements;
+
+    // Side-bet settlement — only for players who actually had hands dealt
+    // (sitting-out players and eliminated players don't participate). Side
+    // bets are resolved off the hand's *initial* two cards plus the dealer's
+    // upcard, so split/double history doesn't affect them.
+    const sideSettlements: SideBetSettlement[] = [];
+    for (const pid of g.playerIds) {
+      const stakes = g.sideBets[pid];
+      if (!stakes) continue;
+      if (stakes.perfectPairs === 0 && stakes.twentyOnePlusThree === 0) continue;
+      const hands = g.hands[pid] || [];
+      if (hands.length === 0) continue;
+      // Use the first hand's first two cards. This is the original dealt pair
+      // even after a split (split creates new Hand objects).
+      const firstHand = hands[0];
+      const initialPair = firstHand.fromSplit
+        ? [firstHand.cards[0]] // defensive: shouldn't happen because sideBets are resolved before play
+        : firstHand.cards.slice(0, 2);
+      // Derive the pre-split initial pair for split hands by reconstructing
+      // from the two split hands' first cards.
+      const pair: Card[] = firstHand.fromSplit && hands[1]?.fromSplit
+        ? [hands[0].cards[0], hands[1].cards[0]]
+        : initialPair;
+
+      const ppOutcome = stakes.perfectPairs > 0
+        ? classifyPerfectPairs(pair)
+        : "none";
+      const ppDelta = ppOutcome === "none"
+        ? 0
+        : stakes.perfectPairs * (PERFECT_PAIRS_PAYOUT[ppOutcome] + 1);
+
+      const tpOutcome = stakes.twentyOnePlusThree > 0 && g.dealerHand.length >= 1
+        ? classifyTwentyOnePlusThree(pair, g.dealerHand[0])
+        : "none";
+      const tpDelta = tpOutcome === "none"
+        ? 0
+        : stakes.twentyOnePlusThree * (TWENTYONE_PLUS_THREE_PAYOUT[tpOutcome] + 1);
+
+      g.chips[pid] += ppDelta + tpDelta;
+
+      sideSettlements.push({
+        playerId: pid,
+        perfectPairs: { stake: stakes.perfectPairs, outcome: ppOutcome, delta: ppDelta },
+        twentyOnePlusThree: { stake: stakes.twentyOnePlusThree, outcome: tpOutcome, delta: tpDelta },
+      });
+    }
+    if (sideSettlements.length > 0) g.sideBetSettlement = sideSettlements;
+
     // Phase advances in T13 (auto-loop or game over)
     await saveGame(g);
   });
@@ -751,8 +909,13 @@ export async function startNextRound(lobbyCode: string): Promise<void> {
     g.activeHandIndex = 0;
     g.phaseDeadline = Date.now() + BETTING_WINDOW_MS;
     g.lastSettlement = undefined;
+    g.sideBetSettlement = undefined;
     g.insuranceDecisions = undefined;
     g.insuranceSettlement = undefined;
+    // Reset side-bet stakes so the previous round's picks don't stick.
+    for (const pid of g.playerIds) {
+      g.sideBets[pid] = { perfectPairs: 0, twentyOnePlusThree: 0 };
+    }
     await saveGame(g);
   });
 }

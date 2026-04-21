@@ -166,14 +166,9 @@ describe("placeBet", () => {
 });
 
 describe("betting auto-advance", () => {
-  beforeEach(async () => {
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-  });
-
   it("advances to playing after all funded players bet", async () => {
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    // Loop past dealer-Ace-upcard insurance landings.
+    await placeBetsUntilPlaying();
     const view = (await getBlackjackPlayerView(LOBBY, "p1"))!;
     expect(view.phase).toBe("playing");
     expect(view.activePlayerId).toBe("p1");
@@ -182,10 +177,16 @@ describe("betting auto-advance", () => {
   });
 
   it("sit-out + bets advance to playing too", async () => {
-    await sitOut(LOBBY, "p1");
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
-    const view = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    let view: any = null;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await cleanupBlackjackGame(LOBBY);
+      await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+      await sitOut(LOBBY, "p1");
+      await placeBet(LOBBY, "p2", 100);
+      await placeBet(LOBBY, "p3", 100);
+      view = await getBlackjackPlayerView(LOBBY, "p1");
+      if (view?.phase === "playing") break;
+    }
     expect(view.phase).toBe("playing");
     expect(view.hands.p1).toEqual([]); // sitting-out player has no hand
   });
@@ -625,13 +626,17 @@ describe("removePlayerFromBlackjackGame", () => {
 describe("handleBettingTimeout", () => {
   it("auto-sits-out null-bet players and starts dealing", async () => {
     const { handleBettingTimeout } = await import("../blackjackGame.js");
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    // p2, p3 never bet
+    // Loop past non-"playing" landings (dealer Ace upcard → insurance).
+    let v: any = null;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await cleanupBlackjackGame(LOBBY);
+      await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
+      await placeBet(LOBBY, "p1", 100);
+      await handleBettingTimeout(LOBBY);
+      v = await getBlackjackPlayerView(LOBBY, "p1");
+      if (v?.phase === "playing") break;
+    }
 
-    await handleBettingTimeout(LOBBY);
-
-    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
     expect(v.phase).toBe("playing");
     expect(v.bets.p2).toBe("sitting_out");
     expect(v.bets.p3).toBe("sitting_out");
@@ -767,6 +772,163 @@ describe("basicStrategy", () => {
       [{ suit: "S", rank: "7" }, { suit: "H", rank: "7" }],
       6, false, false,
     )).toBe("stand");
+  });
+});
+
+describe("side bet classification", () => {
+  it("classifyPerfectPairs — perfect, colored, mixed, none", async () => {
+    const { classifyPerfectPairs } = await import("../blackjackGame.js");
+    expect(classifyPerfectPairs([{ suit: "H", rank: "8" }, { suit: "H", rank: "8" }])).toBe("perfect");
+    expect(classifyPerfectPairs([{ suit: "S", rank: "8" }, { suit: "C", rank: "8" }])).toBe("colored"); // both black
+    expect(classifyPerfectPairs([{ suit: "H", rank: "8" }, { suit: "D", rank: "8" }])).toBe("colored"); // both red
+    expect(classifyPerfectPairs([{ suit: "S", rank: "8" }, { suit: "H", rank: "8" }])).toBe("mixed");   // black + red
+    expect(classifyPerfectPairs([{ suit: "S", rank: "8" }, { suit: "H", rank: "9" }])).toBe("none");
+  });
+
+  it("classifyTwentyOnePlusThree — suited trips, straight flush, trips, straight, flush, none", async () => {
+    const { classifyTwentyOnePlusThree } = await import("../blackjackGame.js");
+    // Suited trips: all 8s of hearts (impossible with one deck, but engine is multi-deck friendly anyway)
+    expect(classifyTwentyOnePlusThree(
+      [{ suit: "H", rank: "8" }, { suit: "H", rank: "8" }], { suit: "H", rank: "8" },
+    )).toBe("suited_trips");
+    // Straight flush: 4-5-6 all spades
+    expect(classifyTwentyOnePlusThree(
+      [{ suit: "S", rank: "4" }, { suit: "S", rank: "5" }], { suit: "S", rank: "6" },
+    )).toBe("straight_flush");
+    // Trips: three 8s different suits
+    expect(classifyTwentyOnePlusThree(
+      [{ suit: "H", rank: "8" }, { suit: "S", rank: "8" }], { suit: "C", rank: "8" },
+    )).toBe("trips");
+    // Straight: 4-5-6 mixed suits
+    expect(classifyTwentyOnePlusThree(
+      [{ suit: "S", rank: "4" }, { suit: "H", rank: "5" }], { suit: "D", rank: "6" },
+    )).toBe("straight");
+    // Q-K-A straight (Ace-high wrap)
+    expect(classifyTwentyOnePlusThree(
+      [{ suit: "H", rank: "Q" }, { suit: "S", rank: "K" }], { suit: "D", rank: "A" },
+    )).toBe("straight");
+    // A-2-3 straight (Ace-low)
+    expect(classifyTwentyOnePlusThree(
+      [{ suit: "H", rank: "A" }, { suit: "S", rank: "2" }], { suit: "D", rank: "3" },
+    )).toBe("straight");
+    // Flush: all hearts, not sequential
+    expect(classifyTwentyOnePlusThree(
+      [{ suit: "H", rank: "2" }, { suit: "H", rank: "7" }], { suit: "H", rank: "K" },
+    )).toBe("flush");
+    // None
+    expect(classifyTwentyOnePlusThree(
+      [{ suit: "S", rank: "4" }, { suit: "H", rank: "9" }], { suit: "D", rank: "K" },
+    )).toBe("none");
+  });
+});
+
+describe("side bets — placement and settlement", () => {
+  it("placeBet deducts main + side bet stakes atomically", async () => {
+    await createBlackjackGame(LOBBY, ["p1"], CONFIG);
+    const r = await placeBet(LOBBY, "p1", 50, { perfectPairs: 5, twentyOnePlusThree: 10 });
+    expect(r.success).toBe(true);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.chips.p1).toBe(CONFIG.startingChips - 50 - 5 - 10);
+    expect(v.bets.p1).toBe(50);
+    expect(v.sideBets.p1).toEqual({ perfectPairs: 5, twentyOnePlusThree: 10 });
+  });
+
+  it("rejects the bet when the total stake exceeds chips", async () => {
+    await createBlackjackGame(LOBBY, ["p1"], CONFIG);
+    // Table max is 500, starting chips 1000. Main 500 + side 600 would exceed chips.
+    const r = await placeBet(LOBBY, "p1", 500, { perfectPairs: 600 });
+    expect(r.success).toBe(false);
+  });
+
+  it("pays a perfect pair at 25:1 and leaves 21+3 at 0 when not staked", async () => {
+    const { runDealer, settleRound } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "settle";
+    g.bets = { p1: 100 };
+    g.sideBets = { p1: { perfectPairs: 10, twentyOnePlusThree: 0 } };
+    g.chips = { p1: CONFIG.startingChips - 100 - 10 }; // stake removed
+    g.dealerHand = [{ suit: "D", rank: "10" }, { suit: "C", rank: "7" }]; // 17
+    g.hands = {
+      p1: [{ cards: [{ suit: "H", rank: "8" }, { suit: "H", rank: "8" }], bet: 100, doubled: false, resolved: true, fromSplit: false }],
+    };
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await settleRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    const side = v.sideBetSettlement!.find(s => s.playerId === "p1")!;
+    expect(side.perfectPairs.outcome).toBe("perfect");
+    expect(side.perfectPairs.delta).toBe(10 * 26); // stake * (25 + 1)
+    expect(side.twentyOnePlusThree.outcome).toBe("none");
+    expect(side.twentyOnePlusThree.delta).toBe(0);
+  });
+
+  it("pays a 21+3 suited straight flush at 40:1", async () => {
+    const { settleRound } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "settle";
+    g.bets = { p1: 100 };
+    g.sideBets = { p1: { perfectPairs: 0, twentyOnePlusThree: 5 } };
+    g.chips = { p1: CONFIG.startingChips - 100 - 5 };
+    // p1 holds 4S+5S, dealer upcard 6S → straight flush
+    g.dealerHand = [{ suit: "S", rank: "6" }, { suit: "D", rank: "10" }];
+    g.hands = {
+      p1: [{ cards: [{ suit: "S", rank: "4" }, { suit: "S", rank: "5" }], bet: 100, doubled: false, resolved: true, fromSplit: false }],
+    };
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await settleRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    const side = v.sideBetSettlement!.find(s => s.playerId === "p1")!;
+    expect(side.twentyOnePlusThree.outcome).toBe("straight_flush");
+    expect(side.twentyOnePlusThree.delta).toBe(5 * 41);
+  });
+
+  it("zero-stake side bets produce no settlement entry when neither side is placed", async () => {
+    const { settleRound } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "settle";
+    g.bets = { p1: 100 };
+    g.sideBets = { p1: { perfectPairs: 0, twentyOnePlusThree: 0 } };
+    g.chips = { p1: CONFIG.startingChips - 100 };
+    g.dealerHand = [{ suit: "D", rank: "10" }, { suit: "C", rank: "7" }];
+    g.hands = {
+      p1: [{ cards: [{ suit: "H", rank: "8" }, { suit: "H", rank: "8" }], bet: 100, doubled: false, resolved: true, fromSplit: false }],
+    };
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await settleRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.sideBetSettlement).toBeUndefined();
+  });
+
+  it("startNextRound clears side-bet stakes from the previous round", async () => {
+    const { startNextRound } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1", "p2"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "settle";
+    g.phaseDeadline = Date.now() - 1000; // expired
+    g.sideBets = {
+      p1: { perfectPairs: 5, twentyOnePlusThree: 10 },
+      p2: { perfectPairs: 3, twentyOnePlusThree: 0 },
+    };
+    g.lastSettlement = [];
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await startNextRound(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.sideBets.p1).toEqual({ perfectPairs: 0, twentyOnePlusThree: 0 });
+    expect(v.sideBets.p2).toEqual({ perfectPairs: 0, twentyOnePlusThree: 0 });
   });
 });
 
