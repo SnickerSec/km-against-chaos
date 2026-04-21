@@ -39,6 +39,26 @@ import {
   removePlayerFromBlackjackGame,
 } from "../blackjackGame.js";
 
+/**
+ * Place bets for every player and loop past any non-"playing" landing phase
+ * (the random deal can put dealer upcard on an Ace ≈7.7% → insurance, or hit
+ * a dealer blackjack ≈2.4% → settle). Used anywhere a test needs a
+ * deterministic "playing" phase after the opening bets.
+ */
+async function placeBetsUntilPlaying(
+  players: string[] = ["p1", "p2", "p3"],
+  amount: number = 100,
+): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    await cleanupBlackjackGame(LOBBY);
+    await createBlackjackGame(LOBBY, players, CONFIG);
+    for (const pid of players) await placeBet(LOBBY, pid, amount);
+    const v = await getBlackjackPlayerView(LOBBY, players[0]);
+    if (v?.phase === "playing") return;
+  }
+  throw new Error("placeBetsUntilPlaying: couldn't reach playing phase after 20 tries");
+}
+
 const PLAYERS = ["p1", "p2", "p3"];
 const CONFIG = { startingChips: 1000, minBet: 10, maxBet: 500 };
 
@@ -175,10 +195,7 @@ import { Card } from "../blackjackGame.js";
 
 describe("dealing", () => {
   beforeEach(async () => {
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
   });
 
   it("each player gets exactly 2 cards and dealer gets 2", async () => {
@@ -200,10 +217,7 @@ describe("dealing", () => {
 
 describe("hit", () => {
   beforeEach(async () => {
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
   });
 
   it("draws a card for the active player", async () => {
@@ -237,10 +251,7 @@ import { stand } from "../blackjackGame.js";
 
 describe("stand", () => {
   beforeEach(async () => {
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
   });
 
   it("advances to the next seat", async () => {
@@ -268,10 +279,7 @@ import { doubleDown } from "../blackjackGame.js";
 
 describe("doubleDown", () => {
   beforeEach(async () => {
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
   });
 
   it("doubles the bet, deals one card, auto-stands", async () => {
@@ -313,10 +321,7 @@ import { split } from "../blackjackGame.js";
 
 describe("split (non-ace pairs)", () => {
   beforeEach(async () => {
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
   });
 
   it("splits a pair into two hands, each with one card to start", async () => {
@@ -373,10 +378,7 @@ describe("split (non-ace pairs)", () => {
 
 describe("split rule edges", () => {
   beforeEach(async () => {
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
   });
 
   it("split aces: each hand gets exactly one card and both auto-stand", async () => {
@@ -406,10 +408,7 @@ import { runDealer, settleRound } from "../blackjackGame.js";
 
 describe("runDealer", () => {
   beforeEach(async () => {
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
   });
 
   it("hits to 17 and stands", async () => {
@@ -459,10 +458,7 @@ describe("runDealer", () => {
 
 describe("settleRound", () => {
   beforeEach(async () => {
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
   });
 
   async function setOutcome(dealer: Card[], p1: Card[], p2: Card[], p3: Card[]) {
@@ -602,10 +598,7 @@ describe("elimination and next-round loop", () => {
 
 describe("removePlayerFromBlackjackGame", () => {
   beforeEach(async () => {
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
   });
 
   it("removes a non-active player without disrupting the round", async () => {
@@ -649,10 +642,7 @@ describe("handleBettingTimeout", () => {
 
   it("is a no-op when not in betting phase", async () => {
     const { handleBettingTimeout } = await import("../blackjackGame.js");
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
     // now in playing phase
     await handleBettingTimeout(LOBBY);
     const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
@@ -663,10 +653,7 @@ describe("handleBettingTimeout", () => {
 describe("handleTurnTimeout", () => {
   it("auto-stands the active hand so the table keeps moving", async () => {
     const { handleTurnTimeout } = await import("../blackjackGame.js");
-    await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
-    await placeBet(LOBBY, "p1", 100);
-    await placeBet(LOBBY, "p2", 100);
-    await placeBet(LOBBY, "p3", 100);
+    await placeBetsUntilPlaying();
     // in playing phase, p1 active
 
     await handleTurnTimeout(LOBBY);
@@ -780,6 +767,100 @@ describe("basicStrategy", () => {
       [{ suit: "S", rank: "7" }, { suit: "H", rank: "7" }],
       6, false, false,
     )).toBe("stand");
+  });
+});
+
+describe("insurance", () => {
+  async function rigInsurancePhase(dealerHoleRank: "A" | "10" | "5" = "10") {
+    // Build a deterministic insurance-phase state. p1 and p2 have each bet 100.
+    // Dealer shows Ace, hole-card controlled by dealerHoleRank.
+    const { placeInsurance, declineInsurance } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1", "p2"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "insurance";
+    g.bets = { p1: 100, p2: 100 };
+    g.chips = { p1: CONFIG.startingChips - 100, p2: CONFIG.startingChips - 100 };
+    g.hands = {
+      p1: [{ cards: [{ suit: "S", rank: "9" }, { suit: "H", rank: "8" }], bet: 100, doubled: false, resolved: false, fromSplit: false }],
+      p2: [{ cards: [{ suit: "D", rank: "K" }, { suit: "C", rank: "A" }], bet: 100, doubled: false, resolved: false, fromSplit: false }], // natural BJ
+    };
+    g.dealerHand = [
+      { suit: "S", rank: "A" },
+      { suit: "H", rank: dealerHoleRank },
+    ];
+    g.insuranceDecisions = { p1: null, p2: null };
+    g.phaseDeadline = Date.now() + 10_000;
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+    return { placeInsurance, declineInsurance };
+  }
+
+  it("deducts half the main bet when insurance is accepted", async () => {
+    const { placeInsurance } = await rigInsurancePhase("5");
+    const chipsBefore = (await getBlackjackPlayerView(LOBBY, "p1"))!.chips.p1;
+    const r = await placeInsurance(LOBBY, "p1");
+    expect(r.success).toBe(true);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.chips.p1).toBe(chipsBefore - 50); // half of 100
+    expect(v.insuranceDecisions?.p1).toBe("insured");
+  });
+
+  it("leaves chips unchanged when insurance is declined", async () => {
+    const { declineInsurance } = await rigInsurancePhase("5");
+    const chipsBefore = (await getBlackjackPlayerView(LOBBY, "p1"))!.chips.p1;
+    await declineInsurance(LOBBY, "p1");
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.chips.p1).toBe(chipsBefore);
+    expect(v.insuranceDecisions?.p1).toBe("declined");
+  });
+
+  it("pays insurance 2:1 and jumps to settle when dealer has blackjack", async () => {
+    const { placeInsurance, declineInsurance } = await rigInsurancePhase("10");
+    const p1ChipsBefore = (await getBlackjackPlayerView(LOBBY, "p1"))!.chips.p1;
+    await placeInsurance(LOBBY, "p1");
+    await declineInsurance(LOBBY, "p2");
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    // Phase jumped past playing, hole revealed, insurance resolved.
+    expect(v.phase).toBe("settle");
+    const p1Ins = v.insuranceSettlement?.find(s => s.playerId === "p1")!;
+    expect(p1Ins.outcome).toBe("won");
+    expect(p1Ins.delta).toBe(150); // 50 stake × 3 (return + 2:1)
+    // Net: staked 50, returned 150 → +100 from insurance on a 100 main bet = break-even against -100 main-bet loss.
+    expect(v.chips.p1).toBe(p1ChipsBefore - 50 + 150);
+  });
+
+  it("forfeits insurance and continues to playing when dealer has no blackjack", async () => {
+    const { placeInsurance, declineInsurance } = await rigInsurancePhase("5");
+    await placeInsurance(LOBBY, "p1");
+    await declineInsurance(LOBBY, "p2");
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.phase).toBe("playing");
+    const p1Ins = v.insuranceSettlement?.find(s => s.playerId === "p1")!;
+    expect(p1Ins.outcome).toBe("lost");
+    expect(p1Ins.delta).toBe(0);
+    // Chips already reflect the 50 deduction (no additional change).
+    expect(v.chips.p1).toBe(CONFIG.startingChips - 100 - 50);
+  });
+
+  it("auto-declines all undecided players on timeout", async () => {
+    const { handleInsuranceTimeout } = await import("../blackjackGame.js");
+    await rigInsurancePhase("5");
+    // Neither player decides — fire the timeout.
+    await handleInsuranceTimeout(LOBBY);
+    const v = (await getBlackjackPlayerView(LOBBY, "p1"))!;
+    expect(v.phase).toBe("playing");
+    const p1Ins = v.insuranceSettlement?.find(s => s.playerId === "p1")!;
+    const p2Ins = v.insuranceSettlement?.find(s => s.playerId === "p2")!;
+    expect(p1Ins.outcome).toBe("declined");
+    expect(p2Ins.outcome).toBe("declined");
+  });
+
+  it("rejects placeInsurance when not in insurance phase", async () => {
+    const { placeInsurance } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["p1", "p2"], CONFIG);
+    const r = await placeInsurance(LOBBY, "p1");
+    expect(r.success).toBe(false);
   });
 });
 

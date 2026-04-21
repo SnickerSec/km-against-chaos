@@ -6,7 +6,7 @@ export type Suit = "S" | "H" | "D" | "C" | "?";
 export type Rank = "A" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "J" | "Q" | "K" | "?";
 export interface Card { suit: Suit; rank: Rank }
 
-export type BlackjackPhase = "betting" | "dealing" | "playing" | "dealer" | "settle" | "gameOver";
+export type BlackjackPhase = "betting" | "dealing" | "insurance" | "playing" | "dealer" | "settle" | "gameOver";
 
 export interface Hand {
   cards: Card[];
@@ -21,6 +21,13 @@ export interface Settlement {
   playerId: string;
   handIndex: number;
   outcome: "win" | "lose" | "push" | "blackjack" | "surrender";
+  delta: number;
+}
+
+export interface InsuranceSettlement {
+  playerId: string;
+  amount: number;
+  outcome: "won" | "lost" | "declined";
   delta: number;
 }
 
@@ -39,6 +46,8 @@ export interface BlackjackView {
   phaseDeadline: number;
   shoeRemaining: number;
   lastSettlement?: Settlement[];
+  insuranceDecisions?: Record<string, "insured" | "declined" | null>;
+  insuranceSettlement?: InsuranceSettlement[];
 }
 
 interface BlackjackStore {

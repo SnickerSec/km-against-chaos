@@ -190,6 +190,8 @@ export default function BlackjackGameScreen() {
   const onDouble = () => ack("blackjack:double");
   const onSplit = () => ack("blackjack:split");
   const onSurrender = () => ack("blackjack:surrender");
+  const onInsurance = () => ack("blackjack:insurance");
+  const onDeclineInsurance = () => ack("blackjack:decline-insurance");
 
   const myHands = view.hands[myId ?? ""] || [];
   const myActiveHand: Hand | undefined = isMyTurn ? myHands[view.activeHandIndex] : undefined;
@@ -206,10 +208,20 @@ export default function BlackjackGameScreen() {
   const phaseLabel =
     view.phase === "betting" ? "Place your bets"
     : view.phase === "dealing" ? "Dealing…"
+    : view.phase === "insurance" ? "Insurance?"
     : view.phase === "playing" ? (isMyTurn ? "Your turn" : `${lobby?.players.find(p => p.id === view.activePlayerId)?.name ?? "…"}'s turn`)
     : view.phase === "dealer" ? "Dealer draws"
     : view.phase === "settle" ? "Round results"
     : "Game over";
+
+  // Insurance computed values
+  const myInsuranceDecision = myId ? view.insuranceDecisions?.[myId] : undefined;
+  const myMainBet = typeof myBet === "number" ? myBet : 0;
+  const myInsuranceAmount = Math.floor(myMainBet / 2);
+  const canBuyInsurance = view.phase === "insurance"
+    && myInsuranceDecision === null
+    && myInsuranceAmount > 0
+    && myChips >= myInsuranceAmount;
 
   // Chip quick-picks that scale with table limits. Clamp to max allowed.
   const chipValues = [
@@ -238,7 +250,7 @@ export default function BlackjackGameScreen() {
           <span className="text-xs text-gray-500">· Shoe {view.shoeRemaining}</span>
         </div>
         <div className="flex items-center gap-3">
-          {(view.phase === "betting" || view.phase === "playing") && view.phaseDeadline > Date.now() && (
+          {(view.phase === "betting" || view.phase === "insurance" || view.phase === "playing") && view.phaseDeadline > Date.now() && (
             <div className="flex items-center gap-1">
               <Icon icon="mdi:timer-outline" className="text-gray-400 text-base" />
               <RoundTimer deadline={view.phaseDeadline} />
@@ -292,6 +304,9 @@ export default function BlackjackGameScreen() {
             const isActive = view.activePlayerId === pid;
             const isEliminated = chips < view.config.minBet && view.phase !== "betting";
             const mySettlements = view.lastSettlement?.filter(s => s.playerId === pid) || [];
+            const myInsuranceResult = view.insuranceSettlement?.find(s => s.playerId === pid);
+            // Net insurance chip change: delta - amount (won → +amount, lost → -amount, declined → 0)
+            const insuranceNet = myInsuranceResult ? myInsuranceResult.delta - myInsuranceResult.amount : 0;
 
             return (
               <div
@@ -320,7 +335,7 @@ export default function BlackjackGameScreen() {
                 </div>
 
                 {/* Bet status */}
-                <div className="h-5 text-xs mb-2">
+                <div className="h-5 text-xs mb-2 flex items-center gap-1.5">
                   {bet === "sitting_out" ? (
                     <span className="text-gray-400 italic">sitting out</span>
                   ) : typeof bet === "number" ? (
@@ -328,6 +343,14 @@ export default function BlackjackGameScreen() {
                   ) : view.phase === "betting" ? (
                     <span className="text-gray-400 animate-pulse">choosing…</span>
                   ) : null}
+                  {view.phase === "insurance" && view.insuranceDecisions?.[pid] === "insured" && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/30 text-yellow-200 border border-yellow-500/50">
+                      Insured
+                    </span>
+                  )}
+                  {view.phase === "insurance" && view.insuranceDecisions?.[pid] === null && (
+                    <span className="text-gray-400 animate-pulse">deciding…</span>
+                  )}
                 </div>
 
                 {/* Hands */}
@@ -371,6 +394,21 @@ export default function BlackjackGameScreen() {
                     );
                   })}
                 </div>
+
+                {/* Insurance chip-delta — floats from the top of the seat when
+                    settlement is revealed, so insured players see their 2:1 hit
+                    (or their lost stake) without having to spot it in the chip
+                    totals. */}
+                {view.lastSettlement && insuranceNet !== 0 && (
+                  <div
+                    key={`ins-${view.roundNumber}-${pid}`}
+                    className={`pointer-events-none absolute left-1/2 -translate-x-1/2 top-1 text-xs font-black tabular-nums animate-chip-float drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] ${
+                      insuranceNet > 0 ? "text-yellow-300" : "text-red-400"
+                    }`}
+                  >
+                    {insuranceNet > 0 ? `+$${insuranceNet} ins.` : `-$${Math.abs(insuranceNet)} ins.`}
+                  </div>
+                )}
 
                 {isEliminated && (
                   <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
@@ -449,6 +487,44 @@ export default function BlackjackGameScreen() {
         {view.phase === "betting" && !canBet && (
           <div className="text-center text-sm text-red-300">
             Not enough chips to meet the minimum (${view.config.minBet}).
+          </div>
+        )}
+
+        {/* Insurance prompt */}
+        {view.phase === "insurance" && myInsuranceDecision === null && myMainBet > 0 && (
+          <div className="max-w-xl mx-auto text-center">
+            <p className="text-xs text-gray-300 mb-2">
+              Dealer shows an Ace. Place insurance for <span className="text-yellow-300 font-bold">${myInsuranceAmount}</span> — pays 2:1 if dealer has blackjack.
+            </p>
+            <div className="flex justify-center gap-2 flex-wrap">
+              <button
+                onClick={onInsurance}
+                disabled={!canBuyInsurance}
+                className="px-5 py-2 rounded-full bg-yellow-500 hover:bg-yellow-400 text-black disabled:bg-gray-800 disabled:text-gray-600 font-black uppercase tracking-wider text-sm shadow-lg"
+              >
+                Insure (${myInsuranceAmount})
+              </button>
+              <button
+                onClick={onDeclineInsurance}
+                className="px-5 py-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white font-bold uppercase tracking-wider text-sm shadow-lg"
+              >
+                No Insurance
+              </button>
+            </div>
+          </div>
+        )}
+
+        {view.phase === "insurance" && myInsuranceDecision !== null && myInsuranceDecision !== undefined && (
+          <div className="text-center text-sm text-gray-300">
+            {myInsuranceDecision === "insured"
+              ? <>Insurance placed. Peeking…</>
+              : <>Insurance declined. Peeking…</>}
+          </div>
+        )}
+
+        {view.phase === "insurance" && myMainBet === 0 && (
+          <div className="text-center text-sm text-gray-400">
+            Dealer shows an Ace — waiting on other players.
           </div>
         )}
 

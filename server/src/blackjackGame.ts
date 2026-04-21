@@ -7,6 +7,7 @@ import { redis, withGameLock } from "./redis.js";
 // ── Configuration ────────────────────────────────────────────────────────────
 
 export const BETTING_WINDOW_MS = 15_000;
+export const INSURANCE_WINDOW_MS = 10_000;
 export const TURN_TIME_MS = 30_000;
 export const SETTLE_DELAY_MS = 5_000;
 
@@ -16,7 +17,7 @@ export type Suit = "S" | "H" | "D" | "C";
 export type Rank = "A" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "J" | "Q" | "K";
 export interface Card { suit: Suit; rank: Rank }
 
-export type BlackjackPhase = "betting" | "dealing" | "playing" | "dealer" | "settle" | "gameOver";
+export type BlackjackPhase = "betting" | "dealing" | "insurance" | "playing" | "dealer" | "settle" | "gameOver";
 
 export interface Hand {
   cards: Card[];
@@ -33,6 +34,14 @@ export interface Settlement {
   handIndex: number;
   outcome: Outcome;
   delta: number;               // chips returned to player on settle (0 for lose)
+}
+
+export type InsuranceOutcome = "won" | "lost" | "declined";
+export interface InsuranceSettlement {
+  playerId: string;
+  amount: number;              // the insurance stake (floor(mainBet/2)); 0 for declined
+  outcome: InsuranceOutcome;
+  delta: number;               // chips returned (3× stake on win, 0 on lose/declined)
 }
 
 export type BlackjackWinCondition =
@@ -62,6 +71,9 @@ interface InternalBlackjackGame {
   roundNumber: number;
   lastSettlement?: Settlement[];
   createdAt: number;                             // epoch ms — zombie-restore filter
+  // Only populated while phase === "insurance"; cleared in startNextRound.
+  insuranceDecisions?: Record<string, "insured" | "declined" | null>;
+  insuranceSettlement?: InsuranceSettlement[];
 }
 
 // ── Storage ──────────────────────────────────────────────────────────────────
@@ -169,17 +181,41 @@ function startDealing(g: InternalBlackjackGame): void {
     }
     g.dealerHand.push(dealOne(g));
   }
-  // Skip directly to playing, with active player = first non-sitting-out seat.
+  // If literally everyone is sitting out, jump to dealer phase (which will
+  // immediately settle with no payouts).
+  if (!g.playerIds.some(pid => g.hands[pid].length > 0)) {
+    g.phase = "dealer";
+    return;
+  }
+
+  // Dealer showing an Ace → insurance window before play begins. Players who
+  // bet get to opt in for floor(bet/2) that pays 2:1 if dealer has blackjack.
+  if (g.dealerHand[0].rank === "A") {
+    g.phase = "insurance";
+    g.insuranceDecisions = {};
+    for (const pid of g.playerIds) {
+      if (typeof g.bets[pid] === "number") {
+        g.insuranceDecisions[pid] = null;
+      }
+    }
+    g.phaseDeadline = Date.now() + INSURANCE_WINDOW_MS;
+    return;
+  }
+
+  enterPlaying(g);
+}
+
+/**
+ * Move into the playing phase with the first non-sitting-out seat active.
+ * Shared between startDealing (no-insurance path) and resolveInsurance
+ * (dealer didn't have blackjack).
+ */
+function enterPlaying(g: InternalBlackjackGame): void {
   g.phase = "playing";
   g.activePlayerIndex = g.playerIds.findIndex(pid => g.hands[pid].length > 0);
   g.activeHandIndex = 0;
   g.phaseDeadline = Date.now() + TURN_TIME_MS;
-
-  // If literally everyone is sitting out, jump to dealer phase (which will
-  // immediately settle with no payouts).
-  if (g.activePlayerIndex === -1) {
-    g.phase = "dealer";
-  }
+  if (g.activePlayerIndex === -1) g.phase = "dealer";
 }
 
 // ── Hand evaluation ──────────────────────────────────────────────────────────
@@ -298,6 +334,8 @@ export interface BlackjackPlayerView {
   phaseDeadline: number;
   shoeRemaining: number;
   lastSettlement?: Settlement[];
+  insuranceDecisions?: Record<string, "insured" | "declined" | null>;
+  insuranceSettlement?: InsuranceSettlement[];
 }
 
 export async function getBlackjackPlayerView(
@@ -307,9 +345,10 @@ export async function getBlackjackPlayerView(
   const g = await loadGame(lobbyCode);
   if (!g) return null;
 
-  // Hide the dealer's hole card during 'playing'. Reveal it from 'dealer'
-  // onward so the client can animate the draw sequence.
-  const hideHoleCard = g.phase === "playing" || g.phase === "dealing";
+  // Hide the dealer's hole card during 'playing' and 'insurance' (the peek
+  // hasn't happened yet in insurance). Reveal it from 'dealer' onward so the
+  // client can animate the flip and the draw sequence.
+  const hideHoleCard = g.phase === "playing" || g.phase === "dealing" || g.phase === "insurance";
   const dealerHand: Array<Card | { suit: "?"; rank: "?" }> =
     hideHoleCard && g.dealerHand.length >= 2
       ? [g.dealerHand[0], { suit: "?", rank: "?" }, ...g.dealerHand.slice(2)]
@@ -330,6 +369,8 @@ export async function getBlackjackPlayerView(
     phaseDeadline: g.phaseDeadline,
     shoeRemaining: g.shoe.length,
     lastSettlement: g.lastSettlement,
+    insuranceDecisions: g.insuranceDecisions,
+    insuranceSettlement: g.insuranceSettlement,
   };
 }
 
@@ -371,6 +412,115 @@ export async function sitOut(lobbyCode: string, playerId: string): Promise<Actio
     if (allBetsIn(g)) startDealing(g);
     await saveGame(g);
     return { success: true };
+  });
+}
+
+/**
+ * Resolve the insurance window: peek the dealer's hole card. If it's a
+ * blackjack, insured players win 2:1 on their insurance stake and the round
+ * jumps straight to settle (skipping play). Otherwise insurance bets are
+ * forfeit and play proceeds normally.
+ */
+function resolveInsurance(g: InternalBlackjackGame): void {
+  const dealerBJ = isBlackjack(g.dealerHand);
+  const settlements: InsuranceSettlement[] = [];
+
+  for (const pid of g.playerIds) {
+    const decision = g.insuranceDecisions?.[pid];
+    if (decision == null) continue; // wasn't eligible (sitting out / undecided gets flipped to declined first)
+
+    const mainBet = typeof g.bets[pid] === "number" ? g.bets[pid] as number : 0;
+    const amount = Math.floor(mainBet / 2);
+
+    if (decision === "declined") {
+      settlements.push({ playerId: pid, amount: 0, outcome: "declined", delta: 0 });
+      continue;
+    }
+
+    // decision === "insured" — amount was already deducted when they accepted.
+    if (dealerBJ) {
+      const delta = amount * 3; // stake returned + 2:1 winnings
+      g.chips[pid] += delta;
+      settlements.push({ playerId: pid, amount, outcome: "won", delta });
+    } else {
+      settlements.push({ playerId: pid, amount, outcome: "lost", delta: 0 });
+    }
+  }
+
+  g.insuranceSettlement = settlements;
+  g.insuranceDecisions = undefined;
+
+  if (dealerBJ) {
+    g.phase = "settle";
+    g.phaseDeadline = Date.now() + SETTLE_DELAY_MS;
+  } else {
+    enterPlaying(g);
+  }
+}
+
+/** True once every eligible player has chosen insured or declined. */
+function allInsuranceDecided(g: InternalBlackjackGame): boolean {
+  if (!g.insuranceDecisions) return true;
+  return Object.values(g.insuranceDecisions).every(v => v !== null);
+}
+
+export async function placeInsurance(lobbyCode: string, playerId: string): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "insurance") return { success: false, error: "Not the insurance phase" };
+    if (!g.insuranceDecisions || !(playerId in g.insuranceDecisions)) {
+      return { success: false, error: "Not eligible for insurance this round" };
+    }
+    if (g.insuranceDecisions[playerId] !== null) return { success: false, error: "Already decided" };
+
+    const mainBet = typeof g.bets[playerId] === "number" ? g.bets[playerId] as number : 0;
+    const amount = Math.floor(mainBet / 2);
+    if (amount <= 0) return { success: false, error: "Insurance stake too small" };
+    if (g.chips[playerId] < amount) return { success: false, error: "Not enough chips for insurance" };
+
+    g.chips[playerId] -= amount;
+    g.insuranceDecisions[playerId] = "insured";
+
+    if (allInsuranceDecided(g)) resolveInsurance(g);
+
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
+export async function declineInsurance(lobbyCode: string, playerId: string): Promise<ActionResult> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return { success: false, error: "Game not found" };
+    if (g.phase !== "insurance") return { success: false, error: "Not the insurance phase" };
+    if (!g.insuranceDecisions || !(playerId in g.insuranceDecisions)) {
+      return { success: false, error: "Not eligible for insurance this round" };
+    }
+    if (g.insuranceDecisions[playerId] !== null) return { success: false, error: "Already decided" };
+
+    g.insuranceDecisions[playerId] = "declined";
+
+    if (allInsuranceDecided(g)) resolveInsurance(g);
+
+    await saveGame(g);
+    return { success: true };
+  });
+}
+
+export async function handleInsuranceTimeout(lobbyCode: string): Promise<void> {
+  await withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return;
+    if (g.phase !== "insurance") return;
+
+    if (g.insuranceDecisions) {
+      for (const pid of Object.keys(g.insuranceDecisions)) {
+        if (g.insuranceDecisions[pid] === null) g.insuranceDecisions[pid] = "declined";
+      }
+    }
+    resolveInsurance(g);
+    await saveGame(g);
   });
 }
 
@@ -601,6 +751,8 @@ export async function startNextRound(lobbyCode: string): Promise<void> {
     g.activeHandIndex = 0;
     g.phaseDeadline = Date.now() + BETTING_WINDOW_MS;
     g.lastSettlement = undefined;
+    g.insuranceDecisions = undefined;
+    g.insuranceSettlement = undefined;
     await saveGame(g);
   });
 }

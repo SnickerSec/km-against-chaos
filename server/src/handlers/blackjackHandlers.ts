@@ -2,9 +2,11 @@ import type { Server, Socket } from "socket.io";
 import type { ClientEvents, ServerEvents } from "../types.js";
 import {
   placeBet, sitOut, hit, stand, doubleDown, split, surrender,
+  placeInsurance, declineInsurance,
   isBlackjackGame, runDealer, settleRound, startNextRound,
   getBlackjackScores, getBlackjackPlayerView,
-  handleBettingTimeout, handleTurnTimeout, botPlaceBet, botPlayTurn,
+  handleBettingTimeout, handleTurnTimeout, handleInsuranceTimeout,
+  botPlaceBet, botPlayTurn,
 } from "../blackjackGame.js";
 import { getBotsInLobby } from "../lobby.js";
 import {
@@ -106,6 +108,30 @@ export function registerBlackjackHandlers(
     await sendBlackjackUpdate(io, code);
     await afterMutation(io, code);
   });
+
+  socket.on("blackjack:insurance" as any, async (callback: (res: any) => void) => {
+    const code = await guard();
+    if (!code) { callback({ success: false, error: "Not in a Blackjack game" }); return; }
+
+    const result = await placeInsurance(code, socket.id);
+    if (!result.success) { callback({ success: false, error: result.error }); return; }
+
+    callback({ success: true });
+    await sendBlackjackUpdate(io, code);
+    await afterMutation(io, code);
+  });
+
+  socket.on("blackjack:decline-insurance" as any, async (callback: (res: any) => void) => {
+    const code = await guard();
+    if (!code) { callback({ success: false, error: "Not in a Blackjack game" }); return; }
+
+    const result = await declineInsurance(code, socket.id);
+    if (!result.success) { callback({ success: false, error: result.error }); return; }
+
+    callback({ success: true });
+    await sendBlackjackUpdate(io, code);
+    await afterMutation(io, code);
+  });
 }
 
 /**
@@ -141,6 +167,12 @@ async function afterMutation(
   const vBetting = await getBlackjackPlayerView(code, "_observer_");
   if (vBetting?.phase === "betting" && Date.now() >= vBetting.phaseDeadline) {
     await handleBettingTimeout(code);
+    await sendBlackjackUpdate(io, code);
+  }
+
+  const vInsurance = await getBlackjackPlayerView(code, "_observer_");
+  if (vInsurance?.phase === "insurance" && Date.now() >= vInsurance.phaseDeadline) {
+    await handleInsuranceTimeout(code);
     await sendBlackjackUpdate(io, code);
   }
 
@@ -207,6 +239,25 @@ export async function triggerBlackjackBots(
         const still = await getBlackjackPlayerView(code, "_observer_");
         if (still?.phase !== "betting" || still.bets[botId] !== null) return;
         await botPlaceBet(code, botId);
+        await sendBlackjackUpdate(io, code);
+        await afterMutation(io, code);
+      }, BOT_ACTION_DELAY_MS);
+    }
+    return;
+  }
+
+  if (view.phase === "insurance") {
+    // Insurance is a -EV bet unless you're counting, so bots always decline.
+    // Fire all of them near-simultaneously so the phase resolves promptly.
+    const botIds = (await getBotsInLobby(code)) || [];
+    for (const botId of botIds) {
+      if (view.insuranceDecisions?.[botId] !== null) continue;
+      setTimeout(async () => {
+        if (!(await isBlackjackGame(code))) return;
+        const still = await getBlackjackPlayerView(code, "_observer_");
+        if (still?.phase !== "insurance") return;
+        if (still.insuranceDecisions?.[botId] !== null) return;
+        await declineInsurance(code, botId);
         await sendBlackjackUpdate(io, code);
         await afterMutation(io, code);
       }, BOT_ACTION_DELAY_MS);
