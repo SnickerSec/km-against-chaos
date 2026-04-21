@@ -33,7 +33,7 @@ function PlayingCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "
 
   if (card.suit === "?") {
     return (
-      <div className={`${dims} rounded-md bg-gradient-to-br from-red-900 to-red-700 border-2 border-white/60 shadow-lg flex items-center justify-center`}>
+      <div className={`${dims} rounded-md bg-gradient-to-br from-red-900 to-red-700 border-2 border-white/60 shadow-lg flex items-center justify-center animate-deal-in`}>
         <div className="w-full h-full rounded-sm border-2 border-red-950/50 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(0,0,0,0.2)_4px,rgba(0,0,0,0.2)_8px)]" />
       </div>
     );
@@ -41,7 +41,7 @@ function PlayingCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "
 
   const color = SUIT_COLOR[card.suit];
   return (
-    <div className={`${dims} rounded-md bg-white border border-gray-300 shadow-lg flex flex-col items-center justify-between p-1 select-none`}>
+    <div className={`${dims} rounded-md bg-white border border-gray-300 shadow-lg flex flex-col items-center justify-between p-1 select-none animate-deal-in`}>
       <span className={`self-start leading-none font-bold ${color}`}>{card.rank}</span>
       <span className={`leading-none ${color}`}>{SUIT_GLYPH[card.suit]}</span>
       <span className={`self-end leading-none font-bold rotate-180 ${color}`}>{card.rank}</span>
@@ -74,6 +74,32 @@ function handDisplay(cards: Card[]): string {
   if (t > 21) return `${t} · BUST`;
   if (visible.length === 2 && t === 21) return "BLACKJACK";
   return String(t);
+}
+
+// ── Active-seat timer bar ────────────────────────────────────────────────────
+// Thin depleting bar along the top of the active seat during the playing phase.
+// Independent interval so the seat re-renders at 4 Hz without touching the
+// whole screen.
+
+function SeatTimerBar({ deadline, totalMs }: { deadline: number; totalMs: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, []);
+  const remaining = Math.max(0, deadline - now);
+  const pct = Math.max(0, Math.min(100, (remaining / totalMs) * 100));
+  const urgent = remaining <= 10_000;
+  return (
+    <div className="absolute top-0 left-0 right-0 h-1 rounded-t-xl overflow-hidden bg-black/30">
+      <div
+        className={`h-full transition-[width] duration-200 ease-linear ${
+          urgent ? "bg-red-400" : "bg-yellow-300"
+        }`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
 }
 
 // ── Chip stack ───────────────────────────────────────────────────────────────
@@ -203,7 +229,6 @@ export default function BlackjackGameScreen() {
               <RoundTimer deadline={view.phaseDeadline} />
             </div>
           )}
-          <VoiceChat />
           <ScoreBar />
         </div>
       </div>
@@ -221,7 +246,9 @@ export default function BlackjackGameScreen() {
           <div className="flex gap-1.5 min-h-[6rem]">
             {view.dealerHand.length === 0
               ? <div className="text-gray-500 text-sm italic self-center">waiting…</div>
-              : view.dealerHand.map((c, i) => <PlayingCard key={i} card={c} size="lg" />)}
+              : view.dealerHand.map((c, i) => (
+                  <PlayingCard key={`${view.roundNumber}-d-${i}-${c.rank}${c.suit}`} card={c} size="lg" />
+                ))}
           </div>
         </div>
 
@@ -254,6 +281,11 @@ export default function BlackjackGameScreen() {
                   : "border-emerald-700/50 bg-emerald-900/40"
                 }`}
               >
+                {/* Active-seat turn timer (playing phase only) */}
+                {isActive && view.phase === "playing" && view.phaseDeadline > Date.now() && (
+                  <SeatTimerBar deadline={view.phaseDeadline} totalMs={30_000} />
+                )}
+
                 {/* Name + chips */}
                 <div className="flex items-center gap-2 mb-2">
                   <PlayerAvatar name={name} isBot={isBot} size="sm" />
@@ -284,20 +316,35 @@ export default function BlackjackGameScreen() {
                   {hands.map((h, hi) => {
                     const handActive = isActive && view.activeHandIndex === hi;
                     const settlement = mySettlements.find(s => s.handIndex === hi);
+                    // Net chip change: delta already includes the returned stake.
+                    // Net = delta - bet  (win: +bet, blackjack: +1.5*bet, push: 0, lose: -bet)
+                    const netDelta = settlement ? settlement.delta - h.bet : 0;
                     return (
                       <div
                         key={hi}
-                        className={`rounded-md p-1.5 ${
+                        className={`relative rounded-md p-1.5 ${
                           handActive ? "ring-2 ring-yellow-400 bg-yellow-400/10" : ""
                         }`}
                       >
                         <div className="flex gap-1">
-                          {h.cards.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)}
+                          {h.cards.map((c, i) => (
+                            <PlayingCard key={`${view.roundNumber}-${pid}-${hi}-${i}-${c.rank}${c.suit}`} card={c} size="sm" />
+                          ))}
                         </div>
                         <div className="flex items-center justify-between mt-1 text-[11px] text-gray-200">
                           <span>{handDisplay(h.cards)}{h.doubled ? " · 2x" : ""}</span>
                           {settlement && <OutcomeBadge outcome={settlement.outcome} />}
                         </div>
+                        {settlement && netDelta !== 0 && (
+                          <div
+                            key={`delta-${view.roundNumber}-${hi}`}
+                            className={`pointer-events-none absolute left-1/2 -translate-x-1/2 -top-1 text-sm font-black tabular-nums animate-chip-float drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] ${
+                              netDelta > 0 ? "text-yellow-300" : "text-red-400"
+                            }`}
+                          >
+                            {netDelta > 0 ? `+$${netDelta}` : `-$${Math.abs(netDelta)}`}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -426,6 +473,7 @@ export default function BlackjackGameScreen() {
         </div>
       </div>
 
+      <VoiceChat floating />
       <Chat />
     </div>
   );

@@ -117,18 +117,46 @@ export function useSounds() {
     prevLastAction.current = unoTurn?.lastAction;
   }, [unoTurn?.lastAction]);
 
-  // Blackjack: hand settled — prioritize win/blackjack over lose when a
-  // player has multiple hands (e.g. split) with mixed outcomes. Push-only
-  // settlements stay silent.
+  // Blackjack: hand settled. Priority when a player has multiple hands
+  // (e.g. split with mixed outcomes): blackjack > win > bust > lose > push.
+  // Bust is detected as a lose outcome on a hand that went over 21; this
+  // gives players distinct audio feedback for bust vs. dealer-beat-me.
   useEffect(() => {
     const cur = blackjackView?.lastSettlement;
     if (!prevBjSettlement.current && cur && cur.length > 0) {
       const myId = getSocket().id ?? "";
+      const myHands = blackjackView?.hands[myId] || [];
       const mine = cur.filter(s => s.playerId === myId);
-      const hasWin = mine.some(s => s.outcome === "win" || s.outcome === "blackjack");
+
+      const handValueForSound = (cards: { rank: string }[]) => {
+        const RANK: Record<string, number> = {
+          A: 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7,
+          "8": 8, "9": 9, "10": 10, J: 10, Q: 10, K: 10,
+        };
+        let total = 0, aces = 0;
+        for (const c of cards) {
+          total += RANK[c.rank] ?? 0;
+          if (c.rank === "A") aces++;
+        }
+        while (aces > 0 && total + 10 <= 21) { total += 10; aces--; }
+        return total;
+      };
+
+      const hasBlackjack = mine.some(s => s.outcome === "blackjack");
+      const hasWin = mine.some(s => s.outcome === "win");
+      const hasBust = mine.some(s => {
+        if (s.outcome !== "lose") return false;
+        const hand = myHands[s.handIndex];
+        return !!hand && handValueForSound(hand.cards) > 21;
+      });
       const hasLose = mine.some(s => s.outcome === "lose");
-      if (hasWin) play("win");
-      else if (hasLose) play("lose");
+      const hasPush = mine.some(s => s.outcome === "push");
+
+      if (hasBlackjack)   play("blackjack");
+      else if (hasWin)    play("win");
+      else if (hasBust)   play("bust");
+      else if (hasLose)   play("lose");
+      else if (hasPush)   play("push");
     }
     prevBjSettlement.current = cur;
   }, [blackjackView?.lastSettlement]);

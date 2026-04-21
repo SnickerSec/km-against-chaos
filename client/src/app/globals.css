@@ -64,3 +64,24 @@ button, a, [role="button"] {
   background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.6), transparent);
   box-shadow: 0 0 10px rgba(34, 211, 238, 0.45);
 }
+
+/* Blackjack card deal — cards slide down from the top with a tiny tilt.
+   Triggered by remounting the <PlayingCard> (key includes rank+suit). */
+@keyframes deal-in {
+  0%   { opacity: 0; transform: translateY(-28px) rotate(-6deg) scale(0.92); }
+  100% { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+}
+.animate-deal-in {
+  animation: deal-in 0.35s cubic-bezier(0.2, 0.8, 0.3, 1.05) both;
+}
+
+/* Blackjack chip-delta — small float-up anchored to a hand on settle. */
+@keyframes chip-float {
+  0%   { opacity: 0; transform: translateY(0) scale(0.7); }
+  15%  { opacity: 1; transform: translateY(-6px) scale(1.1); }
+  75%  { opacity: 1; transform: translateY(-32px) scale(1); }
+  100% { opacity: 0; transform: translateY(-48px) scale(0.9); }
+}
+.animate-chip-float {
+  animation: chip-float 1.7s ease-out forwards;
+}
