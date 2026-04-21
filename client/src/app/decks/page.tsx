@@ -54,6 +54,7 @@ export default function DecksPage() {
 
   const [printing, setPrinting] = useState<string | null>(null);
   const [gameTypeFilter, setGameTypeFilter] = useState<string>("all");
+  const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("newest");
 
   const user = useAuthStore((s) => s.user);
@@ -469,6 +470,31 @@ export default function DecksPage() {
                 </button>
               ))}
             </div>
+            {(isAdmin || isModerator) && (() => {
+              const owners = new Map<string, string>();
+              let hasBuiltIn = false;
+              for (const d of decks) {
+                if (d.ownerId && d.ownerName) owners.set(d.ownerId, d.ownerName);
+                else if (!d.ownerId) hasBuiltIn = true;
+              }
+              const sortedOwners = Array.from(owners.entries()).sort((a, b) =>
+                a[1].localeCompare(b[1])
+              );
+              return (
+                <select
+                  value={ownerFilter}
+                  onChange={(e) => setOwnerFilter(e.target.value)}
+                  className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none focus:border-purple-500 max-w-[160px]"
+                  title="Filter by creator"
+                >
+                  <option value="all">All creators</option>
+                  {hasBuiltIn && <option value="builtin">Built-in</option>}
+                  {sortedOwners.map(([id, name]) => (
+                    <option key={id} value={id}>{name}</option>
+                  ))}
+                </select>
+              );
+            })()}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -487,15 +513,21 @@ export default function DecksPage() {
           ) : (() => {
             const visible = decks
               .filter((d) => isOwner(d) || isAdmin || isModerator)
-              .filter((d) => gameTypeFilter === "all" || (d.gameType || "cah") === gameTypeFilter);
+              .filter((d) => gameTypeFilter === "all" || (d.gameType || "cah") === gameTypeFilter)
+              .filter((d) => {
+                if (ownerFilter === "all") return true;
+                if (ownerFilter === "builtin") return !d.ownerId;
+                return d.ownerId === ownerFilter;
+              });
+            const filtersActive = gameTypeFilter !== "all" || ownerFilter !== "all";
             return visible.length === 0 ? (
               <div className="text-center py-12 bg-gray-900 rounded-xl">
                 <p className="text-gray-400 text-lg mb-2">
-                  {gameTypeFilter !== "all" ? "No decks match this filter" : "No custom decks yet"}
+                  {filtersActive ? "No decks match these filters" : "No custom decks yet"}
                 </p>
                 <p className="text-gray-400 text-sm">
-                  {gameTypeFilter !== "all"
-                    ? "Try a different game type or create a new deck"
+                  {filtersActive
+                    ? "Try a different filter or create a new deck"
                     : user ? "Create one or import a JSON file to get started" : "Sign in to create decks"}
                 </p>
               </div>
