@@ -489,7 +489,7 @@ export default function DecksPage() {
                   title="Filter by creator"
                 >
                   <option value="all">All creators</option>
-                  {hasBuiltIn && <option value="builtin">Built-in</option>}
+                  {hasBuiltIn && <option value="builtin">Featured</option>}
                   {sortedOwners.map(([id, name]) => (
                     <option key={id} value={id}>{name}</option>
                   ))}
@@ -569,7 +569,7 @@ export default function DecksPage() {
                             : deck.gameType === "joking_hazard"
                             ? `${deck.knowledgeCount} panels`
                             : `${deck.chaosCount} prompts · ${deck.knowledgeCount} answers`}
-                          {deck.builtIn && " · Built-in"}
+                          {deck.builtIn && " · Featured"}
                         </span>
                       </div>
                     </div>
