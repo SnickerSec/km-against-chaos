@@ -16,6 +16,7 @@ import StickerOverlay from "./StickerOverlay";
 import GifOverlay from "./GifOverlay";
 import VoiceChat from "./VoiceChat";
 import Chat from "./Chat";
+import SoundPicker from "./SoundPicker";
 
 // ── Card rendering ───────────────────────────────────────────────────────────
 
@@ -187,7 +188,7 @@ function OutcomeBadge({ outcome }: { outcome: "win" | "lose" | "push" | "blackja
 export default function BlackjackGameScreen() {
   const view = useBlackjackStore(s => s.view);
   const lobby = useGameStore(s => s.lobby);
-  const { leaveLobby } = useSocket();
+  const { leaveLobby, playLobbySound } = useSocket();
   useSounds();
   const socket = getSocket();
   const myId = socket.id;
@@ -196,6 +197,7 @@ export default function BlackjackGameScreen() {
   const [ppBet, setPpBet] = useState<number>(0);
   const [tpBet, setTpBet] = useState<number>(0);
   const [sideBetsOpen, setSideBetsOpen] = useState<boolean>(false);
+  const [soundPickerOpen, setSoundPickerOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const handler = (v: any) => useBlackjackStore.getState().setView(v);
@@ -687,6 +689,22 @@ export default function BlackjackGameScreen() {
           <ReactionBar />
         </div>
       </div>
+
+      {/* Floating soundboard button — sits directly above the Chat button so
+          the column reads: soundboard, chat (with voice-chat to the left). */}
+      <button
+        onClick={() => setSoundPickerOpen(true)}
+        className="fixed bottom-20 right-4 z-40 w-12 h-12 bg-purple-600 hover:bg-purple-700 rounded-full flex items-center justify-center shadow-lg transition-colors"
+        title="Soundboard"
+      >
+        <Icon icon="entypo:sound-mix" className="text-xl" />
+      </button>
+      {soundPickerOpen && (
+        <SoundPicker
+          onPlay={(mp3, title) => playLobbySound(mp3, title)}
+          onClose={() => setSoundPickerOpen(false)}
+        />
+      )}
 
       <VoiceChat floating />
       <Chat />
