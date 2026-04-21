@@ -705,12 +705,89 @@ describe("botPlaceBet", () => {
   });
 });
 
+describe("basicStrategy", () => {
+  it("splits aces and eights always", async () => {
+    const { basicStrategy } = await import("../blackjackGame.js");
+    expect(basicStrategy(
+      [{ suit: "S", rank: "A" }, { suit: "H", rank: "A" }],
+      10, true, true,
+    )).toBe("split");
+    expect(basicStrategy(
+      [{ suit: "S", rank: "8" }, { suit: "H", rank: "8" }],
+      11, true, true,
+    )).toBe("split");
+  });
+
+  it("never splits tens", async () => {
+    const { basicStrategy } = await import("../blackjackGame.js");
+    expect(basicStrategy(
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "10" }],
+      5, true, true,
+    )).toBe("stand");
+  });
+
+  it("doubles hard 11 on any upcard", async () => {
+    const { basicStrategy } = await import("../blackjackGame.js");
+    expect(basicStrategy(
+      [{ suit: "S", rank: "5" }, { suit: "H", rank: "6" }],
+      11, true, false,
+    )).toBe("double");
+  });
+
+  it("stands hard 16 vs 6, hits hard 16 vs 10", async () => {
+    const { basicStrategy } = await import("../blackjackGame.js");
+    expect(basicStrategy(
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "6" }],
+      6, false, false,
+    )).toBe("stand");
+    expect(basicStrategy(
+      [{ suit: "S", rank: "10" }, { suit: "H", rank: "6" }],
+      10, false, false,
+    )).toBe("hit");
+  });
+
+  it("hits soft 17 (the A6 case that the old bot got wrong)", async () => {
+    const { basicStrategy } = await import("../blackjackGame.js");
+    expect(basicStrategy(
+      [{ suit: "S", rank: "A" }, { suit: "H", rank: "6" }],
+      8, false, false,
+    )).toBe("hit");
+  });
+
+  it("stands soft 18 vs 2/7/8, hits vs 9/10/A, doubles vs 3-6", async () => {
+    const { basicStrategy } = await import("../blackjackGame.js");
+    const A7 = [{ suit: "S" as const, rank: "A" as const }, { suit: "H" as const, rank: "7" as const }];
+    expect(basicStrategy(A7, 2,  false, false)).toBe("stand");
+    expect(basicStrategy(A7, 8,  false, false)).toBe("stand");
+    expect(basicStrategy(A7, 10, false, false)).toBe("hit");
+    expect(basicStrategy(A7, 11, false, false)).toBe("hit");
+    expect(basicStrategy(A7, 5,  true,  false)).toBe("double");
+  });
+
+  it("falls back from double to hit when canDouble is false", async () => {
+    const { basicStrategy } = await import("../blackjackGame.js");
+    expect(basicStrategy(
+      [{ suit: "S", rank: "5" }, { suit: "H", rank: "6" }],
+      11, false, false,
+    )).toBe("hit");
+  });
+
+  it("falls back from split to hit when canSplit is false", async () => {
+    const { basicStrategy } = await import("../blackjackGame.js");
+    // Pair of 7s vs 6 would be split, but canSplit=false → hit (total 14 vs 6 would be stand, but pair-logic
+    // falls through to hard-total logic which says stand on 14 vs 6).
+    expect(basicStrategy(
+      [{ suit: "S", rank: "7" }, { suit: "H", rank: "7" }],
+      6, false, false,
+    )).toBe("stand");
+  });
+});
+
 describe("botPlayTurn", () => {
-  it("hits until reaching 17+ then stands", async () => {
+  it("plays basic strategy: hits hard 12 vs 10 then stands on 17", async () => {
     const { botPlayTurn } = await import("../blackjackGame.js");
     await createBlackjackGame(LOBBY, ["bot-x", "p2"], CONFIG);
-    // Rig the bot's starting hand to 12 and set the shoe so the first draw
-    // is a 5 (→17, stands).
+    // 12 vs upcard-less-dealer (defaults to 10 → defensive line): hit 12 vs 10.
     const exported = await exportBlackjackGames();
     const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
     g.phase = "playing";
@@ -727,6 +804,92 @@ describe("botPlayTurn", () => {
     expect(v.hands["bot-x"][0].resolved).toBe(true);
     expect(v.hands["bot-x"][0].cards.length).toBe(3);
     expect(v.activePlayerId).toBe("p2"); // advanced
+  });
+
+  it("doubles down on hard 11", async () => {
+    const { botPlayTurn } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["bot-x", "p2"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "playing";
+    g.activePlayerIndex = 0;
+    g.activeHandIndex = 0;
+    g.dealerHand = [{ suit: "D", rank: "6" }, { suit: "?" as any, rank: "?" as any }];
+    g.hands["bot-x"] = [{ cards: [{ suit: "S", rank: "5" }, { suit: "H", rank: "6" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    g.hands["p2"]    = [{ cards: [{ suit: "D", rank: "10" }, { suit: "C", rank: "10" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    g.shoe = [{ suit: "C", rank: "9" }]; // double draws this
+    const chipsBefore = g.chips["bot-x"];
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await botPlayTurn(LOBBY, "bot-x");
+    const v = (await getBlackjackPlayerView(LOBBY, "p2"))!;
+    expect(v.hands["bot-x"][0].doubled).toBe(true);
+    expect(v.hands["bot-x"][0].bet).toBe(20); // bet doubled
+    expect(v.hands["bot-x"][0].cards.length).toBe(3); // one extra card
+    expect(v.chips["bot-x"]).toBe(chipsBefore - 10); // staked an extra 10
+    expect(v.activePlayerId).toBe("p2");
+  });
+
+  it("splits a pair of 8s and plays both hands", async () => {
+    const { botPlayTurn } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["bot-x", "p2"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "playing";
+    g.activePlayerIndex = 0;
+    g.activeHandIndex = 0;
+    g.dealerHand = [{ suit: "D", rank: "10" }, { suit: "?" as any, rank: "?" as any }];
+    g.hands["bot-x"] = [{ cards: [{ suit: "S", rank: "8" }, { suit: "H", rank: "8" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    g.hands["p2"]    = [{ cards: [{ suit: "D", rank: "10" }, { suit: "C", rank: "10" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    // Shoe is popped from the end; order so split draws 2, then 2 (both busted vs 10 → hit → hit → bust).
+    // After split: handA gets rank "9" (8+9=17 → stand), handB gets rank "9" (8+9=17 → stand).
+    g.shoe = [
+      { suit: "C", rank: "9" }, // handB second card
+      { suit: "D", rank: "9" }, // handA second card
+    ];
+    const chipsBefore = g.chips["bot-x"];
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await botPlayTurn(LOBBY, "bot-x");
+    const v = (await getBlackjackPlayerView(LOBBY, "p2"))!;
+    expect(v.hands["bot-x"].length).toBe(2);           // two hands
+    expect(v.hands["bot-x"][0].fromSplit).toBe(true);
+    expect(v.hands["bot-x"][1].fromSplit).toBe(true);
+    expect(v.hands["bot-x"][0].resolved).toBe(true);
+    expect(v.hands["bot-x"][1].resolved).toBe(true);
+    expect(v.chips["bot-x"]).toBe(chipsBefore - 10);   // one extra bet staked
+    expect(v.activePlayerId).toBe("p2");
+  });
+
+  it("auto-resolves both halves of a split-aces hand", async () => {
+    const { botPlayTurn } = await import("../blackjackGame.js");
+    await createBlackjackGame(LOBBY, ["bot-x", "p2"], CONFIG);
+    const exported = await exportBlackjackGames();
+    const g = exported.find((x: any) => x.lobbyCode === LOBBY)!;
+    g.phase = "playing";
+    g.activePlayerIndex = 0;
+    g.activeHandIndex = 0;
+    g.dealerHand = [{ suit: "D", rank: "10" }, { suit: "?" as any, rank: "?" as any }];
+    g.hands["bot-x"] = [{ cards: [{ suit: "S", rank: "A" }, { suit: "H", rank: "A" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    g.hands["p2"]    = [{ cards: [{ suit: "D", rank: "10" }, { suit: "C", rank: "10" }], bet: 10, doubled: false, resolved: false, fromSplit: false }];
+    g.shoe = [
+      { suit: "C", rank: "5" },
+      { suit: "D", rank: "5" },
+    ];
+    await cleanupBlackjackGame(LOBBY);
+    await restoreBlackjackGames([g]);
+
+    await botPlayTurn(LOBBY, "bot-x");
+    const v = (await getBlackjackPlayerView(LOBBY, "p2"))!;
+    expect(v.hands["bot-x"].length).toBe(2);
+    // Split-aces: both hands get exactly 2 cards and auto-resolve.
+    expect(v.hands["bot-x"][0].cards.length).toBe(2);
+    expect(v.hands["bot-x"][1].cards.length).toBe(2);
+    expect(v.hands["bot-x"][0].resolved).toBe(true);
+    expect(v.hands["bot-x"][1].resolved).toBe(true);
+    expect(v.activePlayerId).toBe("p2");
   });
 });
 

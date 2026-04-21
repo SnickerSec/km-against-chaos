@@ -75,6 +75,19 @@ button, a, [role="button"] {
   animation: deal-in 0.35s cubic-bezier(0.2, 0.8, 0.3, 1.05) both;
 }
 
+/* Blackjack dealer hole-card reveal — 3D flip from back to front. Applied
+   only to the dealer's hole card when it transitions from suit "?" to a
+   real card (the PlayingCard remounts because the key includes rank+suit). */
+@keyframes flip-reveal {
+  0%   { opacity: 0; transform: perspective(600px) rotateY(160deg) scale(0.95); }
+  40%  { opacity: 1; }
+  100% { opacity: 1; transform: perspective(600px) rotateY(0) scale(1); }
+}
+.animate-flip-reveal {
+  animation: flip-reveal 0.55s cubic-bezier(0.3, 0.8, 0.3, 1) both;
+  backface-visibility: hidden;
+}
+
 /* Blackjack chip-delta — small float-up anchored to a hand on settle. */
 @keyframes chip-float {
   0%   { opacity: 0; transform: translateY(0) scale(0.7); }

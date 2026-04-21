@@ -693,23 +693,171 @@ export async function botPlaceBet(lobbyCode: string, botId: string): Promise<Act
 }
 
 /**
- * Bot action: hit until hard 17+ or bust. Hits on soft 17 (dealer-style is
- * harmless for a bot; keeps the code simple). No double/split — keeping it
- * deterministic and easy to reason about.
+ * Basic blackjack strategy for the H17 multi-deck ruleset this table uses.
+ * Returns the optimal single action for a hand given the dealer's upcard.
+ * Callers pass canDouble/canSplit so the strategy can fall back to hit/stand
+ * when the chip stack or rules don't permit the preferred action.
+ */
+export function basicStrategy(
+  cards: Card[],
+  upcard: number,
+  canDouble: boolean,
+  canSplit: boolean,
+): "hit" | "stand" | "double" | "split" {
+  // Pairs evaluated before totals — splitting turns them into two hands.
+  if (canSplit && cards.length === 2 && cards[0].rank === cards[1].rank) {
+    const r = cards[0].rank;
+    if (r === "A" || r === "8") return "split";
+    if (r === "10" || r === "J" || r === "Q" || r === "K") {
+      // Never split 20 — stand pat (falls through to stand via hard total).
+    } else if (r === "9") {
+      return (upcard === 7 || upcard >= 10) ? "stand" : "split";
+    } else if (r === "7" || r === "3" || r === "2") {
+      if (upcard <= 7) return "split";
+      // else fall through to hard-total logic below
+    } else if (r === "6") {
+      if (upcard <= 6) return "split";
+    } else if (r === "4") {
+      if (upcard === 5 || upcard === 6) return "split";
+    }
+    // r === "5" falls through — treat pair of 5s as hard 10 below.
+  }
+
+  const total = handValue(cards);
+
+  // A hand is "soft" when it contains an Ace counted as 11 (i.e. the Ace could
+  // still drop to 1 without busting).
+  const acesAsOne = cards.reduce(
+    (sum, c) => sum + (c.rank === "A" ? 1 : RANK_VALUE[c.rank]),
+    0,
+  );
+  const isSoft = cards.some(c => c.rank === "A") && total === acesAsOne + 10;
+
+  if (isSoft) {
+    if (total >= 19) return "stand";                                   // A8, A9
+    if (total === 18) {                                                // A7
+      if (canDouble && upcard >= 3 && upcard <= 6) return "double";
+      if (upcard >= 9) return "hit";
+      return "stand";
+    }
+    if (total === 17) {                                                // A6
+      if (canDouble && upcard >= 3 && upcard <= 6) return "double";
+      return "hit";
+    }
+    if (total === 15 || total === 16) {                                // A4, A5
+      if (canDouble && upcard >= 4 && upcard <= 6) return "double";
+      return "hit";
+    }
+    if (total === 13 || total === 14) {                                // A2, A3
+      if (canDouble && upcard >= 5 && upcard <= 6) return "double";
+      return "hit";
+    }
+  }
+
+  // Hard totals
+  if (total >= 17) return "stand";
+  if (total >= 13) return upcard <= 6 ? "stand" : "hit";
+  if (total === 12) return (upcard >= 4 && upcard <= 6) ? "stand" : "hit";
+  if (total === 11) return canDouble ? "double" : "hit";               // always double 11
+  if (total === 10) {
+    if (canDouble && upcard >= 2 && upcard <= 9) return "double";
+    return "hit";
+  }
+  if (total === 9) {
+    if (canDouble && upcard >= 3 && upcard <= 6) return "double";
+    return "hit";
+  }
+  return "hit"; // 4-8
+}
+
+function dealerUpcardValue(dealerHand: Card[]): number {
+  const card = dealerHand[0];
+  // Defensive: if the upcard isn't set yet (shouldn't happen in the playing
+  // phase), assume a strong 10 so the bot plays the conservative line.
+  if (!card) return 10;
+  if (card.rank === "A") return 11;
+  return RANK_VALUE[card.rank];
+}
+
+/**
+ * Bot action: play the active hand (and any split children) using basic
+ * strategy. On split, the new hands are played in the same call so the turn
+ * resolves end-to-end. The iteration cap prevents a broken shoe or other
+ * invariant violation from spinning forever.
  */
 export async function botPlayTurn(lobbyCode: string, botId: string): Promise<ActionResult> {
   return withGameLock("blackjack", lobbyCode, async () => {
     const g = await loadGame(lobbyCode);
     if (!g) return { success: false, error: "Game not found" };
     if (g.phase !== "playing") return { success: false, error: "Not playing phase" };
-    const cur = activeHand(g);
-    if (!cur || cur.pid !== botId) return { success: false, error: "Not bot's turn" };
 
-    while (cur.hand.cards.length > 0 && handValue(cur.hand.cards) < 17 && g.shoe.length > 0) {
-      cur.hand.cards.push(dealOne(g));
+    const upcard = dealerUpcardValue(g.dealerHand);
+
+    for (let iter = 0; iter < 40; iter++) {
+      const cur = activeHand(g);
+      if (!cur || cur.pid !== botId) break;
+      const hand = cur.hand;
+
+      // Split-aces pre-resolve both halves; skip past them.
+      if (hand.resolved) { advanceTurn(g); continue; }
+
+      const total = handValue(hand.cards);
+      if (total >= 21) { hand.resolved = true; advanceTurn(g); continue; }
+
+      const canDouble = hand.cards.length === 2 && g.chips[botId] >= hand.bet;
+      const canSplit =
+        hand.cards.length === 2 &&
+        hand.cards[0].rank === hand.cards[1].rank &&
+        !hand.fromSplit &&
+        g.chips[botId] >= hand.bet;
+
+      const decision = basicStrategy(hand.cards, upcard, canDouble, canSplit);
+
+      if (decision === "stand") {
+        hand.resolved = true;
+        advanceTurn(g);
+        continue;
+      }
+
+      if (decision === "hit") {
+        if (g.shoe.length === 0) { hand.resolved = true; advanceTurn(g); continue; }
+        hand.cards.push(dealOne(g));
+        if (handValue(hand.cards) > 21) {
+          hand.resolved = true;
+          advanceTurn(g);
+        }
+        continue;
+      }
+
+      if (decision === "double") {
+        g.chips[botId] -= hand.bet;
+        hand.bet *= 2;
+        hand.doubled = true;
+        hand.cards.push(dealOne(g));
+        hand.resolved = true;
+        advanceTurn(g);
+        continue;
+      }
+
+      if (decision === "split") {
+        const isAcePair = hand.cards[0].rank === "A";
+        g.chips[botId] -= hand.bet;
+        const handA: Hand = {
+          cards: [hand.cards[0], dealOne(g)],
+          bet: hand.bet, doubled: false, resolved: isAcePair, fromSplit: true,
+        };
+        const handB: Hand = {
+          cards: [hand.cards[1], dealOne(g)],
+          bet: hand.bet, doubled: false, resolved: isAcePair, fromSplit: true,
+        };
+        g.hands[botId] = [handA, handB];
+        g.activeHandIndex = 0;
+        g.phaseDeadline = Date.now() + TURN_TIME_MS;
+        if (isAcePair) advanceTurn(g);
+        continue;
+      }
     }
-    cur.hand.resolved = true;
-    advanceTurn(g);
+
     await saveGame(g);
     return { success: true };
   });

@@ -24,16 +24,26 @@ const SUIT_COLOR: Record<Suit, string> = {
   S: "text-gray-900", H: "text-red-600", D: "text-red-600", C: "text-gray-900", "?": "text-gray-400",
 };
 
-function PlayingCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "lg" }) {
+function PlayingCard({
+  card,
+  size = "md",
+  animation = "deal-in",
+}: {
+  card: Card;
+  size?: "sm" | "md" | "lg";
+  animation?: "deal-in" | "flip-reveal";
+}) {
   const dims = size === "lg"
     ? "w-16 h-24 text-2xl"
     : size === "sm"
     ? "w-10 h-14 text-sm"
     : "w-12 h-18 text-lg";
 
+  const anim = animation === "flip-reveal" ? "animate-flip-reveal" : "animate-deal-in";
+
   if (card.suit === "?") {
     return (
-      <div className={`${dims} rounded-md bg-gradient-to-br from-red-900 to-red-700 border-2 border-white/60 shadow-lg flex items-center justify-center animate-deal-in`}>
+      <div className={`${dims} rounded-md bg-gradient-to-br from-red-900 to-red-700 border-2 border-white/60 shadow-lg flex items-center justify-center ${anim}`}>
         <div className="w-full h-full rounded-sm border-2 border-red-950/50 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(0,0,0,0.2)_4px,rgba(0,0,0,0.2)_8px)]" />
       </div>
     );
@@ -41,7 +51,7 @@ function PlayingCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "
 
   const color = SUIT_COLOR[card.suit];
   return (
-    <div className={`${dims} rounded-md bg-white border border-gray-300 shadow-lg flex flex-col items-center justify-between p-1 select-none animate-deal-in`}>
+    <div className={`${dims} rounded-md bg-white border border-gray-300 shadow-lg flex flex-col items-center justify-between p-1 select-none ${anim}`}>
       <span className={`self-start leading-none font-bold ${color}`}>{card.rank}</span>
       <span className={`leading-none ${color}`}>{SUIT_GLYPH[card.suit]}</span>
       <span className={`self-end leading-none font-bold rotate-180 ${color}`}>{card.rank}</span>
@@ -247,7 +257,14 @@ export default function BlackjackGameScreen() {
             {view.dealerHand.length === 0
               ? <div className="text-gray-500 text-sm italic self-center">waiting…</div>
               : view.dealerHand.map((c, i) => (
-                  <PlayingCard key={`${view.roundNumber}-d-${i}-${c.rank}${c.suit}`} card={c} size="lg" />
+                  <PlayingCard
+                    key={`${view.roundNumber}-d-${i}-${c.rank}${c.suit}`}
+                    card={c}
+                    size="lg"
+                    // Hole card (index 1) flips from back to face on reveal;
+                    // the upcard and any subsequent draws use the standard deal-in.
+                    animation={i === 1 && c.suit !== "?" ? "flip-reveal" : "deal-in"}
+                  />
                 ))}
           </div>
         </div>
