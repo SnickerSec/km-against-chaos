@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useGameStore } from "./store";
+import { useBlackjackStore } from "./blackjackStore";
 import { getSocket } from "./socket";
 import { playSound, playUrl, preloadSounds, SoundKey } from "./sounds";
 import { fetchDeck } from "./api";
@@ -13,6 +14,7 @@ export function useSounds() {
     unoTurn, unoRoundWinner,
     lobby,
   } = useGameStore();
+  const blackjackView = useBlackjackStore(s => s.view);
 
   const soundOverridesRef = useRef<Record<string, string | null> | null>(null);
   const deckId = lobby?.deckId;
@@ -37,6 +39,8 @@ export function useSounds() {
   const prevUnoWinner     = useRef(unoRoundWinner);
   const prevUnoCalledBy   = useRef(unoTurn?.unoCalledBy);
   const prevLastAction    = useRef(unoTurn?.lastAction);
+  const prevBjSettlement  = useRef(blackjackView?.lastSettlement);
+  const prevBjPhase       = useRef(blackjackView?.phase);
 
   // Preload all sounds when game starts
   useEffect(() => {
@@ -112,4 +116,34 @@ export function useSounds() {
     }
     prevLastAction.current = unoTurn?.lastAction;
   }, [unoTurn?.lastAction]);
+
+  // Blackjack: hand settled — prioritize win/blackjack over lose when a
+  // player has multiple hands (e.g. split) with mixed outcomes. Push-only
+  // settlements stay silent.
+  useEffect(() => {
+    const cur = blackjackView?.lastSettlement;
+    if (!prevBjSettlement.current && cur && cur.length > 0) {
+      const myId = getSocket().id ?? "";
+      const mine = cur.filter(s => s.playerId === myId);
+      const hasWin = mine.some(s => s.outcome === "win" || s.outcome === "blackjack");
+      const hasLose = mine.some(s => s.outcome === "lose");
+      if (hasWin) play("win");
+      else if (hasLose) play("lose");
+    }
+    prevBjSettlement.current = cur;
+  }, [blackjackView?.lastSettlement]);
+
+  // Blackjack: game over — decide victory/defeat by final chip stack.
+  useEffect(() => {
+    const cur = blackjackView?.phase;
+    if (prevBjPhase.current !== "gameOver" && cur === "gameOver") {
+      const myId = getSocket().id ?? "";
+      const chips = blackjackView?.chips ?? {};
+      const vals = Object.values(chips);
+      const myChips = chips[myId] ?? 0;
+      const maxChips = vals.length ? Math.max(...vals) : 0;
+      play(myChips > 0 && myChips >= maxChips ? "victory" : "defeat");
+    }
+    prevBjPhase.current = cur;
+  }, [blackjackView?.phase, blackjackView?.chips]);
 }

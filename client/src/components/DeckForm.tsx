@@ -7,7 +7,7 @@ import { useAuthStore } from "@/lib/auth";
 import ArtLibraryBrowser from "./ArtLibraryBrowser";
 import CardLibraryBrowser from "./CardLibraryBrowser";
 import SoundPicker from "./SoundPicker";
-import { SOUND_META, SoundKey } from "@/lib/sounds";
+import { SOUND_META, SOUNDS_BY_GAME_TYPE, SoundKey } from "@/lib/sounds";
 
 // ── 4-Pillar constants ──
 
@@ -774,7 +774,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
             <Icon icon={soundSectionOpen ? "mdi:chevron-up" : "mdi:chevron-down"} className="text-gray-400 shrink-0" />
           </button>
           {soundSectionOpen && <div className="px-4 pb-4 space-y-2">
-            {(Object.keys(SOUND_META) as SoundKey[]).map((key) => {
+            {(SOUNDS_BY_GAME_TYPE[gameType] ?? (Object.keys(SOUND_META) as SoundKey[])).map((key) => {
               const meta = SOUND_META[key];
               const current = soundOverrides[key];
               return (

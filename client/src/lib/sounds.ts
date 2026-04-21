@@ -17,6 +17,18 @@ export const SOUND_META: Record<SoundKey, { label: string; description: string }
   skip:    { label: "Skip Card",       description: "Plays when a skip card is played" },
 };
 
+// Which sound slots are meaningful for which game types. Keyed by the DeckForm's
+// local gameType values (hyphenated) so the form can filter the list.
+export const SOUNDS_BY_GAME_TYPE: Record<string, SoundKey[]> = {
+  "cards-against-humanity": ["win", "lose", "victory", "defeat", "meta", "stolen", "reset"],
+  "joking-hazard":          ["win", "lose", "victory", "defeat", "meta", "stolen", "reset"],
+  "apples-to-apples":       ["win", "lose", "victory", "defeat", "meta", "stolen", "reset"],
+  "superfight":             ["win", "lose", "victory", "defeat", "meta", "stolen", "reset"],
+  "uno":                    ["win", "lose", "victory", "defeat", "uno", "draw4", "skip"],
+  "codenames":              ["win", "lose", "victory", "defeat"],
+  "blackjack":              ["win", "lose", "victory", "defeat"],
+};
+
 const URLS: Record<SoundKey, string> = {
   win:     `${BASE}/dj-airhorn-sound-effect-kingbeatz_1.mp3`,
   lose:    `${BASE}/sad-trombone-sound-effect-wah-wah-wah-fail-sound-fail-horns.mp3`,
