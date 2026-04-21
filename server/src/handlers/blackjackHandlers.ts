@@ -25,11 +25,15 @@ export function registerBlackjackHandlers(
     return code;
   };
 
-  socket.on("blackjack:bet" as any, async (amount: number, callback: (res: any) => void) => {
+  socket.on("blackjack:bet" as any, async (
+    amount: number,
+    sideBets: { perfectPairs?: number; twentyOnePlusThree?: number } | undefined,
+    callback: (res: any) => void,
+  ) => {
     const code = await guard();
     if (!code) { callback({ success: false, error: "Not in a Blackjack game" }); return; }
 
-    const result = await placeBet(code, socket.id, amount);
+    const result = await placeBet(code, socket.id, amount, sideBets);
     if (!result.success) { callback({ success: false, error: result.error }); return; }
 
     callback({ success: true });
