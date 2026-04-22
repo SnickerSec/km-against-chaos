@@ -97,80 +97,102 @@ export async function restoreAll(
   io: Server<ClientEvents, ServerEvents>
 ): Promise<void> {
   try {
-    const cutoff = `NOW() - INTERVAL '${MAX_SNAPSHOT_AGE_MINUTES} minutes'`;
-    const lobbies = await pool.query(
-      `SELECT state FROM lobby_snapshots WHERE created_at > ${cutoff}`
-    );
-    const cahGames = await pool.query(
-      `SELECT state FROM cah_game_snapshots WHERE created_at > ${cutoff}`
-    );
-    const unoGames = await pool.query(
-      `SELECT state FROM uno_game_snapshots WHERE created_at > ${cutoff}`
-    );
-    const codenamesGames = await pool.query(
-      `SELECT state FROM codenames_game_snapshots WHERE created_at > ${cutoff}`
-    );
-    const blackjackGames = await pool.query(
-      `SELECT state FROM blackjack_game_snapshots WHERE created_at > ${cutoff}`
-    );
-    const chats = await pool.query(
-      `SELECT code, messages FROM chat_snapshots WHERE created_at > ${cutoff}`
-    );
+    // Rolling-deploy safety: if Redis already has lobbies, the other replica
+    // has been serving and advancing shared state while we were down. Our
+    // snapshot is now stale — restoring it would clobber fresher state
+    // (revert round progress, flip connected players to disconnected, etc.
+    // — the "deploy interrupted our game" symptom). Skip the data restore;
+    // Redis is authoritative. Cold-start (Redis wiped) still restores.
+    const liveLobbies = await exportLobbies();
+    const redisHasLiveState = liveLobbies.length > 0;
 
-    await restoreLobbies(lobbies.rows.map(r => r.state));
-    await restoreGames(cahGames.rows.map(r => r.state));
-    await restoreUnoGames(unoGames.rows.map(r => r.state));
-    await restoreCodenamesGames(codenamesGames.rows.map(r => r.state));
-    await restoreBlackjackGames(blackjackGames.rows.map(r => r.state));
-    await restoreChatHistory(chats.rows.map(r => ({ code: r.code, messages: r.messages })));
+    if (redisHasLiveState) {
+      log.info("skipping snapshot restore — Redis has live state", {
+        lobbies: liveLobbies.length,
+      });
+      // Do NOT truncate the snapshot tables — if both replicas later die
+      // hard (e.g. Redis outage + crash), the last snapshot is the only
+      // way back. Each graceful SIGTERM rewrites the table anyway.
+    } else {
+      const cutoff = `NOW() - INTERVAL '${MAX_SNAPSHOT_AGE_MINUTES} minutes'`;
+      const lobbies = await pool.query(
+        `SELECT state FROM lobby_snapshots WHERE created_at > ${cutoff}`
+      );
+      const cahGames = await pool.query(
+        `SELECT state FROM cah_game_snapshots WHERE created_at > ${cutoff}`
+      );
+      const unoGames = await pool.query(
+        `SELECT state FROM uno_game_snapshots WHERE created_at > ${cutoff}`
+      );
+      const codenamesGames = await pool.query(
+        `SELECT state FROM codenames_game_snapshots WHERE created_at > ${cutoff}`
+      );
+      const blackjackGames = await pool.query(
+        `SELECT state FROM blackjack_game_snapshots WHERE created_at > ${cutoff}`
+      );
+      const chats = await pool.query(
+        `SELECT code, messages FROM chat_snapshots WHERE created_at > ${cutoff}`
+      );
 
-    // Snapshots are one-shot — clear after restoring so a later crash
-    // cannot revive long-dead state.
-    await pool.query(`TRUNCATE ${SNAPSHOT_TABLES}`);
+      await restoreLobbies(lobbies.rows.map(r => r.state));
+      await restoreGames(cahGames.rows.map(r => r.state));
+      await restoreUnoGames(unoGames.rows.map(r => r.state));
+      await restoreCodenamesGames(codenamesGames.rows.map(r => r.state));
+      await restoreBlackjackGames(blackjackGames.rows.map(r => r.state));
+      await restoreChatHistory(chats.rows.map(r => ({ code: r.code, messages: r.messages })));
 
-    // Re-arm phase timers for games that were mid-play when the server went
-    // down. Without this, the restored deadline is only advisory — the server
-    // would never auto-advance on idle players, leaving the game stuck.
-    let rearmedCah = 0;
-    let rearmedUno = 0;
-    const cahCallback = createCahTimerCallback(io);
-    for (const row of cahGames.rows) {
-      const state = row.state;
-      if (state?.currentRound && !state.gameOver) {
-        scheduleRoundTimer(state.lobbyCode, cahCallback);
-        rearmedCah++;
-      }
-    }
-    const unoCallback = createUnoTimerCallback(io);
-    for (const row of unoGames.rows) {
-      const state = row.state;
-      if (state?.phase === "playing" && !state.gameOver) {
-        scheduleUnoTurnTimer(state.lobbyCode, unoCallback);
-        rearmedUno++;
-      }
-    }
-    let rearmedBlackjack = 0;
-    const blackjackCallback = createBlackjackTimerCallback(io);
-    for (const row of blackjackGames.rows) {
-      const state = row.state;
-      if (state?.phase && state.phase !== "gameOver") {
-        await scheduleBlackjackTimer(state.lobbyCode, blackjackCallback);
-        rearmedBlackjack++;
-      }
+      // Snapshots are one-shot after a real restore — clear so a later
+      // crash cannot revive long-dead state.
+      await pool.query(`TRUNCATE ${SNAPSHOT_TABLES}`);
+
+      log.info("snapshot restored", {
+        lobbies: lobbies.rowCount,
+        cahGames: cahGames.rowCount,
+        unoGames: unoGames.rowCount,
+        codenamesGames: codenamesGames.rowCount,
+        blackjackGames: blackjackGames.rowCount,
+        chats: chats.rowCount,
+      });
     }
 
-    log.info("snapshot restored", {
-      lobbies: lobbies.rowCount,
-      cahGames: cahGames.rowCount,
-      unoGames: unoGames.rowCount,
-      codenamesGames: codenamesGames.rowCount,
-      blackjackGames: blackjackGames.rowCount,
-      chats: chats.rowCount,
-      rearmedCah,
-      rearmedUno,
-      rearmedBlackjack,
-    });
+    // Either path: re-arm phase timers for whatever games are live in
+    // Redis right now. A timer is in-memory per replica, so a freshly-
+    // booted replica needs to arm its own — the cross-replica Redis lock
+    // (claimTimerLock) guarantees at-most-once if another replica also
+    // armed one. Iterating Redis (not the snapshot) means we honour live
+    // state, not the snapshot's stale view.
+    await rearmLiveTimers(io);
   } catch (err) {
     log.error("restore failed", { error: String(err) });
   }
+}
+
+async function rearmLiveTimers(io: Server<ClientEvents, ServerEvents>): Promise<void> {
+  let rearmedCah = 0;
+  let rearmedUno = 0;
+  let rearmedBlackjack = 0;
+
+  const cahCallback = createCahTimerCallback(io);
+  for (const g of await exportGames()) {
+    if (g.gameType === "cah" && g.currentRound && !g.gameOver) {
+      scheduleRoundTimer(g.lobbyCode, cahCallback);
+      rearmedCah++;
+    }
+  }
+  const unoCallback = createUnoTimerCallback(io);
+  for (const g of await exportUnoGames()) {
+    if (g.phase === "playing" && !g.gameOver) {
+      scheduleUnoTurnTimer(g.lobbyCode, unoCallback);
+      rearmedUno++;
+    }
+  }
+  const blackjackCallback = createBlackjackTimerCallback(io);
+  for (const g of await exportBlackjackGames()) {
+    if (g.phase && g.phase !== "gameOver") {
+      await scheduleBlackjackTimer(g.lobbyCode, blackjackCallback);
+      rearmedBlackjack++;
+    }
+  }
+
+  log.info("re-armed live timers", { rearmedCah, rearmedUno, rearmedBlackjack });
 }
