@@ -275,6 +275,34 @@ describe("isGameOver", () => {
 
 // ── Pick-2 cards ──────────────────────────────────────────────────────────────
 
+describe("pick auto-derivation from text blanks", () => {
+  it("overrides stored pick:1 to 2 when text has two blanks", async () => {
+    const miscountedDeck: ChaosCard[] = [
+      { id: "m1", text: "___ and ___ walk into a bar", pick: 1 },
+    ];
+    await cleanupGame(LOBBY);
+    await createGame(LOBBY, PLAYERS, miscountedDeck, KNOWLEDGE, { mode: "rounds", value: 3 });
+    const round = (await startRound(LOBBY))!;
+    expect(round.chaosCard.pick).toBe(2);
+  });
+
+  it("leaves meta cards alone (___ is a rule parameter, not a player blank)", async () => {
+    const metaDeck: ChaosCard[] = [
+      {
+        id: "cm-rule",
+        text: "CHAOS RULE: The winner steals ___ points from last place.",
+        pick: 1,
+        metaType: "score_manipulation",
+        metaEffect: { type: "score_add", value: 1, target: "winner" },
+      },
+    ];
+    await cleanupGame(LOBBY);
+    await createGame(LOBBY, PLAYERS, metaDeck, KNOWLEDGE, { mode: "rounds", value: 3 });
+    const round = (await startRound(LOBBY))!;
+    expect(round.chaosCard.pick).toBe(1);
+  });
+});
+
 describe("pick-2 chaos cards", () => {
   beforeEach(async () => {
     await cleanupGame(LOBBY);

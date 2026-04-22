@@ -332,6 +332,18 @@ export async function startRound(lobbyCode: string): Promise<RoundState | null> 
     }
   }
 
+  // Auto-derive pick from the number of `___` blanks in the card text.
+  // AI-generated and user-authored decks frequently stored pick:1 on
+  // cards whose text has two blanks ("___ and ___ walk into a bar"),
+  // which caused the UI to accept only 1 answer for a 2-answer prompt.
+  // Meta cards (CHAOS RULE) embed `___` as a rule parameter, not a
+  // player blank, so their stored pick stands. Superfight's synthetic
+  // prompt is already pick:2.
+  if (game.gameType !== "superfight" && !chaosCard.metaType) {
+    const blanks = (chaosCard.text.match(/_{3,}/g) || []).length;
+    if (blanks > 0) chaosCard.pick = blanks;
+  }
+
   const isJH = game.gameType === "joking_hazard";
   const isBonus = isJH && !!chaosCard.bonus;
 
