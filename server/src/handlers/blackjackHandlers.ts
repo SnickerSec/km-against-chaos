@@ -204,17 +204,24 @@ async function afterMutation(
     await sendBlackjackUpdate(io, code);
   }
 
+  const vFinal = await getBlackjackPlayerView(code, "_observer_");
+
+  // gameOver is terminal. Don't re-arm a timer or trigger bots — the timer
+  // with the gameOver deadline would otherwise fire another afterMutation,
+  // which would emit a second game:over (and, in the window between game
+  // end and rematch cleanup, that stale emit kicks clients back to the
+  // gameover screen right after a rematch).
+  if (vFinal?.phase === "gameOver") {
+    const scores = await getBlackjackScores(code);
+    if (scores) io.to(code).emit("game:over", scores);
+    return;
+  }
+
   // Re-arm the timer for the final phase.
   await scheduleBlackjackTimer(code, createBlackjackTimerCallback(io));
 
   // Kick bots if they owe an action in the new state.
   await triggerBlackjackBots(io, code);
-
-  const vFinal = await getBlackjackPlayerView(code, "_observer_");
-  if (vFinal?.phase === "gameOver") {
-    const scores = await getBlackjackScores(code);
-    if (scores) io.to(code).emit("game:over", scores);
-  }
 }
 
 /**

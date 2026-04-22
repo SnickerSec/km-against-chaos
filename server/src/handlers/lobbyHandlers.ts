@@ -12,13 +12,13 @@ import { getDeck } from "../deckStore.js";
 import { createGame, startRound, getPlayerView, getScores, endGame, cleanupGame, addPlayerToGame, removePlayerFromGame } from "../game.js";
 import { createUnoGame, isUnoGame, cleanupUnoGame, getUnoPlayerView, removePlayerFromUnoGame, setUnoPlayerNames } from "../unoGame.js";
 import { createCodenamesGame, isCodenamesGame, cleanupCodenamesGame, getCodenamesPlayerView, removePlayerFromCodenamesGame } from "../codenamesGame.js";
-import { removePlayerFromBlackjackGame } from "../blackjackGame.js";
+import { removePlayerFromBlackjackGame, cleanupBlackjackGame } from "../blackjackGame.js";
 import { setInGame, setNotInGame, getUserIdForSocket } from "../presence.js";
 import pool from "../db.js";
 import {
   findPlayerLobby, getPlayerName, clearChatHistory, getChatHistory,
   sendRoundToPlayers, sendUnoTurnToPlayers, sendCodenamesUpdate,
-  clearRoundTimer, clearUnoTurnTimer, scheduleRoundTimer, scheduleUnoTurnTimer,
+  clearRoundTimer, clearUnoTurnTimer, clearBlackjackTimer, scheduleRoundTimer, scheduleUnoTurnTimer,
 } from "../socketHelpers.js";
 import { createLogger } from "../logger.js";
 import { triggerBotActions, createCahTimerCallback } from "./cahHandlers.js";
@@ -361,9 +361,11 @@ export function registerLobbyHandlers(
 
     clearRoundTimer(code);
     clearUnoTurnTimer(code);
+    clearBlackjackTimer(code);
     await cleanupGame(code);
     await cleanupUnoGame(code);
     await cleanupCodenamesGame(code);
+    await cleanupBlackjackGame(code);
 
     const result = await resetLobbyForRematch(socket.id);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
