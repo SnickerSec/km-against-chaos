@@ -31,6 +31,7 @@ import { getPlayerView } from "./game.js";
 import { isUnoGame, remapUnoGamePlayer, getUnoPlayerView } from "./unoGame.js";
 import { remapGamePlayer } from "./game.js";
 import { isCodenamesGame, getCodenamesPlayerView } from "./codenamesGame.js";
+import { isBlackjackGame, remapBlackjackPlayer, getBlackjackPlayerView } from "./blackjackGame.js";
 import { registerSession, getSessionId, cancelDisconnectTimer } from "./sessions.js";
 import { removeFromVoice, getChatHistory } from "./socketHelpers.js";
 import { createLogger } from "./logger.js";
@@ -216,10 +217,12 @@ io.on("connection", async (socket) => {
       socket.join(code);
 
       const uno = await isUnoGame(code);
+      const blackjack = await isBlackjackGame(code);
       if (uno) await remapUnoGamePlayer(code, oldSocketId, socket.id);
+      else if (blackjack) await remapBlackjackPlayer(code, oldSocketId, socket.id);
       else remapGamePlayer(code, oldSocketId, socket.id);
 
-      const gameView = lobby.status === "playing" && !uno
+      const gameView = lobby.status === "playing" && !uno && !blackjack
         ? await getPlayerView(code, socket.id)
         : null;
 
@@ -233,6 +236,10 @@ io.on("connection", async (socket) => {
       if (uno && lobby.status === "playing") {
         const unoView = await getUnoPlayerView(code, socket.id);
         if (unoView) socket.emit("uno:turn-update", unoView);
+      }
+      if (blackjack && lobby.status === "playing") {
+        const bjView = await getBlackjackPlayerView(code, socket.id);
+        if (bjView) socket.emit("blackjack:update" as any, bjView);
       }
       if ((await isCodenamesGame(code)) && lobby.status === "playing") {
         const cnView = await getCodenamesPlayerView(code, socket.id);

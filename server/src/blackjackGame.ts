@@ -1205,6 +1205,51 @@ export async function botPlayTurn(lobbyCode: string, botId: string): Promise<Act
   });
 }
 
+/**
+ * Remap a player's socket id in the running blackjack game. Called from the
+ * reconnect flow in index.ts when a client reconnects with a fresh socket id.
+ * Without this, the game keeps per-player records keyed by the stale socket id
+ * while the lobby moves to the new one — the reconnected client then sees
+ * their seat name rendered as the raw old socket id (because `lobby.players`
+ * no longer contains it) and can't act because `placeBet/hit/stand` look up
+ * by the current socket id.
+ */
+export async function remapBlackjackPlayer(
+  lobbyCode: string,
+  oldId: string,
+  newId: string,
+): Promise<void> {
+  return withGameLock("blackjack", lobbyCode, async () => {
+    const g = await loadGame(lobbyCode);
+    if (!g) return;
+    const idx = g.playerIds.indexOf(oldId);
+    if (idx === -1) return;
+
+    g.playerIds[idx] = newId;
+
+    if (oldId in g.chips) { g.chips[newId] = g.chips[oldId]; delete g.chips[oldId]; }
+    if (oldId in g.bets) { g.bets[newId] = g.bets[oldId]; delete g.bets[oldId]; }
+    if (oldId in g.sideBets) { g.sideBets[newId] = g.sideBets[oldId]; delete g.sideBets[oldId]; }
+    if (oldId in g.hands) { g.hands[newId] = g.hands[oldId]; delete g.hands[oldId]; }
+
+    if (g.insuranceDecisions && oldId in g.insuranceDecisions) {
+      g.insuranceDecisions[newId] = g.insuranceDecisions[oldId];
+      delete g.insuranceDecisions[oldId];
+    }
+    if (g.lastSettlement) {
+      for (const s of g.lastSettlement) if (s.playerId === oldId) s.playerId = newId;
+    }
+    if (g.sideBetSettlement) {
+      for (const s of g.sideBetSettlement) if (s.playerId === oldId) s.playerId = newId;
+    }
+    if (g.insuranceSettlement) {
+      for (const s of g.insuranceSettlement) if (s.playerId === oldId) s.playerId = newId;
+    }
+
+    await saveGame(g);
+  });
+}
+
 export async function removePlayerFromBlackjackGame(
   lobbyCode: string,
   playerId: string,

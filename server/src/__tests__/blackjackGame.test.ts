@@ -1226,6 +1226,32 @@ describe("botPlayTurn", () => {
   });
 });
 
+describe("remapBlackjackPlayer", () => {
+  it("rewrites playerIds, chips, bets, and hands to the new id", async () => {
+    await createBlackjackGame(LOBBY, ["p1", "p2"], CONFIG);
+    await placeBet(LOBBY, "p1", 100);
+
+    const { remapBlackjackPlayer } = await import("../blackjackGame.js");
+    await remapBlackjackPlayer(LOBBY, "p1", "p1-new");
+
+    const v = await getBlackjackPlayerView(LOBBY, "p1-new");
+    expect(v).not.toBeNull();
+    expect(v!.playerIds).toEqual(["p1-new", "p2"]);
+    expect(v!.chips["p1-new"]).toBe(CONFIG.startingChips - 100);
+    expect(v!.chips["p1"]).toBeUndefined();
+    expect(v!.bets["p1-new"]).toBe(100);
+    expect(v!.bets["p1"]).toBeUndefined();
+  });
+
+  it("is a no-op when oldId is not in the game", async () => {
+    await createBlackjackGame(LOBBY, ["p1"], CONFIG);
+    const { remapBlackjackPlayer } = await import("../blackjackGame.js");
+    await remapBlackjackPlayer(LOBBY, "nobody", "someone");
+    const v = await getBlackjackPlayerView(LOBBY, "p1");
+    expect(v!.playerIds).toEqual(["p1"]);
+  });
+});
+
 describe("restoreBlackjackGames zombie filter", () => {
   it("skips games whose createdAt is more than 2h in the past", async () => {
     await createBlackjackGame(LOBBY, PLAYERS, CONFIG);
