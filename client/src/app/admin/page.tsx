@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useAuthStore, getAuthHeaders } from "@/lib/auth";
 import { fetchAdminSettings, updateAdminSetting, fetchModels, fetchApiKeysStatus, testProvider, ModelInfo, fetchPromptTemplates, updatePromptTemplates, resetPromptTemplates, PromptTemplates, fetchImageModel, updateImageModel, ImageModelSettings, FalModelInfo } from "@/lib/api";
 import GoogleSignIn from "@/components/GoogleSignIn";
+import GameTypeBadge from "@/components/GameTypeBadge";
 
 const API_URL =
   process.env.NEXT_PUBLIC_SERVER_URL ||
@@ -934,15 +935,17 @@ export default function AdminPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-medium text-white truncate">{d.name}</p>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                              d.gameType === "joking_hazard"
-                                ? "bg-orange-600/30 text-orange-300"
-                                : "bg-red-600/30 text-red-300"
-                            }`}>
-                              {d.gameType === "joking_hazard" ? "JH" : "CAH"}
-                            </span>
+                            <GameTypeBadge gameType={d.gameType} />
                           </div>
-                          <p className="text-xs text-gray-400">{d.gameType === "joking_hazard" ? `${d.knowledgeCount} panels` : `${d.chaosCount} prompts · ${d.knowledgeCount} answers`}</p>
+                          <p className="text-xs text-gray-400">
+                            {d.gameType === "blackjack"
+                              ? "built-in rules"
+                              : d.gameType === "uno"
+                              ? "108 cards"
+                              : d.gameType === "joking_hazard"
+                              ? `${d.knowledgeCount} panels`
+                              : `${d.chaosCount} prompts · ${d.knowledgeCount} answers`}
+                          </p>
                         </div>
                         <div className="flex-shrink-0">
                           {featuredStatus[d.id]?.success && (
