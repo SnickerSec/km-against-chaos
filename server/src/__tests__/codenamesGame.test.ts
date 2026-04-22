@@ -751,3 +751,26 @@ describe("exportCodenamesGames / restoreCodenamesGames", () => {
     expect(await isCodenamesGame(LOBBY)).toBe(false);
   });
 });
+
+describe("remapCodenamesPlayer", () => {
+  it("rewrites playerIds, spymasters, and guessers to the new id", async () => {
+    await setupTeamsAndStart();
+    const { remapCodenamesPlayer } = await import("../codenamesGame.js");
+    await remapCodenamesPlayer(LOBBY, "p1", "p1-new"); // red spymaster
+    await remapCodenamesPlayer(LOBBY, "p4", "p4-new"); // blue guesser
+
+    const view = (await getCodenamesPlayerView(LOBBY, "p1-new"))!;
+    expect(view.teams.red.spymaster).toBe("p1-new");
+    expect(view.teams.blue.guessers).toContain("p4-new");
+    expect(view.teams.blue.guessers).not.toContain("p4");
+    expect(view.isSpymaster).toBe(true);
+  });
+
+  it("is a no-op when oldId is not in the game", async () => {
+    await setupTeamsAndStart();
+    const { remapCodenamesPlayer } = await import("../codenamesGame.js");
+    await remapCodenamesPlayer(LOBBY, "nobody", "someone");
+    const view = (await getCodenamesPlayerView(LOBBY, "p1"))!;
+    expect(view.teams.red.spymaster).toBe("p1");
+  });
+});

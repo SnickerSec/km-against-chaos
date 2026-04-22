@@ -30,10 +30,10 @@ import pool, { initDb } from "./db.js";
 import { getPlayerView } from "./game.js";
 import { isUnoGame, remapUnoGamePlayer, getUnoPlayerView } from "./unoGame.js";
 import { remapGamePlayer } from "./game.js";
-import { isCodenamesGame, getCodenamesPlayerView } from "./codenamesGame.js";
+import { isCodenamesGame, remapCodenamesPlayer, getCodenamesPlayerView } from "./codenamesGame.js";
 import { isBlackjackGame, remapBlackjackPlayer, getBlackjackPlayerView } from "./blackjackGame.js";
 import { registerSession, getSessionId, cancelDisconnectTimer } from "./sessions.js";
-import { removeFromVoice, getChatHistory, sendRoundToPlayers } from "./socketHelpers.js";
+import { removeFromVoice, getChatHistory, sendRoundToPlayers, sendCodenamesUpdate } from "./socketHelpers.js";
 import { createLogger } from "./logger.js";
 import { snapshotAll, restoreAll } from "./snapshot.js";
 import { registerLobbyHandlers, handleLeave } from "./handlers/lobbyHandlers.js";
@@ -246,11 +246,13 @@ io.on("connection", async (socket) => {
 
       const uno = await isUnoGame(code);
       const blackjack = await isBlackjackGame(code);
+      const codenames = await isCodenamesGame(code);
       if (uno) await remapUnoGamePlayer(code, oldSocketId, socket.id);
       else if (blackjack) await remapBlackjackPlayer(code, oldSocketId, socket.id);
+      else if (codenames) await remapCodenamesPlayer(code, oldSocketId, socket.id);
       else await remapGamePlayer(code, oldSocketId, socket.id);
 
-      const gameView = lobby.status === "playing" && !uno && !blackjack
+      const gameView = lobby.status === "playing" && !uno && !blackjack && !codenames
         ? await getPlayerView(code, socket.id)
         : null;
 
@@ -269,9 +271,12 @@ io.on("connection", async (socket) => {
         const bjView = await getBlackjackPlayerView(code, socket.id);
         if (bjView) socket.emit("blackjack:update" as any, bjView);
       }
-      if ((await isCodenamesGame(code)) && lobby.status === "playing") {
-        const cnView = await getCodenamesPlayerView(code, socket.id);
-        if (cnView) socket.emit("codenames:update" as any, cnView);
+      if (codenames && lobby.status === "playing") {
+        // Rebroadcast to every codenames player so other already-connected
+        // clients see the reconnected player's new socket id — without
+        // this, a reconnected spymaster/guesser renders as the raw old
+        // socket id on everyone else's screen.
+        await sendCodenamesUpdate(io, code);
       }
 
       // Re-broadcast the round view to everyone in the CAH/JH/A2A room so
@@ -279,7 +284,7 @@ io.on("connection", async (socket) => {
       // socket id (critical when the reconnecting player is the czar —
       // otherwise the others' lobby.players.find(p.id===czarId) returns
       // undefined and the czar renders as "???").
-      if (!uno && !blackjack && lobby.status === "playing") {
+      if (!uno && !blackjack && !codenames && lobby.status === "playing") {
         await sendRoundToPlayers(io, code);
       }
 

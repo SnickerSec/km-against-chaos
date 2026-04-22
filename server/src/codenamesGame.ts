@@ -390,6 +390,39 @@ export async function cleanupCodenamesGame(lobbyCode: string): Promise<void> {
 }
 
 /**
+ * Remap a player's socket id in the running codenames game. Called from the
+ * reconnect flow in index.ts when a client gets a fresh socket id. Without
+ * this, the game keeps playerIds and team rosters keyed under the stale
+ * socket id — so after reconnect the new socket can't give clues or guess
+ * (team membership lookup fails), and other players see the spymaster
+ * rendered as the raw old socket id because lobby.players no longer
+ * contains that key. Matches the uno/blackjack/cah remap pattern.
+ */
+export async function remapCodenamesPlayer(
+  lobbyCode: string,
+  oldId: string,
+  newId: string,
+): Promise<void> {
+  return withGameLock("codenames", lobbyCode, async () => {
+    const game = await loadGame(lobbyCode);
+    if (!game) return;
+    const idx = game.playerIds.indexOf(oldId);
+    if (idx === -1) return;
+
+    game.playerIds[idx] = newId;
+
+    for (const team of ["red", "blue"] as const) {
+      if (game.teams[team].spymaster === oldId) {
+        game.teams[team].spymaster = newId;
+      }
+      game.teams[team].guessers = game.teams[team].guessers.map(p => p === oldId ? newId : p);
+    }
+
+    await saveGame(game);
+  });
+}
+
+/**
  * Remove a player from an active Codenames game (leave or kick). Clears their
  * slot on either team; a vacated spymaster slot becomes unset so the team can
  * reassign.
