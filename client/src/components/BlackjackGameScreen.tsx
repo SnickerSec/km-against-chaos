@@ -25,37 +25,71 @@ const SUIT_COLOR: Record<Suit, string> = {
   S: "text-gray-900", H: "text-red-600", D: "text-red-600", C: "text-gray-900", "?": "text-gray-400",
 };
 
-function PlayingCard({
-  card,
-  size = "md",
-  animation = "deal-in",
-}: {
-  card: Card;
-  size?: "sm" | "md" | "lg";
-  animation?: "deal-in" | "flip-reveal";
-}) {
-  const dims = size === "lg"
+function cardDims(size: "sm" | "md" | "lg"): string {
+  return size === "lg"
     ? "w-16 h-24 text-2xl"
     : size === "sm"
     ? "w-10 h-14 text-sm"
     : "w-12 h-18 text-lg";
+}
 
-  const anim = animation === "flip-reveal" ? "animate-flip-reveal" : "animate-deal-in";
+function CardBackFace({ rounded = "rounded-md" }: { rounded?: string }) {
+  return (
+    <div className={`w-full h-full ${rounded} bg-gradient-to-br from-red-900 to-red-700 border-2 border-white/60 shadow-lg flex items-center justify-center`}>
+      <div className="w-full h-full rounded-sm border-2 border-red-950/50 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(0,0,0,0.2)_4px,rgba(0,0,0,0.2)_8px)]" />
+    </div>
+  );
+}
 
-  if (card.suit === "?") {
-    return (
-      <div className={`${dims} rounded-md bg-gradient-to-br from-red-900 to-red-700 border-2 border-white/60 shadow-lg flex items-center justify-center ${anim}`}>
-        <div className="w-full h-full rounded-sm border-2 border-red-950/50 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(0,0,0,0.2)_4px,rgba(0,0,0,0.2)_8px)]" />
-      </div>
-    );
-  }
-
+function CardFrontFace({ card }: { card: Card }) {
   const color = SUIT_COLOR[card.suit];
   return (
-    <div className={`${dims} rounded-md bg-white border border-gray-300 shadow-lg flex flex-col items-center justify-between p-1 select-none ${anim}`}>
+    <div className="w-full h-full rounded-md bg-white border border-gray-300 shadow-lg flex flex-col items-center justify-between p-1 select-none">
       <span className={`self-start leading-none font-bold ${color}`}>{card.rank}</span>
       <span className={`leading-none ${color}`}>{SUIT_GLYPH[card.suit]}</span>
       <span className={`self-end leading-none font-bold rotate-180 ${color}`}>{card.rank}</span>
+    </div>
+  );
+}
+
+function PlayingCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "lg" }) {
+  const dims = cardDims(size);
+  return (
+    <div className={`${dims} animate-deal-in`}>
+      {card.suit === "?" ? <CardBackFace /> : <CardFrontFace card={card} />}
+    </div>
+  );
+}
+
+/**
+ * Dealer hole card — stays mounted across the reveal so the back physically
+ * flips over to the face. Starts face-down when card.suit === "?" and
+ * rotates 180deg when it becomes a real card. The first deal (initialDeal)
+ * also plays the slide-in from the shoe. Both faces are rendered with
+ * backface-visibility:hidden so only one is visible at any rotation.
+ */
+function FlipCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "lg" }) {
+  const dims = cardDims(size);
+  const isFaceUp = card.suit !== "?";
+  return (
+    <div className={`${dims} animate-deal-in`} style={{ perspective: "800px" }}>
+      <div
+        className="relative w-full h-full transition-transform duration-700 ease-[cubic-bezier(0.3,0.8,0.3,1)]"
+        style={{
+          transformStyle: "preserve-3d",
+          transform: isFaceUp ? "rotateY(180deg)" : "rotateY(0deg)",
+        }}
+      >
+        <div className="absolute inset-0" style={{ backfaceVisibility: "hidden" }}>
+          <CardBackFace />
+        </div>
+        <div
+          className="absolute inset-0"
+          style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+        >
+          {isFaceUp ? <CardFrontFace card={card} /> : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -371,14 +405,19 @@ export default function BlackjackGameScreen() {
             {view.dealerHand.length === 0
               ? <div className="text-gray-500 text-sm italic self-center">waiting…</div>
               : view.dealerHand.map((c, i) => (
-                  <PlayingCard
-                    key={`${view.roundNumber}-d-${i}-${c.rank}${c.suit}`}
-                    card={c}
-                    size="lg"
-                    // Hole card (index 1) flips from back to face on reveal;
-                    // the upcard and any subsequent draws use the standard deal-in.
-                    animation={i === 1 && c.suit !== "?" ? "flip-reveal" : "deal-in"}
-                  />
+                  // Hole card (index 1) uses a FlipCard that stays mounted
+                  // across the reveal so the back physically rotates over to
+                  // the face. Key is index-only so React keeps the same DOM
+                  // node when card.suit changes from "?" to the real suit.
+                  i === 1 ? (
+                    <FlipCard key={`${view.roundNumber}-d-1`} card={c} size="lg" />
+                  ) : (
+                    <PlayingCard
+                      key={`${view.roundNumber}-d-${i}-${c.rank}${c.suit}`}
+                      card={c}
+                      size="lg"
+                    />
+                  )
                 ))}
           </div>
         </div>
