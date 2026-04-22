@@ -60,6 +60,36 @@ function PlayingCard({
   );
 }
 
+// ── Shoe (side deck) ─────────────────────────────────────────────────────────
+
+/**
+ * Visual card shoe — a small angled stack of card backs. The `dealKey` prop
+ * bumps whenever a card is dealt (tracked by the total of all cards on the
+ * table) so the top card animates a little flick, making the deck feel like
+ * the source of every dealt card. Cards use the `deal-in` keyframe which
+ * slides them in from this corner.
+ */
+function ShoeStack({ remaining, dealKey }: { remaining: number; dealKey: number }) {
+  return (
+    <div className="relative flex flex-col items-center gap-1 select-none pointer-events-none">
+      <div className="text-[10px] text-yellow-200/70 uppercase tracking-widest">Shoe</div>
+      <div className="relative w-14 h-20">
+        {/* Back stack — three angled card backs for depth. */}
+        <div className="absolute inset-0 rounded-md bg-gradient-to-br from-red-900 to-red-700 border-2 border-white/40 shadow-md -rotate-[10deg] translate-x-[6px] translate-y-[3px]" />
+        <div className="absolute inset-0 rounded-md bg-gradient-to-br from-red-900 to-red-700 border-2 border-white/50 shadow-md -rotate-[9deg] translate-x-[3px] translate-y-[1px]" />
+        {/* Top card — flicks on every deal. */}
+        <div
+          key={`flick-${dealKey}`}
+          className="absolute inset-0 rounded-md bg-gradient-to-br from-red-900 to-red-700 border-2 border-white/60 shadow-lg -rotate-[8deg] animate-shoe-flick flex items-center justify-center"
+        >
+          <div className="w-full h-full rounded-sm border-2 border-red-950/50 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(0,0,0,0.2)_4px,rgba(0,0,0,0.2)_8px)]" />
+        </div>
+      </div>
+      <div className="text-[10px] text-gray-400 tabular-nums">{remaining}</div>
+    </div>
+  );
+}
+
 // ── Hand evaluation (client-side, matches the server) ────────────────────────
 
 function handTotal(cards: Card[]): number {
@@ -215,6 +245,17 @@ export default function BlackjackGameScreen() {
   const isMyTurn = view?.activePlayerId === myId;
   const canBet = useMemo(() => !!view && myChips >= view.config.minBet, [view, myChips]);
 
+  // Total cards currently on the felt — used as a key on the shoe's top card
+  // so it re-mounts (and flicks) whenever a new card appears anywhere.
+  const totalCardsDealt = useMemo(() => {
+    if (!view) return 0;
+    let n = view.dealerHand.length;
+    for (const pid of view.playerIds) {
+      for (const h of view.hands[pid] || []) n += h.cards.length;
+    }
+    return n;
+  }, [view]);
+
   if (!view) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-emerald-950">
@@ -312,6 +353,12 @@ export default function BlackjackGameScreen() {
 
       {/* Felt table */}
       <div className="relative z-0 flex-1 flex flex-col items-center justify-between px-4 py-6 gap-4">
+        {/* Shoe — anchored to the felt's upper-right so cards visibly come
+            from this corner via the deal-in keyframe. */}
+        <div className="absolute top-4 right-4 sm:right-8 z-10">
+          <ShoeStack remaining={view.shoeRemaining} dealKey={totalCardsDealt} />
+        </div>
+
         {/* Dealer */}
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center gap-2 text-xs text-yellow-200/80 uppercase tracking-widest">

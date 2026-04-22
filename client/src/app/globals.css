@@ -65,14 +65,28 @@ button, a, [role="button"] {
   box-shadow: 0 0 10px rgba(34, 211, 238, 0.45);
 }
 
-/* Blackjack card deal — cards slide down from the top with a tiny tilt.
-   Triggered by remounting the <PlayingCard> (key includes rank+suit). */
+/* Blackjack card deal — cards slide in diagonally from the upper-right
+   where the shoe sits, approximating a dealer flick. Triggered by
+   remounting the <PlayingCard> (key includes rank+suit). */
 @keyframes deal-in {
-  0%   { opacity: 0; transform: translateY(-28px) rotate(-6deg) scale(0.92); }
-  100% { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+  0%   { opacity: 0; transform: translate(48px, -36px) rotate(14deg) scale(0.88); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0) scale(1); }
 }
 .animate-deal-in {
-  animation: deal-in 0.35s cubic-bezier(0.2, 0.8, 0.3, 1.05) both;
+  animation: deal-in 0.42s cubic-bezier(0.2, 0.8, 0.3, 1.05) both;
+}
+
+/* Shoe-flick — tiny nudge applied to the top card of the stack each
+   time a card is dealt, so the deck feels alive. Triggered by a key
+   change on the shoe's top card (keyed to total-dealt count). */
+@keyframes shoe-flick {
+  0%   { transform: translateX(0) rotate(-8deg); }
+  30%  { transform: translateX(-6px) rotate(-12deg); }
+  100% { transform: translateX(0) rotate(-8deg); }
+}
+.animate-shoe-flick {
+  animation: shoe-flick 0.32s cubic-bezier(0.3, 0.9, 0.4, 1) both;
 }
 
 /* Blackjack dealer hole-card reveal — 3D flip from back to front. Applied
