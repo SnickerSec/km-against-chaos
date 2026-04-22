@@ -87,28 +87,37 @@ const io = new Server<ClientEvents, ServerEvents>(httpServer, {
   },
   pingInterval: 10_000,
   pingTimeout: 5_000,
+  // Brief network blips (wifi stutter, tab backgrounded on mobile) used
+  // to cost a full reconnect — socket.id would change, app-level remap
+  // would run, and any packets the server tried to send during the gap
+  // were dropped. connectionStateRecovery keeps the same socket.id and
+  // buffers missed packets for replay once the client comes back,
+  // inside the window below. Does NOT survive a server process exit
+  // (the buffer is per-process), so rolling deploys still go through
+  // the sessionId-based reconnect path — this is strictly about
+  // transient disconnects.
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: true,
+  },
 });
 
 // Cross-replica Socket.IO broadcasting. When REDIS_URL is set, attach the
 // Redis adapter so io.to(room).emit(...) fans out to clients connected to
 // other replicas. Without REDIS_URL we stay on the in-memory adapter —
-// fine for single-replica deploys (current prod), lets us ship the code
-// before provisioning Redis.
-if (process.env.REDIS_URL) {
-  // Lazy-require so tests and envs without the env var don't need the
-  // packages loaded.
-  (async () => {
-    try {
-      const { Redis } = await import("ioredis");
-      const { createAdapter } = await import("@socket.io/redis-adapter");
-      const pub = new Redis(process.env.REDIS_URL!);
-      const sub = pub.duplicate();
-      io.adapter(createAdapter(pub, sub));
-      log.info("socket.io redis adapter attached");
-    } catch (err) {
-      log.error("failed to attach redis adapter — falling back to in-memory", { error: String(err) });
-    }
-  })();
+// fine for single-replica deploys, tests, and local dev.
+async function attachRedisAdapter(): Promise<void> {
+  if (!process.env.REDIS_URL) return;
+  try {
+    const { Redis } = await import("ioredis");
+    const { createAdapter } = await import("@socket.io/redis-adapter");
+    const pub = new Redis(process.env.REDIS_URL);
+    const sub = pub.duplicate();
+    io.adapter(createAdapter(pub, sub));
+    log.info("socket.io redis adapter attached");
+  } catch (err) {
+    log.error("failed to attach redis adapter — falling back to in-memory", { error: String(err) });
+  }
 }
 
 setNotificationIO(io);
@@ -204,8 +213,20 @@ io.on("connection", async (socket) => {
     });
   });
 
+  // Transport-level state recovery (connectionStateRecovery) — the socket.id,
+  // room memberships, socket.data, and any buffered emits are already
+  // restored by Socket.IO. There's no new socket.id to remap to, so skip
+  // the app-level reconnect remap below and let handlers resume as if the
+  // drop never happened. Handlers + the disconnect hook are still bound
+  // further down the function for this new socket instance.
+  if (socket.recovered) {
+    log.info("socket state recovered", { socketId: socket.id });
+  }
+
   const sessionId: string = socket.handshake.auth?.sessionId || socket.id;
-  const { isReconnect, oldSocketId } = await registerSession(sessionId, socket.id);
+  const { isReconnect, oldSocketId } = socket.recovered
+    ? { isReconnect: false, oldSocketId: null }
+    : await registerSession(sessionId, socket.id);
 
   if (isReconnect && oldSocketId) {
     cancelDisconnectTimer(sessionId);
@@ -311,6 +332,12 @@ io.on("connection", async (socket) => {
 const PORT = process.env.PORT || 3001;
 
 async function start() {
+  // Order matters: everything that has to be ready before the first
+  // inbound connection arrives goes here. Railway's health check uses
+  // the TCP port, so we don't open it (httpServer.listen) until DB
+  // schema, deck seeding, snapshot restore, and the cross-replica
+  // Socket.IO adapter are all ready. This prevents an early connection
+  // from landing on a half-warm replica that can't broadcast yet.
   if (process.env.DATABASE_URL) {
     try {
       await initDb();
@@ -322,6 +349,7 @@ async function start() {
   } else {
     log.warn("no DATABASE_URL set, database features disabled");
   }
+  await attachRedisAdapter();
   httpServer.listen(PORT, () => log.info("server started", { port: PORT }));
 }
 
