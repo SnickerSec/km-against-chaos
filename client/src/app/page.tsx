@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useGameStore } from "@/lib/store";
 import HomeScreen from "@/components/HomeScreen";
@@ -27,8 +27,33 @@ function ServerRestartBanner() {
   );
 }
 
+/**
+ * Keep the URL's ?code=XXXX in sync with the joined lobby so the address
+ * bar is shareable mid-game and the code is visible for debugging. The
+ * home screen's HomeScreen already reads ?code= as a join prefill, so
+ * reloading a shared URL drops you straight into the join flow.
+ */
+function useRoomCodeInUrl() {
+  const code = useGameStore((s) => s.lobby?.code);
+  const screen = useGameStore((s) => s.screen);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (code && screen !== "home") {
+      if (url.searchParams.get("code") !== code) {
+        url.searchParams.set("code", code);
+        window.history.replaceState(null, "", url.toString());
+      }
+    } else if (url.searchParams.has("code")) {
+      url.searchParams.delete("code");
+      window.history.replaceState(null, "", url.toString());
+    }
+  }, [code, screen]);
+}
+
 export default function Home() {
   const { screen } = useGameStore();
+  useRoomCodeInUrl();
 
   return (
     <>
