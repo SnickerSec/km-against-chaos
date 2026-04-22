@@ -17,8 +17,8 @@ const GameOverScreen = dynamic(() => import("@/components/GameOverScreen"), { ss
 function ServerRestartBanner() {
   const restarting = useGameStore((s) => s.serverRestarting);
   if (!restarting) return null;
-  // Subtle corner pill — only shown if the reconnect takes longer than
-  // the 2s grace period set in socket.ts. Fast redeploys are invisible.
+  // Shown after the reconnect-grace timer fires in socket.ts (500ms).
+  // Fast reconnects (well under that) stay invisible.
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] bg-gray-800/95 text-gray-200 rounded-full px-3 py-1.5 text-xs shadow-lg flex items-center gap-2 border border-gray-700">
       <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
@@ -53,12 +53,24 @@ function useRoomCodeInUrl() {
 
 export default function Home() {
   const { screen } = useGameStore();
+  const restarting = useGameStore((s) => s.serverRestarting);
   useRoomCodeInUrl();
 
+  // Gate pointer events while the banner is up so mid-reconnect clicks
+  // (bet, play card, give clue) don't dispatch into a dead socket and
+  // vanish. The banner itself and anything outside this wrapper stays
+  // interactive so the "Reconnecting…" indicator remains visible and
+  // non-game UI (e.g. leaving the page) keeps working.
   return (
     <>
       <ServerRestartBanner />
-      <div key={screen ?? "home"} className="animate-phase-enter">
+      <div
+        key={screen ?? "home"}
+        className={`animate-phase-enter transition-opacity ${
+          restarting ? "pointer-events-none opacity-60" : ""
+        }`}
+        aria-busy={restarting || undefined}
+      >
         {screen === "lobby" ? (
           <LobbyScreen />
         ) : screen === "game" ? (

@@ -43,25 +43,34 @@ export function getSocket(): Socket {
       identifySocket(socket!);
     });
 
-    // Don't flash the restart banner for fast reconnects: server_restart
-    // only arms a timer, and the reconnect handler cancels it. If the
-    // reconnect lands within 2s the user sees nothing at all.
+    // Show the "Reconnecting…" banner quickly so the user knows their
+    // clicks are going nowhere, but still tolerate very fast reconnects
+    // (wifi stutter, backgrounded tab) so the banner doesn't flash on
+    // every blip. Arm the banner after a short grace from BOTH signals:
+    //   - server_restart (server warns of a deploy just before drop)
+    //   - disconnect     (actual socket loss, covers wifi / server kill)
+    // The reconnect/connect handler clears the pending timer.
+    const RECONNECT_GRACE_MS = 500;
     let restartBannerTimer: ReturnType<typeof setTimeout> | null = null;
-    socket.on("server_restart" as any, () => {
-      if (restartBannerTimer) clearTimeout(restartBannerTimer);
+    const armRestartBanner = () => {
+      if (restartBannerTimer) return; // timer already pending — don't stack
       restartBannerTimer = setTimeout(() => {
         useGameStore.setState({ serverRestarting: true });
         restartBannerTimer = null;
-      }, 2000);
-    });
-
-    socket.on("reconnect" as any, () => {
+      }, RECONNECT_GRACE_MS);
+    };
+    const clearRestartBanner = () => {
       if (restartBannerTimer) {
         clearTimeout(restartBannerTimer);
         restartBannerTimer = null;
       }
       useGameStore.setState({ serverRestarting: false });
-    });
+    };
+
+    socket.on("server_restart" as any, armRestartBanner);
+    socket.on("disconnect", armRestartBanner);
+    socket.on("reconnect" as any, clearRestartBanner);
+    socket.on("connect", clearRestartBanner);
 
     // Session reconnection — must be registered at socket creation time
     // (before any useEffect runs) to avoid missing the event on page refresh
