@@ -33,7 +33,7 @@ import { remapGamePlayer } from "./game.js";
 import { isCodenamesGame, getCodenamesPlayerView } from "./codenamesGame.js";
 import { isBlackjackGame, remapBlackjackPlayer, getBlackjackPlayerView } from "./blackjackGame.js";
 import { registerSession, getSessionId, cancelDisconnectTimer } from "./sessions.js";
-import { removeFromVoice, getChatHistory } from "./socketHelpers.js";
+import { removeFromVoice, getChatHistory, sendRoundToPlayers } from "./socketHelpers.js";
 import { createLogger } from "./logger.js";
 import { snapshotAll, restoreAll } from "./snapshot.js";
 import { registerLobbyHandlers, handleLeave } from "./handlers/lobbyHandlers.js";
@@ -220,7 +220,7 @@ io.on("connection", async (socket) => {
       const blackjack = await isBlackjackGame(code);
       if (uno) await remapUnoGamePlayer(code, oldSocketId, socket.id);
       else if (blackjack) await remapBlackjackPlayer(code, oldSocketId, socket.id);
-      else remapGamePlayer(code, oldSocketId, socket.id);
+      else await remapGamePlayer(code, oldSocketId, socket.id);
 
       const gameView = lobby.status === "playing" && !uno && !blackjack
         ? await getPlayerView(code, socket.id)
@@ -244,6 +244,15 @@ io.on("connection", async (socket) => {
       if ((await isCodenamesGame(code)) && lobby.status === "playing") {
         const cnView = await getCodenamesPlayerView(code, socket.id);
         if (cnView) socket.emit("codenames:update" as any, cnView);
+      }
+
+      // Re-broadcast the round view to everyone in the CAH/JH/A2A room so
+      // other already-connected players see the reconnected player's new
+      // socket id (critical when the reconnecting player is the czar —
+      // otherwise the others' lobby.players.find(p.id===czarId) returns
+      // undefined and the czar renders as "???").
+      if (!uno && !blackjack && lobby.status === "playing") {
+        await sendRoundToPlayers(io, code);
       }
 
       socket.to(code).emit("lobby:player-reconnected", socket.id);
