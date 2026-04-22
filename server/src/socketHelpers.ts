@@ -126,6 +126,22 @@ export async function restoreChatHistory(
 
 // ── Broadcast Helpers ────────────────────────────────────────────────────────
 
+/**
+ * Emit an event to a specific player regardless of their current socket.id.
+ * Every socket joins a `player:<stableId>` room on connect in index.ts, so
+ * targeting the room delivers to whichever socket currently represents that
+ * player — even across reconnects. Use this instead of `io.to(socketId)`
+ * for player-targeted emits where you hold a stableId.
+ */
+export function emitToPlayer<K extends keyof ServerEvents>(
+  io: Server<ClientEvents, ServerEvents>,
+  stableId: string,
+  event: K,
+  ...args: Parameters<ServerEvents[K]>
+): void {
+  io.to(`player:${stableId}`).emit(event, ...args);
+}
+
 export async function sendRoundToPlayers(io: Server<ClientEvents, ServerEvents>, code: string) {
   const playerIds = await getPlayerIds(code);
   for (const pid of playerIds) {

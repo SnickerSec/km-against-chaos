@@ -1,5 +1,13 @@
 export interface Player {
   id: string;
+  // Stable id that survives reconnects. For humans: the client's sessionId
+  // (persisted in localStorage). For bots: same as `id` (bot ids never
+  // change). Used by the `player:<stableId>` socket room for broadcasts so
+  // we can target a player regardless of their current socket.id.
+  // During the socketId → stableId migration, some code paths still set
+  // this to the socket.id; once all state modules use stableId as their
+  // primary key, this will always be the persistent id.
+  stableId: string;
   name: string;
   isHost: boolean;
   score: number;

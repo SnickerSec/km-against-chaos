@@ -1,6 +1,14 @@
 import { randomBytes } from "crypto";
 import type { Lobby, Player, LobbyState, PlayerInfo } from "./types.js";
 import { redis, withGameLock } from "./redis.js";
+import { getSessionId } from "./sessions.js";
+
+// Resolve the stable playerId for a human socket. Falls back to the
+// socket.id when no session is registered yet (anonymous socket pre-
+// sessionId handshake). For bots, callers pass the bot's id directly.
+async function stableIdForSocket(socketId: string): Promise<string> {
+  return (await getSessionId(socketId)) ?? socketId;
+}
 
 // ── Storage ──────────────────────────────────────────────────────────────────
 // Lobbies live in Redis (one JSON blob per lobby) when REDIS_URL is set, so
@@ -193,6 +201,7 @@ export async function createLobby(socketId: string, playerName: string, deckId: 
   const code = await generateCode();
   const player: Player = {
     id: socketId,
+    stableId: await stableIdForSocket(socketId),
     name: playerName,
     isHost: true,
     score: 0,
@@ -243,6 +252,7 @@ export async function joinLobby(
 
   const player: Player = {
     id: socketId,
+    stableId: await stableIdForSocket(socketId),
     name: playerName,
     isHost: false,
     score: 0,
@@ -276,6 +286,7 @@ export async function joinAsSpectator(
 
   const player: Player = {
     id: socketId,
+    stableId: await stableIdForSocket(socketId),
     name: playerName,
     isHost: false,
     score: 0,
@@ -403,6 +414,7 @@ export async function addBot(socketId: string): Promise<{ lobby: LobbyState; bot
   const botId = `bot-${randomBytes(4).toString("hex")}`;
   const player: Player = {
     id: botId,
+    stableId: botId, // bots have no session; their id is already stable
     name,
     isHost: false,
     score: 0,
@@ -675,8 +687,13 @@ export async function restoreLobbies(snapshots: any[]): Promise<void> {
       createdAt,
       rematchVotes: new Set(s.rematchVotes || []),
     };
-    // Mark every player disconnected until they reconnect via sessionId
-    for (const p of lobby.players.values()) p.connected = false;
+    // Mark every player disconnected until they reconnect via sessionId.
+    // Back-fill stableId on snapshots written before that field existed so
+    // the migration doesn't silently leave NaN/undefined in old lobbies.
+    for (const p of lobby.players.values()) {
+      p.connected = false;
+      if (!p.stableId) p.stableId = p.id;
+    }
     await saveLobby(lobby);
     for (const [socketId, p] of lobby.players) {
       if (!p.isBot) await setPlayerLobbyCode(socketId, lobby.code);

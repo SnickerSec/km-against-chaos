@@ -224,6 +224,13 @@ io.on("connection", async (socket) => {
   }
 
   const sessionId: string = socket.handshake.auth?.sessionId || socket.id;
+  // Join the per-player room so broadcasts addressed by stableId reach this
+  // socket regardless of its transient socket.id — used by emitToPlayer
+  // helpers as the socketId → stableId migration rolls out. Safe to call
+  // on every connection (including state-recovered ones); Socket.IO rooms
+  // are idempotent sets.
+  socket.join(`player:${sessionId}`);
+
   const { isReconnect, oldSocketId } = socket.recovered
     ? { isReconnect: false, oldSocketId: null }
     : await registerSession(sessionId, socket.id);
