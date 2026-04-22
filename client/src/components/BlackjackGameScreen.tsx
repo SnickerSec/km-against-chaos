@@ -352,7 +352,10 @@ export default function BlackjackGameScreen() {
             const bet = view.bets[pid];
             const hands = view.hands[pid] || [];
             const isActive = view.activePlayerId === pid;
-            const isEliminated = chips < view.config.minBet && view.phase !== "betting";
+            // Only mark eliminated when the player has no live bet this round.
+            // Betting a full stack drops chips below minBet, but the hand still
+            // needs to play out before they're actually out.
+            const isEliminated = chips < view.config.minBet && view.phase !== "betting" && typeof bet !== "number";
             const mySettlements = view.lastSettlement?.filter(s => s.playerId === pid) || [];
             const myInsuranceResult = view.insuranceSettlement?.find(s => s.playerId === pid);
             // Net insurance chip change: delta - amount (won → +amount, lost → -amount, declined → 0)
