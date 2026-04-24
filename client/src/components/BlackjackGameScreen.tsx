@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { motion, animate, useMotionValue, useMotionValueEvent, AnimatePresence } from "motion/react";
+import { toast } from "sonner";
 import { useBlackjackStore, type Card, type Suit, type Hand } from "@/lib/blackjackStore";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
@@ -385,9 +386,15 @@ export default function BlackjackGameScreen() {
     );
   }
 
+  // ack emits an event with a socket.io callback, then surfaces any server
+  // error as a toast. Previously the error was silently dropped — players
+  // would click Hit when it wasn't their turn and see nothing happen.
   const ack = (event: string, ...args: any[]) =>
     new Promise<{ success: boolean; error?: string }>((resolve) => {
-      socket.emit(event as any, ...args, (res: any) => resolve(res));
+      socket.emit(event as any, ...args, (res: any) => {
+        if (res && res.success === false && res.error) toast.error(res.error);
+        resolve(res);
+      });
     });
 
   const onBet = async () => {

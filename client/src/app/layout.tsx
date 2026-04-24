@@ -6,6 +6,7 @@ import Script from "next/script";
 const NextScript = Script as unknown as (props: any) => any;
 import InviteToast from "@/components/InviteToast";
 import PartyBar from "@/components/PartyBar";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -48,6 +49,12 @@ export default function RootLayout({
         `}</NextScript>
         <InviteToast />
         <PartyBar />
+        <Toaster
+          theme="dark"
+          position="top-center"
+          richColors
+          toastOptions={{ duration: 3500 }}
+        />
         <main>{children}</main>
       </body>
     </html>
