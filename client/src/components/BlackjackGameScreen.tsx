@@ -53,19 +53,24 @@ function CardFrontFace({ card }: { card: Card }) {
   );
 }
 
-// Cards slide in from the shoe's upper-right corner, arc to their resting
-// place with a slight rotation, and settle via a spring. Parent containers
-// below set staggerChildren so a multi-card deal arrives one at a time.
+// Cards come from the shoe in the upper-right, arc to their resting place
+// with a dramatic spin, and settle with a soft bounce. The distance, rotation,
+// and scale are exaggerated vs. a neutral spring because a tiny 60px nudge
+// with a 10° tilt just reads as "the card faded in" — we want visible travel.
 const dealCardVariants = {
-  hidden: { opacity: 0, x: 60, y: -40, rotate: -10, scale: 0.9 },
+  hidden: { opacity: 0, x: 220, y: -160, rotate: -35, scale: 0.75 },
   shown: { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 },
 } as const;
 
-const dealCardTransition = { type: "spring", stiffness: 400, damping: 30 } as const;
+// Lower stiffness + damping gives a slight overshoot on landing, so the card
+// visibly settles rather than snapping. Mass bumps the perceived weight up.
+const dealCardTransition = { type: "spring", stiffness: 180, damping: 18, mass: 0.9 } as const;
 
+// Stagger longer than before so multi-card deals feel dealt rather than flung.
+// delayChildren buys a beat of anticipation before the first card slides in.
 const dealContainerVariants = {
   hidden: {},
-  shown: { transition: { staggerChildren: 0.1 } },
+  shown: { transition: { staggerChildren: 0.16, delayChildren: 0.05 } },
 } as const;
 
 function PlayingCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "lg" }) {
