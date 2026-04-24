@@ -594,7 +594,10 @@ export async function hit(lobbyCode: string, playerId: string): Promise<ActionRe
     if (!cur || cur.pid !== playerId) return { success: false, error: "Not your turn" };
 
     cur.hand.cards.push(dealOne(g));
-    if (handValue(cur.hand.cards) > 21) {
+    // Auto-stand on 21 (or bust). A 21 hand can't be improved by hitting —
+    // the best outcome is a bust, so holding a human decision there is just
+    // a way to lose.
+    if (handValue(cur.hand.cards) >= 21) {
       cur.hand.resolved = true;
       advanceTurn(g);
     }
@@ -686,12 +689,22 @@ export async function split(lobbyCode: string, playerId: string): Promise<Action
       handA.resolved = true;
       handB.resolved = true;
     }
+    // Auto-stand any split hand that landed on 21. Happens naturally when
+    // you split a pair of tens and pull an Ace on one side.
+    if (handValue(handA.cards) >= 21) handA.resolved = true;
+    if (handValue(handB.cards) >= 21) handB.resolved = true;
 
     g.hands[playerId] = [handA, handB];
-    g.activeHandIndex = 0;
     g.phaseDeadline = Date.now() + TURN_TIME_MS;
 
-    if (isAcePair) advanceTurn(g);  // Both hands done → next player
+    // Start on the first unresolved hand; if both are resolved (ace pair, or
+    // both hit 21 on the split deal), advance past this seat entirely.
+    const firstUnresolved = [handA, handB].findIndex(h => !h.resolved);
+    if (firstUnresolved === -1) {
+      advanceTurn(g);
+    } else {
+      g.activeHandIndex = firstUnresolved;
+    }
 
     await saveGame(g);
     return { success: true };
