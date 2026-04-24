@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
+import { motion } from "motion/react";
 import { useBlackjackStore, type Card, type Suit, type Hand } from "@/lib/blackjackStore";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
@@ -646,10 +647,10 @@ export default function BlackjackGameScreen() {
                     : "bg-gray-800 border-white/20 group-hover:bg-gray-700"
                 }`}
               >
-                <span
-                  className={`inline-block h-3.5 w-3.5 rounded-full shadow transition-transform duration-200 ${
-                    autoBet ? "translate-x-4 bg-white" : "translate-x-0.5 bg-gray-300"
-                  }`}
+                <motion.span
+                  className={`inline-block h-3.5 w-3.5 rounded-full shadow ${autoBet ? "bg-white" : "bg-gray-300"}`}
+                  animate={{ x: autoBet ? 16 : 2 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 />
               </span>
               <span className="uppercase tracking-wider">

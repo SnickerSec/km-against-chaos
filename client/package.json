@@ -13,6 +13,7 @@
     "@iconify/react": "^6.0.2",
     "@sentry/nextjs": "^10.49.0",
     "jspdf": "^4.2.1",
+    "motion": "^12.38.0",
     "next": "^15.5.15",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
