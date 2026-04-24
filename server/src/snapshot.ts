@@ -15,7 +15,7 @@ import {
 } from "./socketHelpers.js";
 import { createCahTimerCallback } from "./handlers/cahHandlers.js";
 import { createUnoTimerCallback } from "./handlers/unoHandlers.js";
-import { createBlackjackTimerCallback } from "./handlers/blackjackHandlers.js";
+import { createBlackjackTimerCallback, triggerBlackjackBots } from "./handlers/blackjackHandlers.js";
 import type { ClientEvents, ServerEvents } from "./types.js";
 
 const log = createLogger("snapshot");
@@ -190,6 +190,12 @@ async function rearmLiveTimers(io: Server<ClientEvents, ServerEvents>): Promise<
   for (const g of await exportBlackjackGames()) {
     if (g.phase && g.phase !== "gameOver") {
       await scheduleBlackjackTimer(g.lobbyCode, blackjackCallback);
+      // Blackjack bots are driven by a proactive trigger (setTimeout after each
+      // state mutation), not by the phase timer. On restore we lose those
+      // pending timeouts, so without this kick, a game paused on a bot's turn
+      // would stall until the phase deadline fired (up to 30s) — bots only
+      // auto-stand via the timeout, not via strategy.
+      await triggerBlackjackBots(io, g.lobbyCode);
       rearmedBlackjack++;
     }
   }

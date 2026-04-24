@@ -627,6 +627,32 @@ export default function BlackjackGameScreen() {
 
       {/* Action dock */}
       <div className="relative z-10 bg-black/60 backdrop-blur border-t border-white/10 px-4 py-3">
+        {/* Auto-bet toggle — always visible while the player is seated so
+            they can turn it off at any phase (the ~15s between-rounds
+            window isn't long enough to scramble to uncheck). */}
+        {view.playerIds.includes(myId ?? "") && (
+          <div className="flex justify-center mb-2">
+            <label className="inline-flex items-center gap-2 text-[11px] text-gray-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={autoBet}
+                onChange={e => setAutoBet(e.target.checked)}
+                className="accent-yellow-400"
+              />
+              <span className="uppercase tracking-wider">
+                Auto-bet next round
+                {lastBetRef.current ? (
+                  <span className={autoBet ? "text-yellow-300 font-semibold" : "text-gray-500"}>
+                    {" · "}${lastBetRef.current.amount + lastBetRef.current.pp + lastBetRef.current.tp}
+                  </span>
+                ) : (
+                  <span className="text-gray-500"> · set after first bet</span>
+                )}
+              </span>
+            </label>
+          </div>
+        )}
+
         {/* Betting controls */}
         {view.phase === "betting" && canBet && myBet === null && (
           <div className="max-w-xl mx-auto">
@@ -708,50 +734,15 @@ export default function BlackjackGameScreen() {
                 Sit out
               </button>
             </div>
-
-            <label className="mt-2 flex items-center justify-center gap-2 text-[11px] text-gray-400 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={autoBet}
-                onChange={e => setAutoBet(e.target.checked)}
-                className="accent-yellow-400"
-              />
-              <span className="uppercase tracking-wider">
-                Auto-bet next round
-                {autoBet && lastBetRef.current && (
-                  <span className="text-yellow-300 font-semibold">
-                    {" · "}${lastBetRef.current.amount + lastBetRef.current.pp + lastBetRef.current.tp}
-                  </span>
-                )}
-              </span>
-            </label>
           </div>
         )}
 
         {/* Betting wait state */}
         {view.phase === "betting" && myBet !== null && (
-          <div className="text-center text-sm text-gray-300 space-y-1">
+          <div className="text-center text-sm text-gray-300">
             {myBet === "sitting_out"
               ? "Sitting out this round — waiting on others…"
               : <>Bet locked in. Waiting on the table…</>}
-            {myBet !== "sitting_out" && lastBetRef.current && (
-              <div>
-                <label className="inline-flex items-center gap-2 text-[11px] text-gray-400 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={autoBet}
-                    onChange={e => setAutoBet(e.target.checked)}
-                    className="accent-yellow-400"
-                  />
-                  <span className="uppercase tracking-wider">
-                    Auto-bet next round
-                    <span className="text-yellow-300 font-semibold">
-                      {" · "}${lastBetRef.current.amount + lastBetRef.current.pp + lastBetRef.current.tp}
-                    </span>
-                  </span>
-                </label>
-              </div>
-            )}
           </div>
         )}
 
