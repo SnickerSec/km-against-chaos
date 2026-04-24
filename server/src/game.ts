@@ -15,6 +15,12 @@ import { redis, withGameLock } from "./redis.js";
 const HAND_SIZE = 7;
 const DEFAULT_MAX_ROUNDS = 10;
 
+// Superfight: each player holds 3 characters + 3 attributes and picks one of
+// each per round. The existing knowledgeDeck/knowledgeDiscard hold attributes;
+// characters live in their own pool so refills stay role-correct.
+const SF_CHARACTER_COUNT = 3;
+const SF_ATTRIBUTE_COUNT = 3;
+
 interface InternalGameState {
   lobbyCode: string;
   playerIds: string[];
@@ -23,6 +29,8 @@ interface InternalGameState {
   knowledgeDeck: KnowledgeCard[];
   knowledgeDiscard: KnowledgeCard[];
   chaosDiscard: ChaosCard[];
+  characterDeck: KnowledgeCard[];
+  characterDiscard: KnowledgeCard[];
   hands: Map<string, KnowledgeCard[]>;
   currentRound: InternalRound | null;
   scores: Map<string, number>;
@@ -67,6 +75,8 @@ interface SerialisedGame {
   knowledgeDeck: KnowledgeCard[];
   knowledgeDiscard: KnowledgeCard[];
   chaosDiscard: ChaosCard[];
+  characterDeck?: KnowledgeCard[];
+  characterDiscard?: KnowledgeCard[];
   hands: [string, KnowledgeCard[]][];
   scores: [string, number][];
   roundNumber: number;
@@ -97,6 +107,8 @@ function serialise(g: InternalGameState): SerialisedGame {
     knowledgeDeck: g.knowledgeDeck,
     knowledgeDiscard: g.knowledgeDiscard,
     chaosDiscard: g.chaosDiscard,
+    characterDeck: g.characterDeck,
+    characterDiscard: g.characterDiscard,
     hands: Array.from(g.hands.entries()),
     scores: Array.from(g.scores.entries()),
     roundNumber: g.roundNumber,
@@ -128,6 +140,8 @@ function deserialise(s: SerialisedGame): InternalGameState {
     knowledgeDeck: s.knowledgeDeck,
     knowledgeDiscard: s.knowledgeDiscard,
     chaosDiscard: s.chaosDiscard,
+    characterDeck: s.characterDeck || [],
+    characterDiscard: s.characterDiscard || [],
     hands: new Map(s.hands),
     scores: new Map(s.scores),
     roundNumber: s.roundNumber,
@@ -210,6 +224,63 @@ function drawKnowledge(game: InternalGameState): KnowledgeCard | null {
   return game.knowledgeDeck.pop()!;
 }
 
+function reshuffleCharacters(game: InternalGameState): void {
+  if (game.characterDiscard.length === 0) return;
+  game.characterDeck.push(...shuffled(game.characterDiscard));
+  game.characterDiscard = [];
+}
+
+function drawCharacter(game: InternalGameState): KnowledgeCard | null {
+  if (game.characterDeck.length === 0) reshuffleCharacters(game);
+  if (game.characterDeck.length === 0) return null;
+  return game.characterDeck.pop()!;
+}
+
+/** Superfight-aware discard: routes each played card to the right pool. */
+function discardPlayed(game: InternalGameState, cards: KnowledgeCard[]): void {
+  if (game.gameType === "superfight") {
+    for (const c of cards) {
+      if (c.role === "character") game.characterDiscard.push(c);
+      else game.knowledgeDiscard.push(c);
+    }
+  } else {
+    game.knowledgeDiscard.push(...cards);
+  }
+}
+
+/** Superfight-aware draw replacement: matches the role of the played card. */
+function drawReplacement(game: InternalGameState, played: KnowledgeCard): KnowledgeCard | null {
+  if (game.gameType === "superfight" && played.role === "character") {
+    return drawCharacter(game);
+  }
+  return drawKnowledge(game);
+}
+
+/**
+ * Pick hand indices to submit as a bot / force-submit.
+ * Superfight must submit exactly one character + one attribute; everyone
+ * else picks `pick` random cards.
+ */
+function pickSubmissionIndices(
+  game: InternalGameState,
+  hand: KnowledgeCard[],
+  pick: number,
+): number[] {
+  if (game.gameType === "superfight") {
+    const charIdx = hand.findIndex((c) => c.role === "character");
+    const attrIdx = hand.findIndex((c) => c.role === "attribute");
+    if (charIdx === -1 || attrIdx === -1) {
+      // Degraded state (pool exhausted): fall back to any cards we have.
+      return shuffled(hand.map((_, i) => i))
+        .slice(0, Math.min(pick, hand.length))
+        .sort((a, b) => b - a);
+    }
+    return [charIdx, attrIdx].sort((a, b) => b - a);
+  }
+  const count = Math.min(pick, hand.length);
+  return shuffled(hand.map((_, i) => i)).slice(0, count).sort((a, b) => b - a);
+}
+
 function drawChaos(game: InternalGameState): ChaosCard | null {
   if (game.chaosDeck.length === 0) reshuffleChaos(game);
   if (game.chaosDeck.length === 0) return null;
@@ -229,13 +300,23 @@ export async function createGame(
 ): Promise<void> {
   let chaosDeck: ChaosCard[];
   let knowledgeDeck: KnowledgeCard[];
+  let characterDeck: KnowledgeCard[] = [];
 
   if (gameType === "superfight") {
-    const characterCards: KnowledgeCard[] = (customChaos || CHAOS_CARDS).map((c) => ({
-      id: c.id,
-      text: c.text,
-    }));
-    knowledgeDeck = shuffled([...characterCards, ...(customKnowledge || KNOWLEDGE_CARDS)]);
+    // Characters come from the deck's chaos (black) cards; attributes from its
+    // knowledge (white) cards. Tag each so refills and submissions can route
+    // to the right pool.
+    characterDeck = shuffled(
+      (customChaos || CHAOS_CARDS).map((c) => ({
+        id: c.id,
+        text: c.text,
+        imageUrl: c.imageUrl,
+        role: "character" as const,
+      })),
+    );
+    knowledgeDeck = shuffled(
+      (customKnowledge || KNOWLEDGE_CARDS).map((c) => ({ ...c, role: "attribute" as const })),
+    );
     chaosDeck = [{ id: "sf-prompt", text: "Who would win in a fight?", pick: 2 }];
   } else {
     chaosDeck = shuffled(customChaos || CHAOS_CARDS);
@@ -247,7 +328,13 @@ export async function createGame(
   const hands = new Map<string, KnowledgeCard[]>();
   const scores = new Map<string, number>();
   for (const pid of playerIds) {
-    hands.set(pid, knowledgeDeck.splice(0, HAND_SIZE));
+    if (gameType === "superfight") {
+      const chars = characterDeck.splice(0, SF_CHARACTER_COUNT);
+      const attrs = knowledgeDeck.splice(0, SF_ATTRIBUTE_COUNT);
+      hands.set(pid, [...chars, ...attrs]);
+    } else {
+      hands.set(pid, knowledgeDeck.splice(0, HAND_SIZE));
+    }
     scores.set(pid, 0);
   }
 
@@ -259,6 +346,8 @@ export async function createGame(
     knowledgeDeck,
     knowledgeDiscard: [],
     chaosDiscard: [],
+    characterDeck,
+    characterDiscard: [],
     hands,
     currentRound: null,
     scores,
@@ -292,15 +381,32 @@ export async function startRound(lobbyCode: string): Promise<RoundState | null> 
     }
   }
 
-  // Top up every player's hand to HAND_SIZE. Heals games that got into a
-  // bad state under the old draw-then-push-to-discard bug (which could
-  // silently shrink hands). Running every round is cheap and idempotent.
+  // Top up every player's hand. Heals games that got into a bad state under
+  // the old draw-then-push-to-discard bug (which could silently shrink hands).
+  // Running every round is cheap and idempotent.
+  // Superfight keeps 3 characters + 3 attributes per hand; everyone else
+  // tops up a single pool to HAND_SIZE.
   for (const pid of game.playerIds) {
     const hand = game.hands.get(pid) || [];
-    while (hand.length < HAND_SIZE) {
-      const drawn = drawKnowledge(game);
-      if (!drawn) break; // deck+discard exhausted
-      hand.push(drawn);
+    if (game.gameType === "superfight") {
+      const charCount = hand.filter((c) => c.role === "character").length;
+      const attrCount = hand.filter((c) => c.role === "attribute").length;
+      for (let i = charCount; i < SF_CHARACTER_COUNT; i++) {
+        const drawn = drawCharacter(game);
+        if (!drawn) break;
+        hand.push(drawn);
+      }
+      for (let i = attrCount; i < SF_ATTRIBUTE_COUNT; i++) {
+        const drawn = drawKnowledge(game);
+        if (!drawn) break;
+        hand.push(drawn);
+      }
+    } else {
+      while (hand.length < HAND_SIZE) {
+        const drawn = drawKnowledge(game);
+        if (!drawn) break; // deck+discard exhausted
+        hand.push(drawn);
+      }
     }
     game.hands.set(pid, hand);
   }
@@ -549,15 +655,30 @@ function submitCardsOn(
     playedCards.push(hand.splice(idx, 1)[0]);
   }
 
+  // Superfight must be exactly one character + one attribute. If the caller
+  // sent two of the same role, put the cards back and reject.
+  if (game.gameType === "superfight") {
+    const chars = playedCards.filter((c) => c.role === "character").length;
+    const attrs = playedCards.filter((c) => c.role === "attribute").length;
+    if (chars !== 1 || attrs !== 1) {
+      hand.push(...playedCards);
+      return {
+        success: false,
+        allSubmitted: false,
+        error: "Pick 1 character + 1 attribute",
+      };
+    }
+  }
+
   // Push to discard BEFORE drawing so the reshuffle inside drawKnowledge
   // can see these cards when the main deck is empty. Previously the order
   // was draw-then-push, which silently shrank hands when deck+discard were
   // both empty mid-round (tiny decks, or after many force-submits).
   round.submissions.set(playerId, playedCards);
-  game.knowledgeDiscard.push(...playedCards);
+  discardPlayed(game, playedCards);
 
-  for (let i = 0; i < playedCards.length; i++) {
-    const drawn = drawKnowledge(game);
+  for (const played of playedCards) {
+    const drawn = drawReplacement(game, played);
     if (drawn) hand.push(drawn);
   }
 
@@ -628,12 +749,23 @@ export async function resetPlayerHand(lobbyCode: string, playerId: string): Prom
   if (!game) return [];
 
   const oldHand = game.hands.get(playerId);
-  if (oldHand) game.knowledgeDiscard.push(...oldHand);
+  if (oldHand) discardPlayed(game, oldHand);
 
   const newHand: KnowledgeCard[] = [];
-  for (let i = 0; i < HAND_SIZE; i++) {
-    const drawn = drawKnowledge(game);
-    if (drawn) newHand.push(drawn);
+  if (game.gameType === "superfight") {
+    for (let i = 0; i < SF_CHARACTER_COUNT; i++) {
+      const drawn = drawCharacter(game);
+      if (drawn) newHand.push(drawn);
+    }
+    for (let i = 0; i < SF_ATTRIBUTE_COUNT; i++) {
+      const drawn = drawKnowledge(game);
+      if (drawn) newHand.push(drawn);
+    }
+  } else {
+    for (let i = 0; i < HAND_SIZE; i++) {
+      const drawn = drawKnowledge(game);
+      if (drawn) newHand.push(drawn);
+    }
   }
   game.hands.set(playerId, newHand);
   await saveGame(game);
@@ -803,9 +935,20 @@ export async function addPlayerToGame(lobbyCode: string, playerId: string): Prom
   game.scores.set(playerId, 0);
 
   const hand: KnowledgeCard[] = [];
-  for (let i = 0; i < HAND_SIZE; i++) {
-    const drawn = drawKnowledge(game);
-    if (drawn) hand.push(drawn);
+  if (game.gameType === "superfight") {
+    for (let i = 0; i < SF_CHARACTER_COUNT; i++) {
+      const drawn = drawCharacter(game);
+      if (drawn) hand.push(drawn);
+    }
+    for (let i = 0; i < SF_ATTRIBUTE_COUNT; i++) {
+      const drawn = drawKnowledge(game);
+      if (drawn) hand.push(drawn);
+    }
+  } else {
+    for (let i = 0; i < HAND_SIZE; i++) {
+      const drawn = drawKnowledge(game);
+      if (drawn) hand.push(drawn);
+    }
   }
   game.hands.set(playerId, hand);
 
@@ -820,7 +963,7 @@ export async function removePlayerFromGame(lobbyCode: string, playerId: string):
   if (!game) return;
 
   const hand = game.hands.get(playerId);
-  if (hand) game.knowledgeDiscard.push(...hand);
+  if (hand) discardPlayed(game, hand);
 
   game.playerIds = game.playerIds.filter(id => id !== playerId);
   game.hands.delete(playerId);
@@ -856,9 +999,8 @@ export async function botSubmitCards(lobbyCode: string, botId: string): Promise<
   const hand = game.hands.get(botId);
   if (!hand || hand.length === 0) return { success: false, allSubmitted: false };
 
-  const pickCount = Math.min(round.chaosCard.pick, hand.length);
-  const indices = shuffled(hand.map((_, i) => i)).slice(0, pickCount);
-  indices.sort((a, b) => b - a);
+  const indices = pickSubmissionIndices(game, hand, round.chaosCard.pick);
+  if (indices.length === 0) return { success: false, allSubmitted: false };
 
   const playedCards: KnowledgeCard[] = [];
   for (const idx of indices) {
@@ -868,10 +1010,10 @@ export async function botSubmitCards(lobbyCode: string, botId: string): Promise<
   // Discard-before-draw so the reshuffle can recycle these cards when the
   // main deck is empty. See submitCardsOn for the full note.
   round.submissions.set(botId, playedCards);
-  game.knowledgeDiscard.push(...playedCards);
+  discardPlayed(game, playedCards);
 
-  for (let i = 0; i < playedCards.length; i++) {
-    const drawn = drawKnowledge(game);
+  for (const played of playedCards) {
+    const drawn = drawReplacement(game, played);
     if (drawn) hand.push(drawn);
   }
 
@@ -899,9 +1041,8 @@ export async function forceSubmitForMissing(lobbyCode: string): Promise<string[]
     const hand = game.hands.get(pid);
     if (!hand || hand.length === 0) continue;
 
-    const pickCount = Math.min(round.chaosCard.pick, hand.length);
-    const indices = shuffled(hand.map((_, i) => i)).slice(0, pickCount);
-    indices.sort((a, b) => b - a);
+    const indices = pickSubmissionIndices(game, hand, round.chaosCard.pick);
+    if (indices.length === 0) continue;
 
     const playedCards: KnowledgeCard[] = [];
     for (const idx of indices) {
@@ -912,10 +1053,10 @@ export async function forceSubmitForMissing(lobbyCode: string): Promise<string[]
     // permanent card leak. Push them first so the pool stays conserved
     // and the draw below can recycle them if needed.
     round.submissions.set(pid, playedCards);
-    game.knowledgeDiscard.push(...playedCards);
+    discardPlayed(game, playedCards);
 
-    for (let i = 0; i < playedCards.length; i++) {
-      const drawn = drawKnowledge(game);
+    for (const played of playedCards) {
+      const drawn = drawReplacement(game, played);
       if (drawn) hand.push(drawn);
     }
   }

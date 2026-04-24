@@ -13,6 +13,7 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
   const { round, gameType, lobby, votedPlayers } = useGameStore();
   const { pickWinner, spectatorVote } = useSocket();
   const isJH = gameType === "joking_hazard";
+  const isSF = gameType === "superfight";
   const [selected, setSelected] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
   const [previewText, setPreviewText] = useState<string | null>(null);
@@ -154,16 +155,24 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
                         : "bg-gray-800 border-2 border-gray-700"
                   }`}
                 >
-                  {sub.cards.map((card, j) => (
-                    <p key={j} className="font-medium">
-                      {sub.cards.length > 1 && (
-                        <span className="text-xs text-purple-300 mr-2">
-                          {isJH && round?.isBonus ? `Panel ${j + 1}` : `#${j + 1}`}
-                        </span>
-                      )}
-                      {card.text}
-                    </p>
-                  ))}
+                  {sub.cards.map((card, j) => {
+                    const label = isSF
+                      ? (card.role === "character" ? "Character" : "Attribute")
+                      : isJH && round?.isBonus
+                        ? `Panel ${j + 1}`
+                        : `#${j + 1}`;
+                    const labelColor = isSF
+                      ? (card.role === "character" ? "text-pink-300" : "text-purple-300")
+                      : "text-purple-300";
+                    return (
+                      <p key={j} className="font-medium">
+                        {sub.cards.length > 1 && (
+                          <span className={`text-xs ${labelColor} mr-2`}>{label}</span>
+                        )}
+                        {card.text}
+                      </p>
+                    );
+                  })}
                 </button>
               </div>
             </div>

@@ -31,6 +31,7 @@ export interface KnowledgeCard {
   id: string;
   text: string;
   imageUrl?: string;
+  role?: "character" | "attribute"; // Superfight: tags which pool the card belongs to
 }
 
 export interface MetaEffect {
@@ -242,6 +243,7 @@ interface GameStore {
   addSubmittedPlayer: (playerId: string) => void;
   addVotedPlayer: (playerId: string) => void;
   toggleCardSelection: (cardId: string, maxPick: number) => void;
+  toggleSuperfightCard: (cardId: string) => void;
   setHasSubmitted: (v: boolean) => void;
   setWinnerInfo: (info: { winnerId: string; winnerName: string; cards: KnowledgeCard[]; audiencePick?: string | null } | null) => void;
   setVoteTally: (tally: Record<string, number> | null) => void;
@@ -363,6 +365,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
       // At max picks — replace the last selection
       set({ selectedCards: [...current.slice(0, maxPick - 1), cardId] });
     }
+  },
+
+  // Superfight: clicking a card replaces the currently-selected card of the
+  // same role (or deselects if clicking the already-selected one). The final
+  // submission is always [character, attribute].
+  toggleSuperfightCard: (cardId) => {
+    const hand = get().hand;
+    const card = hand.find((c) => c.id === cardId);
+    if (!card) return;
+    const current = get().selectedCards;
+    if (current.includes(cardId)) {
+      set({ selectedCards: current.filter((id) => id !== cardId) });
+      return;
+    }
+    const withoutSameRole = current.filter((id) => {
+      const other = hand.find((c) => c.id === id);
+      return other?.role !== card.role;
+    });
+    const next = [...withoutSameRole, cardId];
+    // Order submission as [character, attribute] so the judge sees the
+    // fighter phrased naturally.
+    next.sort((a, b) => {
+      const ra = hand.find((c) => c.id === a)?.role;
+      const rb = hand.find((c) => c.id === b)?.role;
+      if (ra === rb) return 0;
+      return ra === "character" ? -1 : 1;
+    });
+    set({ selectedCards: next });
   },
 
   setHasSubmitted: (v) => set({ hasSubmitted: v }),

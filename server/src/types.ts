@@ -97,6 +97,7 @@ export interface KnowledgeCard {
   id: string;
   text: string;
   imageUrl?: string;
+  role?: "character" | "attribute"; // Superfight: tags which pool the card was dealt from
 }
 
 export interface Submission {

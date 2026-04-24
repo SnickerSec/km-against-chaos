@@ -26,9 +26,10 @@ export default function PlayerHand({
   singleSelect?: boolean;
 }) {
   const { hand, selectedCards, round, gameType } = useGameStore();
-  const { toggleCardSelection } = useGameStore();
+  const { toggleCardSelection, toggleSuperfightCard } = useGameStore();
   const { submitCards } = useSocket();
   const pick = singleSelect ? 1 : (round?.chaosCard.pick || 1);
+  const isSuperfight = gameType === "superfight" && !onCardClick && !singleSelect;
 
   // Stable randomized icon assignment per card (changes each render when iconsRandomized flips on)
   const cardIcons = useMemo(() => {
@@ -77,13 +78,53 @@ export default function PlayerHand({
         <p className="text-gray-400 text-sm mb-3 text-center">
           {gameType === "joking_hazard" && round?.isBonus
             ? "Pick 2 cards — Panel 1 (setup) then Panel 2 (build-up)"
-            : pick > 1
-              ? `Pick ${pick} cards in order (1st blank, 2nd blank)`
-              : gameType === "joking_hazard"
-                ? "Pick a card as Panel 3 (the punchline)"
-                : "Pick a card from your hand"}
+            : isSuperfight
+              ? "Pick 1 Character + 1 Attribute"
+              : pick > 1
+                ? `Pick ${pick} cards in order (1st blank, 2nd blank)`
+                : gameType === "joking_hazard"
+                  ? "Pick a card as Panel 3 (the punchline)"
+                  : "Pick a card from your hand"}
         </p>
       )}
+      {isSuperfight ? (
+        <div className={`grid grid-cols-2 gap-3 max-w-lg mx-auto transition-all duration-500 ${blurred ? "blur-md select-none pointer-events-none" : ""}`}>
+          {(["character", "attribute"] as const).map((role) => (
+            <div key={role} className="flex flex-col gap-3">
+              <p className={`text-xs font-bold uppercase tracking-wider text-center ${role === "character" ? "text-pink-400" : "text-purple-400"}`}>
+                {role === "character" ? "Characters" : "Attributes"}
+              </p>
+              {hand.filter((c) => c.role === role).map((card) => {
+                const isSelected = selectedCards.includes(card.id);
+                const accent = role === "character" ? "border-pink-500" : "border-purple-500";
+                const selectedBg = role === "character" ? "bg-pink-600 border-pink-300" : "bg-purple-600 border-purple-300";
+                return (
+                  <button
+                    key={card.id}
+                    onClick={() => {
+                      if (longPressTriggered.current) return;
+                      toggleSuperfightCard(card.id);
+                    }}
+                    onTouchStart={() => startLongPress(card.text)}
+                    onTouchEnd={cancelLongPress}
+                    onTouchCancel={cancelLongPress}
+                    onMouseDown={() => startLongPress(card.text)}
+                    onMouseUp={cancelLongPress}
+                    onMouseLeave={cancelLongPress}
+                    className={`p-3 rounded-xl text-left transition-all relative border-2 min-h-[72px] ${
+                      isSelected
+                        ? `${selectedBg} scale-[1.03] shadow-lg`
+                        : `bg-gray-800 ${accent}/40 hover:${accent}`
+                    }`}
+                  >
+                    <p className="font-medium text-sm leading-snug">{card.text}</p>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto transition-all duration-500 ${blurred ? "blur-md select-none pointer-events-none" : ""}`}>
         {hand.map((card) => {
           const selIndex = selectedCards.indexOf(card.id);
@@ -129,6 +170,7 @@ export default function PlayerHand({
           );
         })}
       </div>
+      )}
 
       {selectedCards.length === pick && !blurred && !onCardClick && (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/90 backdrop-blur border-t border-gray-800 flex justify-center">
