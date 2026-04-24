@@ -896,7 +896,12 @@ export async function startNextRound(lobbyCode: string): Promise<void> {
     if (g.phase !== "settle") return;
 
     const eligibleCount = g.playerIds.filter(p => eligible(g, p)).length;
-    if (eligibleCount <= 1 || timedExpired(g)) {
+    // "Last player standing" wins in multiplayer, so the game ends when only
+    // one player can still afford to bet. In solo play (one seated player),
+    // that rule would end the game after round one — instead, solo ends only
+    // when the lone player goes broke (eligibleCount === 0).
+    const minContinuers = g.playerIds.length <= 1 ? 1 : 2;
+    if (eligibleCount < minContinuers || timedExpired(g)) {
       g.phase = "gameOver";
       g.phaseDeadline = Date.now();
       await saveGame(g);
