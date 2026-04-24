@@ -632,13 +632,26 @@ export default function BlackjackGameScreen() {
             window isn't long enough to scramble to uncheck). */}
         {view.playerIds.includes(myId ?? "") && (
           <div className="flex justify-center mb-2">
-            <label className="inline-flex items-center gap-2 text-[11px] text-gray-400 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={autoBet}
-                onChange={e => setAutoBet(e.target.checked)}
-                className="accent-yellow-400"
-              />
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoBet}
+              onClick={() => setAutoBet(v => !v)}
+              className="inline-flex items-center gap-2.5 text-[11px] text-gray-400 select-none group"
+            >
+              <span
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors duration-200 ${
+                  autoBet
+                    ? "bg-yellow-400 border-yellow-500 shadow-[0_0_8px_rgba(250,204,21,0.5)]"
+                    : "bg-gray-800 border-white/20 group-hover:bg-gray-700"
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 rounded-full shadow transition-transform duration-200 ${
+                    autoBet ? "translate-x-4 bg-white" : "translate-x-0.5 bg-gray-300"
+                  }`}
+                />
+              </span>
               <span className="uppercase tracking-wider">
                 Auto-bet next round
                 {lastBetRef.current ? (
@@ -649,7 +662,7 @@ export default function BlackjackGameScreen() {
                   <span className="text-gray-500"> · set after first bet</span>
                 )}
               </span>
-            </label>
+            </button>
           </div>
         )}
 
