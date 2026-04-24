@@ -257,6 +257,19 @@ function drawReplacement(game: InternalGameState, played: KnowledgeCard): Knowle
 }
 
 /**
+ * Normalize a submission's card order. Superfight must always present as
+ * [character, attribute] regardless of how the client/bot queued the picks —
+ * this is what the judge and round-winner views rely on.
+ */
+function normalizeSubmissionOrder(game: InternalGameState, cards: KnowledgeCard[]): void {
+  if (game.gameType !== "superfight") return;
+  cards.sort((a, b) => {
+    if (a.role === b.role) return 0;
+    return a.role === "character" ? -1 : 1;
+  });
+}
+
+/**
  * Pick hand indices to submit as a bot / force-submit.
  * Superfight must submit exactly one character + one attribute; everyone
  * else picks `pick` random cards.
@@ -674,6 +687,7 @@ function submitCardsOn(
   // can see these cards when the main deck is empty. Previously the order
   // was draw-then-push, which silently shrank hands when deck+discard were
   // both empty mid-round (tiny decks, or after many force-submits).
+  normalizeSubmissionOrder(game, playedCards);
   round.submissions.set(playerId, playedCards);
   discardPlayed(game, playedCards);
 
@@ -1009,6 +1023,7 @@ export async function botSubmitCards(lobbyCode: string, botId: string): Promise<
 
   // Discard-before-draw so the reshuffle can recycle these cards when the
   // main deck is empty. See submitCardsOn for the full note.
+  normalizeSubmissionOrder(game, playedCards);
   round.submissions.set(botId, playedCards);
   discardPlayed(game, playedCards);
 
@@ -1052,6 +1067,7 @@ export async function forceSubmitForMissing(lobbyCode: string): Promise<string[]
     // Force-submitted cards were previously never pushed to discard — a
     // permanent card leak. Push them first so the pool stays conserved
     // and the draw below can recycle them if needed.
+    normalizeSubmissionOrder(game, playedCards);
     round.submissions.set(pid, playedCards);
     discardPlayed(game, playedCards);
 
