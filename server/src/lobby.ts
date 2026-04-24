@@ -581,6 +581,20 @@ export async function getPlayerNameInLobby(code: string, playerId: string): Prom
   return lobby.players.get(playerId)?.name;
 }
 
+// Snapshot of {playerId → name} at the moment a game view is built, so
+// per-game broadcasts carry names atomically with state. Without this, a
+// reconnect can remap the lobby's player id while the client's cached
+// lobby still has the old id — the UI then renders the raw socket id
+// until the next lobby update lands. Having names on the game view
+// makes that race invisible.
+export async function getLobbyPlayerNames(code: string): Promise<Record<string, string>> {
+  const lobby = await getLobby(code);
+  if (!lobby) return {};
+  const out: Record<string, string> = {};
+  for (const [id, p] of lobby.players) out[id] = p.name;
+  return out;
+}
+
 export async function getLobbyDeckId(code: string): Promise<string | undefined> {
   return (await getLobby(code))?.deckId;
 }

@@ -55,6 +55,7 @@ export interface BlackjackView {
   hands: Record<string, Hand[]>;
   dealerHand: Card[];
   playerIds: string[];
+  names: Record<string, string>;
   config: { startingChips: number; minBet: number; maxBet: number };
   activePlayerId: string | null;
   activeHandIndex: number;

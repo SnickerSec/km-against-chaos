@@ -3,6 +3,7 @@
 // Public API is async throughout so every replica reads the same state.
 
 import { redis, withGameLock } from "./redis.js";
+import { getLobbyPlayerNames } from "./lobby.js";
 
 // ── Configuration ────────────────────────────────────────────────────────────
 
@@ -371,6 +372,10 @@ export interface BlackjackPlayerView {
   hands: Record<string, Hand[]>;
   dealerHand: Array<Card | { suit: "?"; rank: "?" }>;
   playerIds: string[];
+  // {playerId → displayName} captured from the lobby when this view is built.
+  // Client renders names from here instead of cross-referencing the lobby,
+  // which can briefly disagree after a reconnect remaps a player's socket id.
+  names: Record<string, string>;
   config: BlackjackConfig;
   activePlayerId: string | null;
   activeHandIndex: number;
@@ -399,6 +404,8 @@ export async function getBlackjackPlayerView(
       ? [g.dealerHand[0], { suit: "?", rank: "?" }, ...g.dealerHand.slice(2)]
       : g.dealerHand;
 
+  const names = await getLobbyPlayerNames(lobbyCode);
+
   return {
     gameType: "blackjack",
     phase: g.phase,
@@ -408,6 +415,7 @@ export async function getBlackjackPlayerView(
     hands: g.hands,
     dealerHand,
     playerIds: g.playerIds,
+    names,
     config: g.config,
     activePlayerId: g.phase === "playing" ? g.playerIds[g.activePlayerIndex] ?? null : null,
     activeHandIndex: g.activeHandIndex,

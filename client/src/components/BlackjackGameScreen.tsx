@@ -431,7 +431,11 @@ export default function BlackjackGameScreen() {
         <div className="flex flex-wrap justify-center gap-3 w-full max-w-6xl">
           {view.playerIds.map(pid => {
             const player = lobby?.players.find(p => p.id === pid);
-            const name = player?.name ?? pid;
+            // Prefer the name snapshot on the view — it arrives atomically
+            // with the game state. Fall back to the lobby lookup, then to a
+            // generic placeholder (never the raw socket id, which is what
+            // used to leak into the UI after a reconnect remap).
+            const name = view.names?.[pid] ?? player?.name ?? "Player";
             const isBot = !!player?.isBot;
             const isMe = pid === myId;
             const chips = view.chips[pid] ?? 0;
