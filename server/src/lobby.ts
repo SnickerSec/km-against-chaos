@@ -496,8 +496,15 @@ export async function startGame(socketId: string): Promise<{ code: string } | { 
   }
 
   const activePlayers = Array.from(lobby.players.values()).filter(p => !p.isSpectator);
-  if (activePlayers.length < 2) {
-    return { error: "Need at least 2 players to start (spectators don't count)" };
+  // Blackjack is a solo-vs-dealer game, so a table of one is legitimate.
+  // Everything else (CAH, Uno, Codenames, etc.) needs at least two players.
+  const minPlayers = lobby.gameType === "blackjack" ? 1 : 2;
+  if (activePlayers.length < minPlayers) {
+    return {
+      error: minPlayers === 1
+        ? "Need at least 1 player to start (spectators don't count)"
+        : "Need at least 2 players to start (spectators don't count)",
+    };
   }
 
   lobby.status = "playing";

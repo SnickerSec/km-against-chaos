@@ -198,7 +198,9 @@ export function registerLobbyHandlers(
       if ("error" in result) { callback({ success: false, error: result.error }); return; }
 
       const playerIds = await getActivePlayers(result.code);
-      if (!playerIds || playerIds.length < 2) { callback({ success: false, error: "Not enough players" }); return; }
+      const gameTypeCheck = await getLobbyGameType(result.code);
+      const minPlayersCheck = gameTypeCheck === "blackjack" ? 1 : 2;
+      if (!playerIds || playerIds.length < minPlayersCheck) { callback({ success: false, error: "Not enough players" }); return; }
 
       const deckId = await getLobbyDeckId(result.code);
       let customChaos = undefined;

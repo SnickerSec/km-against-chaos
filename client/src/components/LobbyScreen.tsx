@@ -70,6 +70,8 @@ export default function LobbyScreen() {
   const isHost = lobby.hostId === socket.id;
   const activePlayers = lobby.players.filter(p => !p.isSpectator);
   const isSpectator = lobby.players.find(p => p.id === socket.id)?.isSpectator;
+  // Blackjack plays solo-vs-dealer; everything else needs a second player.
+  const minPlayers = lobby.gameType === "blackjack" ? 1 : 2;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4">
@@ -252,9 +254,9 @@ export default function LobbyScreen() {
 
       <div className="w-full max-w-sm space-y-3">
         {isHost && (
-          <Button onClick={startGame} disabled={activePlayers.length < 2} variant="success" size="lg" fullWidth>
-            {activePlayers.length < 2
-              ? `Need ${2 - activePlayers.length} more player${2 - activePlayers.length === 1 ? "" : "s"}`
+          <Button onClick={startGame} disabled={activePlayers.length < minPlayers} variant="success" size="lg" fullWidth>
+            {activePlayers.length < minPlayers
+              ? `Need ${minPlayers - activePlayers.length} more player${minPlayers - activePlayers.length === 1 ? "" : "s"}`
               : "Start Game"}
           </Button>
         )}
