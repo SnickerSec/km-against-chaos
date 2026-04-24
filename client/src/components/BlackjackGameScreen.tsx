@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
-import { motion } from "motion/react";
+import { motion, animate, useMotionValue, useMotionValueEvent, AnimatePresence } from "motion/react";
 import { useBlackjackStore, type Card, type Suit, type Hand } from "@/lib/blackjackStore";
 import { useGameStore } from "@/lib/store";
 import { useSocket } from "@/lib/useSocket";
@@ -211,12 +211,41 @@ function SeatTimerBar({ deadline, totalMs }: { deadline: number; totalMs: number
 // ── Chip stack ───────────────────────────────────────────────────────────────
 
 function ChipStack({ amount }: { amount: number }) {
-  if (amount <= 0) return null;
+  // Tween the displayed number toward the true amount so wins/losses count
+  // visibly instead of jumping. Duration scales with the magnitude of the
+  // change — small nudges stay snappy, big wins get more savor.
+  const mv = useMotionValue(amount);
+  const [display, setDisplay] = useState(amount);
+  const prevRef = useRef(amount);
+  const [pulseKey, setPulseKey] = useState(0);
+  const [direction, setDirection] = useState<"up" | "down" | null>(null);
+
+  useEffect(() => {
+    const from = prevRef.current;
+    if (from === amount) return;
+    const delta = amount - from;
+    setDirection(delta > 0 ? "up" : "down");
+    setPulseKey(k => k + 1);
+    const duration = Math.min(1.2, 0.4 + Math.abs(delta) * 0.012);
+    const controls = animate(mv, amount, { duration, ease: "easeOut" });
+    prevRef.current = amount;
+    return () => controls.stop();
+  }, [amount, mv]);
+
+  useMotionValueEvent(mv, "change", v => setDisplay(Math.round(v)));
+
+  if (display <= 0 && amount <= 0) return null;
   return (
-    <div className="flex items-center gap-1 text-yellow-300 font-semibold">
-      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-yellow-900 text-[10px] font-black border border-yellow-600">$</span>
-      <span className="tabular-nums">{amount}</span>
-    </div>
+    <motion.div
+      key={pulseKey}
+      className="flex items-center gap-1 text-yellow-300 font-semibold"
+      initial={{ scale: 1 }}
+      animate={{ scale: [1, direction === "up" ? 1.18 : 0.92, 1] }}
+      transition={{ duration: 0.45, times: [0, 0.3, 1], ease: "easeOut" }}
+    >
+      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-yellow-900 text-[10px] font-black border border-yellow-600 shadow-[0_0_8px_rgba(250,204,21,0.4)]">$</span>
+      <span className="tabular-nums">{display}</span>
+    </motion.div>
   );
 }
 
