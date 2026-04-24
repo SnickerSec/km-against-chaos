@@ -53,27 +53,52 @@ function CardFrontFace({ card }: { card: Card }) {
   );
 }
 
+// Cards slide in from the shoe's upper-right corner, arc to their resting
+// place with a slight rotation, and settle via a spring. Parent containers
+// below set staggerChildren so a multi-card deal arrives one at a time.
+const dealCardVariants = {
+  hidden: { opacity: 0, x: 60, y: -40, rotate: -10, scale: 0.9 },
+  shown: { opacity: 1, x: 0, y: 0, rotate: 0, scale: 1 },
+} as const;
+
+const dealCardTransition = { type: "spring", stiffness: 400, damping: 30 } as const;
+
+const dealContainerVariants = {
+  hidden: {},
+  shown: { transition: { staggerChildren: 0.1 } },
+} as const;
+
 function PlayingCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "lg" }) {
   const dims = cardDims(size);
   return (
-    <div className={`${dims} animate-deal-in`}>
+    <motion.div
+      className={dims}
+      variants={dealCardVariants}
+      transition={dealCardTransition}
+    >
       {card.suit === "?" ? <CardBackFace /> : <CardFrontFace card={card} />}
-    </div>
+    </motion.div>
   );
 }
 
 /**
  * Dealer hole card — stays mounted across the reveal so the back physically
  * flips over to the face. Starts face-down when card.suit === "?" and
- * rotates 180deg when it becomes a real card. The first deal (initialDeal)
- * also plays the slide-in from the shoe. Both faces are rendered with
+ * rotates 180deg when it becomes a real card. The outer motion div handles
+ * the slide-in from the shoe (via the parent's stagger); the inner rotating
+ * div is what physically flips. Both faces are rendered with
  * backface-visibility:hidden so only one is visible at any rotation.
  */
 function FlipCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "lg" }) {
   const dims = cardDims(size);
   const isFaceUp = card.suit !== "?";
   return (
-    <div className={`${dims} animate-deal-in`} style={{ perspective: "800px" }}>
+    <motion.div
+      className={dims}
+      style={{ perspective: "800px" }}
+      variants={dealCardVariants}
+      transition={dealCardTransition}
+    >
       <div
         className="relative w-full h-full transition-transform duration-700 ease-[cubic-bezier(0.3,0.8,0.3,1)]"
         style={{
@@ -91,7 +116,7 @@ function FlipCard({ card, size = "md" }: { card: Card; size?: "sm" | "md" | "lg"
           {isFaceUp ? <CardFrontFace card={card} /> : null}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -435,7 +460,13 @@ export default function BlackjackGameScreen() {
               <span className="text-white/90 font-bold text-sm">· {handDisplay(view.dealerHand)}</span>
             )}
           </div>
-          <div className="flex gap-1.5 min-h-[6rem]">
+          <motion.div
+            key={`dealer-${view.roundNumber}`}
+            className="flex gap-1.5 min-h-[6rem]"
+            initial="hidden"
+            animate="shown"
+            variants={dealContainerVariants}
+          >
             {view.dealerHand.length === 0
               ? <div className="text-gray-500 text-sm italic self-center">waiting…</div>
               : view.dealerHand.map((c, i) => (
@@ -453,7 +484,7 @@ export default function BlackjackGameScreen() {
                     />
                   )
                 ))}
-          </div>
+          </motion.div>
         </div>
 
         {/* Phase label */}
@@ -563,11 +594,17 @@ export default function BlackjackGameScreen() {
                           handActive ? "ring-2 ring-yellow-400 bg-yellow-400/10" : ""
                         }`}
                       >
-                        <div className="flex gap-1">
+                        <motion.div
+                          key={`cards-${view.roundNumber}-${pid}-${hi}`}
+                          className="flex gap-1"
+                          initial="hidden"
+                          animate="shown"
+                          variants={dealContainerVariants}
+                        >
                           {h.cards.map((c, i) => (
                             <PlayingCard key={`${view.roundNumber}-${pid}-${hi}-${i}-${c.rank}${c.suit}`} card={c} size="sm" />
                           ))}
-                        </div>
+                        </motion.div>
                         <div className="flex items-center justify-between mt-1 text-[11px] text-gray-200">
                           <span>{handDisplay(h.cards)}{h.doubled ? " · 2x" : ""}</span>
                           {settlement && <OutcomeBadge outcome={settlement.outcome} />}
