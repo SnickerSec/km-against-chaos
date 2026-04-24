@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@iconify/react";
 import { useBlackjackStore, type Card, type Suit, type Hand } from "@/lib/blackjackStore";
 import { useGameStore } from "@/lib/store";
@@ -262,6 +262,11 @@ export default function BlackjackGameScreen() {
   const [tpBet, setTpBet] = useState<number>(0);
   const [sideBetsOpen, setSideBetsOpen] = useState<boolean>(false);
   const [soundPickerOpen, setSoundPickerOpen] = useState<boolean>(false);
+  const [autoBet, setAutoBet] = useState<boolean>(false);
+  // Last successfully-placed bet, replayed when auto-bet fires. Refs so the
+  // useEffect below doesn't re-run every time the bet inputs change.
+  const lastBetRef = useRef<{ amount: number; pp: number; tp: number } | null>(null);
+  const autoFiredRoundRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handler = (v: any) => useBlackjackStore.getState().setView(v);
@@ -273,6 +278,28 @@ export default function BlackjackGameScreen() {
   useEffect(() => {
     if (view && betAmount === 0) setBetAmount(view.config.minBet);
   }, [view, betAmount]);
+
+  // Auto-bet: once per betting phase, replay the last successful bet if
+  // the player opted in and can still afford it. Keyed on roundNumber so
+  // we don't re-fire on every broadcast inside the same betting window.
+  useEffect(() => {
+    if (!autoBet || !view || !myId) return;
+    if (view.phase !== "betting") return;
+    if (view.bets[myId] !== null) return; // already bet, sitting out, or not in this round
+    if (autoFiredRoundRef.current === view.roundNumber) return;
+    const last = lastBetRef.current;
+    if (!last) return;
+    const chips = view.chips[myId] ?? 0;
+    const total = last.amount + last.pp + last.tp;
+    if (last.amount < view.config.minBet || total > chips) return;
+    autoFiredRoundRef.current = view.roundNumber;
+    socket.emit(
+      "blackjack:bet" as any,
+      last.amount,
+      { perfectPairs: last.pp, twentyOnePlusThree: last.tp },
+      (_res: { success: boolean; error?: string }) => {},
+    );
+  }, [view, autoBet, myId, socket]);
 
   const myChips = view && myId ? view.chips[myId] ?? 0 : 0;
   const myBet = view && myId ? view.bets[myId] : null;
@@ -304,9 +331,15 @@ export default function BlackjackGameScreen() {
     });
 
   const onBet = async () => {
-    const res = await ack("blackjack:bet", betAmount, { perfectPairs: ppBet, twentyOnePlusThree: tpBet });
-    // Reset side-bet inputs for the next round so old stakes don't stick.
-    if (res.success) { setPpBet(0); setTpBet(0); }
+    const amount = betAmount;
+    const pp = ppBet;
+    const tp = tpBet;
+    const res = await ack("blackjack:bet", amount, { perfectPairs: pp, twentyOnePlusThree: tp });
+    if (res.success) {
+      lastBetRef.current = { amount, pp, tp };
+      // Reset side-bet inputs for the next round so old stakes don't stick.
+      setPpBet(0); setTpBet(0);
+    }
     return res;
   };
   const onSitOut = () => ack("blackjack:sit-out");
@@ -675,15 +708,50 @@ export default function BlackjackGameScreen() {
                 Sit out
               </button>
             </div>
+
+            <label className="mt-2 flex items-center justify-center gap-2 text-[11px] text-gray-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={autoBet}
+                onChange={e => setAutoBet(e.target.checked)}
+                className="accent-yellow-400"
+              />
+              <span className="uppercase tracking-wider">
+                Auto-bet next round
+                {autoBet && lastBetRef.current && (
+                  <span className="text-yellow-300 font-semibold">
+                    {" · "}${lastBetRef.current.amount + lastBetRef.current.pp + lastBetRef.current.tp}
+                  </span>
+                )}
+              </span>
+            </label>
           </div>
         )}
 
         {/* Betting wait state */}
         {view.phase === "betting" && myBet !== null && (
-          <div className="text-center text-sm text-gray-300">
+          <div className="text-center text-sm text-gray-300 space-y-1">
             {myBet === "sitting_out"
               ? "Sitting out this round — waiting on others…"
               : <>Bet locked in. Waiting on the table…</>}
+            {myBet !== "sitting_out" && lastBetRef.current && (
+              <div>
+                <label className="inline-flex items-center gap-2 text-[11px] text-gray-400 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoBet}
+                    onChange={e => setAutoBet(e.target.checked)}
+                    className="accent-yellow-400"
+                  />
+                  <span className="uppercase tracking-wider">
+                    Auto-bet next round
+                    <span className="text-yellow-300 font-semibold">
+                      {" · "}${lastBetRef.current.amount + lastBetRef.current.pp + lastBetRef.current.tp}
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
           </div>
         )}
 
