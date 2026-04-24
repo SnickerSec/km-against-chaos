@@ -19,6 +19,7 @@ import {
 import { useFriendsStore } from "./friendsStore";
 import { usePartyStore } from "./partyStore";
 import { useBlackjackStore } from "./blackjackStore";
+import { toast } from "sonner";
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
@@ -80,7 +81,7 @@ export function useSocket() {
     // session:reconnected is handled in socket.ts (registered at creation time
     // to avoid missing the event on page refresh before useEffect runs)
 
-    socket.on("error", (message: string) => setError(message));
+    socket.on("error", (message: string) => toast.error(message));
 
     // ── Game Events ──
 
@@ -100,12 +101,12 @@ export function useSocket() {
     // Server force-submitted our cards because the submit timer ran out.
     // Surface it so players don't see cards "just appear" without a reason.
     socket.on("game:auto-submitted" as any, () => {
-      setError("Time ran out — random cards auto-submitted for you");
+      toast.info("Time ran out — random cards auto-submitted for you");
     });
 
     // Server auto-picked a winner because the czar's judging timer expired.
     socket.on("game:auto-picked" as any, () => {
-      setError("Time ran out — a random winner was picked for you");
+      toast.info("Time ran out — a random winner was picked for you");
     });
 
     socket.on("game:vote-tally" as any, (tally: Record<string, number>) => {
@@ -178,7 +179,7 @@ export function useSocket() {
 
     socket.on("lobby:kicked" as any, () => {
       setLobby(null);
-      setError("You were removed from the lobby");
+      toast.warning("You were removed from the lobby");
       setScreen("home");
     });
 
@@ -405,7 +406,7 @@ export function useSocket() {
       cardId,
       (response: { success: boolean; error?: string }) => {
         if (!response.success) {
-          setError(response.error || "Failed to play setup card");
+          toast.error(response.error || "Failed to play setup card");
         }
       }
     );
@@ -424,7 +425,7 @@ export function useSocket() {
           useGameStore.getState().toggleCardSelection("", 0); // clear selection
           useGameStore.setState({ selectedCards: [] });
         } else {
-          setError(response.error || "Failed to submit cards");
+          toast.error(response.error || "Failed to submit cards");
         }
       }
     );
@@ -439,7 +440,7 @@ export function useSocket() {
       playerId,
       (response: { success: boolean; error?: string }) => {
         if (!response.success) {
-          setError(response.error || "Failed to pick winner");
+          toast.error(response.error || "Failed to pick winner");
         }
       }
     );
@@ -454,7 +455,7 @@ export function useSocket() {
       votedForId,
       (response: { success: boolean; error?: string }) => {
         if (!response.success && response.error !== "Already voted") {
-          setError(response.error || "Failed to vote");
+          toast.error(response.error || "Failed to vote");
         }
       }
     );
@@ -559,7 +560,7 @@ export function useSocket() {
     if (!socket) return;
     socket.emit("uno:play-card" as any, cardId, chosenColor || null, (response: { success: boolean; error?: string }) => {
       if (!response.success) {
-        setError(response.error || "Failed to play card");
+        toast.error(response.error || "Failed to play card");
       }
       useGameStore.setState({ selectedUnoCard: null, choosingColor: false });
     });
@@ -570,7 +571,7 @@ export function useSocket() {
     if (!socket) return;
     socket.emit("uno:draw-card" as any, (response: { success: boolean; error?: string }) => {
       if (!response.success) {
-        setError(response.error || "Failed to draw card");
+        toast.error(response.error || "Failed to draw card");
       }
     });
   };
@@ -580,7 +581,7 @@ export function useSocket() {
     if (!socket) return;
     socket.emit("uno:call-uno" as any, (response: { success: boolean; error?: string }) => {
       if (!response.success) {
-        setError(response.error || "Can't call Uno");
+        toast.error(response.error || "Can't call Uno");
       }
     });
   };
@@ -590,7 +591,7 @@ export function useSocket() {
     if (!socket) return;
     socket.emit("uno:challenge-uno" as any, targetId, (response: { success: boolean; error?: string }) => {
       if (!response.success) {
-        setError(response.error || "Can't challenge");
+        toast.error(response.error || "Can't challenge");
       }
     });
   };
@@ -606,7 +607,7 @@ export function useSocket() {
     const socket = socketRef.current;
     if (!socket) return;
     socket.emit("codenames:join-team" as any, team, asSpymaster, (res: any) => {
-      if (!res.success) setError(res.error);
+      if (!res.success) toast.error(res.error || "Couldn't join team");
     });
   };
 
@@ -614,7 +615,7 @@ export function useSocket() {
     const socket = socketRef.current;
     if (!socket) return;
     socket.emit("codenames:start-round" as any, (res: any) => {
-      if (!res.success) setError(res.error);
+      if (!res.success) toast.error(res.error || "Couldn't start round");
     });
   };
 
@@ -622,7 +623,7 @@ export function useSocket() {
     const socket = socketRef.current;
     if (!socket) return;
     socket.emit("codenames:give-clue" as any, word, count, (res: any) => {
-      if (!res.success) setError(res.error);
+      if (!res.success) toast.error(res.error || "Couldn't give clue");
     });
   };
 
@@ -630,7 +631,7 @@ export function useSocket() {
     const socket = socketRef.current;
     if (!socket) return;
     socket.emit("codenames:guess" as any, wordIndex, (res: any) => {
-      if (!res.success) setError(res.error);
+      if (!res.success) toast.error(res.error || "Couldn't guess");
     });
   };
 
@@ -638,7 +639,7 @@ export function useSocket() {
     const socket = socketRef.current;
     if (!socket) return;
     socket.emit("codenames:pass" as any, (res: any) => {
-      if (!res.success) setError(res.error);
+      if (!res.success) toast.error(res.error || "Couldn't pass");
     });
   };
 
