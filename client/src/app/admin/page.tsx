@@ -581,7 +581,18 @@ export default function AdminPage() {
 
               {/* Image Generation */}
               <div className="bg-gray-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-purple-300 mb-3">Image Generation (fal.ai)</h3>
+                <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1 mb-3">
+                  <h3 className="text-sm font-semibold text-purple-300">Image Generation (fal.ai)</h3>
+                  {!imgLoading && imgSettings && (
+                    <span className="text-xs text-gray-400">
+                      Current:{" "}
+                      <span className="text-white font-medium">
+                        {imgModels.find((m) => m.id === imgSettings.endpoint)?.name ?? imgSettings.endpoint}
+                      </span>
+                      <span className="text-gray-600 ml-2 font-mono">{imgSettings.endpoint}</span>
+                    </span>
+                  )}
+                </div>
                 {imgLoading && <p className="text-gray-400 text-sm">Loading image model settings...</p>}
                 {!imgLoading && imgSettings && (() => {
                   const standardModels = [...imgModels].sort((a, b) => {
