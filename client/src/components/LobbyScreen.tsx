@@ -286,7 +286,7 @@ export default function LobbyScreen() {
       {/* Deck picker modal */}
       {showDeckPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-gray-950 rounded-2xl border border-gray-700 w-full max-w-lg max-h-[80vh] overflow-y-auto p-6">
+          <div className="bg-gray-950 rounded-2xl border border-gray-700 w-full max-w-4xl max-h-[80vh] overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold">Change Deck</h3>
               <button
