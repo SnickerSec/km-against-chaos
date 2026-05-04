@@ -240,7 +240,14 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
   const [cardBackUrl, setCardBackUrl] = useState<string | null>(initialCardBackUrl || null);
   const [cardBackUploading, setCardBackUploading] = useState(false);
   const [cardBackError, setCardBackError] = useState<string | null>(null);
+  const [cardBackLightboxOpen, setCardBackLightboxOpen] = useState(false);
   const cardBackInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!cardBackLightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setCardBackLightboxOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [cardBackLightboxOpen]);
   const [voiceId, setVoiceId] = useState<string>(initial?.voiceId || "");
   const [ttsVoices, setTtsVoices] = useState<TtsVoice[]>([]);
   const [voicePreviewing, setVoicePreviewing] = useState(false);
@@ -668,13 +675,23 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
           <div className="bg-gray-900 rounded-xl p-4">
             <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Card Back Image</label>
             <div className="flex items-center gap-4">
-              <div className="w-24 h-32 rounded-lg border-2 border-gray-700 bg-gray-800 flex items-center justify-center overflow-hidden shrink-0">
-                {cardBackUrl ? (
+              {cardBackUrl ? (
+                <button
+                  type="button"
+                  onClick={() => setCardBackLightboxOpen(true)}
+                  className="w-24 h-32 rounded-lg border-2 border-gray-700 bg-gray-800 overflow-hidden shrink-0 hover:border-purple-500 transition-colors group relative"
+                  aria-label="Preview card back at full size"
+                >
                   <img src={cardBackUrl.startsWith("http") ? cardBackUrl : `${API_URL}${cardBackUrl}`} alt="Card back" className="w-full h-full object-cover" />
-                ) : (
+                  <span className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Icon icon="mdi:magnify-plus-outline" className="text-2xl text-white" />
+                  </span>
+                </button>
+              ) : (
+                <div className="w-24 h-32 rounded-lg border-2 border-gray-700 bg-gray-800 flex items-center justify-center overflow-hidden shrink-0">
                   <Icon icon="mdi:cards-outline" className="text-3xl text-gray-600" />
-                )}
-              </div>
+                </div>
+              )}
               <div className="flex-1 space-y-2">
                 <p className="text-xs text-gray-400">Shown on the back of every card in this deck. PNG/JPEG/WebP/GIF, max 5MB.</p>
                 <div className="flex gap-2 flex-wrap">
@@ -729,6 +746,28 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
                 }}
               />
             </div>
+          </div>
+        )}
+
+        {cardBackLightboxOpen && cardBackUrl && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6"
+            onClick={() => setCardBackLightboxOpen(false)}
+          >
+            <img
+              src={cardBackUrl.startsWith("http") ? cardBackUrl : `${API_URL}${cardBackUrl}`}
+              alt="Card back (full size)"
+              className="max-h-[90vh] max-w-[90vw] rounded-2xl shadow-2xl border-2 border-purple-500"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              type="button"
+              onClick={() => setCardBackLightboxOpen(false)}
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center"
+              aria-label="Close preview"
+            >
+              <Icon icon="mdi:close" className="text-xl" />
+            </button>
           </div>
         )}
 
