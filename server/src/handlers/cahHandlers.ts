@@ -144,7 +144,11 @@ async function triggerBotVotes(io: Server<ClientEvents, ServerEvents>, code: str
   for (const botId of botIds) {
     if (botId === czarId) continue;
     setTimeout(async () => {
-      const choice = submitters[Math.floor(Math.random() * submitters.length)];
+      // A submitter can't vote for themselves — filter the bot out of its own
+      // candidate pool before picking. Single-bot edge: nothing to vote on.
+      const choices = submitters.filter((id) => id !== botId);
+      if (choices.length === 0) return;
+      const choice = choices[Math.floor(Math.random() * choices.length)];
       const result = await spectatorVote(code, botId, choice);
       if (result.success) {
         io.to(code).emit("game:player-voted" as any, botId);

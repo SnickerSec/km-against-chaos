@@ -765,6 +765,13 @@ describe("botCzar vote-driven judging", () => {
     expect(r.error).toMatch(/czar/i);
   });
 
+  it("a player cannot vote for their own submission", async () => {
+    await setupVoteRound();
+    const r = await spectatorVote(VC_LOBBY, "h1", "h1");
+    expect(r.success).toBe(false);
+    expect(r.error).toMatch(/your own/i);
+  });
+
   it("player cannot vote twice", async () => {
     await setupVoteRound();
     expect((await spectatorVote(VC_LOBBY, "h1", "h2")).success).toBe(true);

@@ -114,7 +114,11 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
       <div className="grid grid-cols-1 gap-3 max-w-lg mx-auto">
         {round.submissions.map((sub, i) => {
           const isFlipped = !cardBackSrc || i < flippedCount;
-          const selectable = canSelect && isFlipped;
+          // Voters can't pick their own submission. Czars (judges) still can,
+          // since the czar in normal mode never has a submission anyway, and
+          // in bot-czar mode the czar branch isn't selectable here.
+          const isOwnSubmission = !isCzar && canVote && sub.playerId === socket.id;
+          const selectable = canSelect && isFlipped && !isOwnSubmission;
           return (
             <div key={i} style={{ perspective: "1200px" }}>
               <div
@@ -150,11 +154,16 @@ export default function CzarView({ isCzar }: { isCzar: boolean }) {
                       ? isCzar
                         ? "bg-purple-600 border-2 border-purple-400"
                         : "bg-yellow-600 border-2 border-yellow-400"
-                      : selectable
-                        ? "bg-gray-800 border-2 border-gray-700 hover:border-gray-500"
-                        : "bg-gray-800 border-2 border-gray-700"
+                      : isOwnSubmission
+                        ? "bg-gray-800 border-2 border-gray-700 opacity-60 cursor-not-allowed"
+                        : selectable
+                          ? "bg-gray-800 border-2 border-gray-700 hover:border-gray-500"
+                          : "bg-gray-800 border-2 border-gray-700"
                   }`}
                 >
+                  {isOwnSubmission && (
+                    <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Your submission</p>
+                  )}
                   {sub.cards.map((card, j) => {
                     const label = isSF
                       ? (card.role === "character" ? "Character" : "Attribute")

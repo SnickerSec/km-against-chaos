@@ -1136,6 +1136,12 @@ export async function spectatorVote(
     return { success: false, error: "Czar cannot vote" };
   }
 
+  // Voting for your own submission is gameable — especially in tally mode
+  // where every vote = a point.
+  if (spectatorId === votedForId) {
+    return { success: false, error: "You can't vote for your own submission" };
+  }
+
   if (!round.submissions.has(votedForId)) {
     return { success: false, error: "Invalid submission" };
   }
