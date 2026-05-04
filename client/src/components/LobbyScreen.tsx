@@ -126,12 +126,17 @@ export default function LobbyScreen() {
               onChange={(e) => {
                 const enabled = e.target.checked;
                 setHouseRules({ ...lobby.houseRules, botCzar: enabled });
-                // Auto-add a bot when turning the rule on if there isn't one
-                // already — bot-czar mode needs ≥1 bot to judge, and the
-                // start-game guard would otherwise block the host with an
-                // error nobody wants to read.
-                if (enabled && !lobby.players.some((p) => p.isBot)) {
-                  addBot();
+                if (enabled) {
+                  // Bot-czar needs 1 bot for the judge slot AND ≥2 non-czar
+                  // submitters so every voter has someone other than themselves
+                  // to vote for. So: ≥1 bot total AND ≥3 players total.
+                  // Top up with bots automatically — anything less and the
+                  // round can't resolve until the timer expires.
+                  const total = lobby.players.length;
+                  const hasBot = lobby.players.some((p) => p.isBot);
+                  let toAdd = Math.max(3 - total, 0);
+                  if (!hasBot) toAdd = Math.max(toAdd, 1);
+                  for (let i = 0; i < toAdd; i++) addBot();
                 }
               }}
               className="accent-purple-500 w-3.5 h-3.5"

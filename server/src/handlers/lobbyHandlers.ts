@@ -190,6 +190,14 @@ export function registerLobbyHandlers(
               callback({ success: false, error: "Bot card czar requires at least one bot in the lobby" });
               return;
             }
+            // ≥3 total: 1 bot becomes czar each round + ≥2 non-czar submitters
+            // who can vote for each other (self-voting is blocked, so 1
+            // submitter alone has no valid target → round stalls forever).
+            const activePre = await getActivePlayers(lobbyCode);
+            if ((activePre?.length || 0) < 3) {
+              callback({ success: false, error: "Bot card czar needs at least 3 players (add another bot or wait for more players)" });
+              return;
+            }
           }
         }
       }
