@@ -119,30 +119,46 @@ export default function LobbyScreen() {
       )}
       {(lobby.gameType === "cah" || lobby.gameType === "joking_hazard" || lobby.gameType === "apples_to_apples") && isHost && (
         <div className="flex flex-col items-center gap-1 mb-2">
-          <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={lobby.houseRules?.botCzar || false}
-              onChange={(e) => {
-                const enabled = e.target.checked;
-                setHouseRules({ ...lobby.houseRules, botCzar: enabled });
-                if (enabled) {
-                  // Bot-czar needs 1 bot for the judge slot AND ≥2 non-czar
-                  // submitters so every voter has someone other than themselves
-                  // to vote for. So: ≥1 bot total AND ≥3 players total.
-                  // Top up with bots automatically — anything less and the
-                  // round can't resolve until the timer expires.
-                  const total = lobby.players.length;
-                  const hasBot = lobby.players.some((p) => p.isBot);
-                  let toAdd = Math.max(3 - total, 0);
-                  if (!hasBot) toAdd = Math.max(toAdd, 1);
-                  for (let i = 0; i < toAdd; i++) addBot();
-                }
-              }}
-              className="accent-purple-500 w-3.5 h-3.5"
-            />
-            Bot card czar
-          </label>
+          {(() => {
+            const enabled = !!lobby.houseRules?.botCzar;
+            return (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={enabled}
+                onClick={() => {
+                  const next = !enabled;
+                  setHouseRules({ ...lobby.houseRules, botCzar: next });
+                  if (next) {
+                    // Bot-czar needs 1 bot for the judge slot AND ≥2 non-czar
+                    // submitters so every voter has someone other than themselves
+                    // to vote for. So: ≥1 bot total AND ≥3 players total.
+                    // Top up with bots automatically — anything less and the
+                    // round can't resolve until the timer expires.
+                    const total = lobby.players.length;
+                    const hasBot = lobby.players.some((p) => p.isBot);
+                    let toAdd = Math.max(3 - total, 0);
+                    if (!hasBot) toAdd = Math.max(toAdd, 1);
+                    for (let i = 0; i < toAdd; i++) addBot();
+                  }
+                }}
+                className="inline-flex items-center gap-2 text-xs text-gray-300 select-none group"
+              >
+                <span
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors duration-200 ${
+                    enabled
+                      ? "bg-purple-500 border-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.5)]"
+                      : "bg-gray-800 border-white/20 group-hover:bg-gray-700"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 rounded-full shadow transition-transform duration-200 ease-out ${enabled ? "bg-white translate-x-[16px]" : "bg-gray-300 translate-x-[2px]"}`}
+                  />
+                </span>
+                Bot card czar
+              </button>
+            );
+          })()}
           {lobby.houseRules?.botCzar && (
             <div className="flex items-center gap-1 text-[11px] bg-gray-800/60 border border-gray-700 rounded-md p-0.5">
               {([
