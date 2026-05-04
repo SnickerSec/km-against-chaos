@@ -31,7 +31,14 @@ export default function GameScreen() {
   const { nextRound, leaveLobby, czarSetup, playLobbySound } = useSocket();
   useSounds();
   const [soundPickerOpen, setSoundPickerOpen] = useState(false);
+  const [cardBackLightboxOpen, setCardBackLightboxOpen] = useState(false);
   const [cardBackUrl, setCardBackUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!cardBackLightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setCardBackLightboxOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [cardBackLightboxOpen]);
   const deckId = lobby?.deckId;
   useEffect(() => {
     if (!deckId) { setCardBackUrl(null); return; }
@@ -100,19 +107,27 @@ export default function GameScreen() {
       {/* Card display — comic strip for JH, single card for CAH */}
       <div className="px-4 pt-6 pb-4 relative">
         {cardBackSrc && !isJH && !isSF && (
-          <div className="hidden sm:block absolute right-4 top-4 pointer-events-none" aria-hidden>
-            <div className="relative w-16 h-24">
+          <button
+            type="button"
+            onClick={() => setCardBackLightboxOpen(true)}
+            aria-label="Preview card back at full size"
+            className="hidden sm:block absolute right-4 top-4 group focus:outline-none"
+          >
+            <div className="relative w-16 h-24 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-[1.04]">
               <div className="absolute inset-0 rounded-md border border-gray-700 bg-gray-800 overflow-hidden translate-x-1.5 translate-y-1.5 opacity-60">
                 <img src={cardBackSrc} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="absolute inset-0 rounded-md border border-gray-700 bg-gray-800 overflow-hidden translate-x-0.5 translate-y-0.5 opacity-80">
                 <img src={cardBackSrc} alt="" className="w-full h-full object-cover" />
               </div>
-              <div className="absolute inset-0 rounded-md border border-gray-600 bg-gray-800 overflow-hidden shadow-lg">
+              <div className="absolute inset-0 rounded-md border border-gray-600 bg-gray-800 overflow-hidden shadow-lg group-hover:border-purple-500 group-hover:shadow-[0_0_12px_rgba(168,85,247,0.4)]">
                 <img src={cardBackSrc} alt="Deck back" className="w-full h-full object-cover" />
+                <span className="absolute inset-0 bg-black/0 group-hover:bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Icon icon="mdi:magnify-plus-outline" className="text-xl text-white" />
+                </span>
               </div>
             </div>
-          </div>
+          </button>
         )}
         {isJH ? (
           round.isBonus ? (
@@ -247,6 +262,28 @@ export default function GameScreen() {
         <Icon icon="entypo:sound-mix" className="text-xl" />
       </button>
       <Chat />
+
+      {cardBackLightboxOpen && cardBackSrc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6"
+          onClick={() => setCardBackLightboxOpen(false)}
+        >
+          <img
+            src={cardBackSrc}
+            alt="Card back (full size)"
+            className="max-h-[90vh] max-w-[90vw] rounded-2xl shadow-2xl border-2 border-purple-500"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setCardBackLightboxOpen(false)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center"
+            aria-label="Close preview"
+          >
+            <Icon icon="mdi:close" className="text-xl" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
