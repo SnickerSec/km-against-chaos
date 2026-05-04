@@ -1134,7 +1134,7 @@ export default function DeckForm({ initial, onSubmit, onGenerateArt, onDraftCrea
           <button
             type="button"
             onClick={() => {
-              updatePack(packs[0].id, (p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, { text: "" }] }));
+              updatePack(packs[0].id, (p) => ({ ...p, knowledgeCards: [{ text: "" }, ...p.knowledgeCards] }));
             }}
             className="w-full py-2 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-600/50 rounded-lg text-cyan-400 text-sm font-medium transition-colors"
           >
@@ -1330,7 +1330,7 @@ function CardPackEditor({
                   return { ...p, knowledgeCards: updated };
                 });
               }}
-              onAdd={() => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, { text: "" }] }))}
+              onAdd={() => onUpdate((p) => ({ ...p, knowledgeCards: [{ text: "" }, ...p.knowledgeCards] }))}
               onRemove={(index) =>
                 onUpdate((p) => ({ ...p, knowledgeCards: p.knowledgeCards.filter((_, i) => i !== index) }))
               }
@@ -1362,7 +1362,7 @@ function CardPackEditor({
                 packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
                 gameType={gameType}
                 onUpdate={(index, field, value) => updateChaos(index, field, value)}
-                onAdd={() => onUpdate((p) => ({ ...p, chaosCards: [...p.chaosCards, { text: "", pick: 1 }] }))}
+                onAdd={() => onUpdate((p) => ({ ...p, chaosCards: [{ text: "", pick: 1 }, ...p.chaosCards] }))}
                 onRemove={(index) =>
                   onUpdate((p) => ({ ...p, chaosCards: p.chaosCards.filter((_, i) => i !== index) }))
                 }
@@ -1390,7 +1390,7 @@ function CardPackEditor({
                 packBadge={isBase ? undefined : { name: pack.name, type: pack.type }}
                 gameType={gameType}
                 onUpdate={(index, _field, value) => updateKnowledge(index, value as string)}
-                onAdd={() => onUpdate((p) => ({ ...p, knowledgeCards: [...p.knowledgeCards, { text: "" }] }))}
+                onAdd={() => onUpdate((p) => ({ ...p, knowledgeCards: [{ text: "" }, ...p.knowledgeCards] }))}
                 onRemove={(index) =>
                   onUpdate((p) => ({ ...p, knowledgeCards: p.knowledgeCards.filter((_, i) => i !== index) }))
                 }
@@ -1470,6 +1470,17 @@ function CardListEditor({
   const [open, setOpen] = useState(false);
   const [artBrowseIndex, setArtBrowseIndex] = useState<number | null>(null);
   const count = cards.filter((c) => c.text.trim()).length;
+  // After clicking "+ Add", focus the freshly prepended top input so the user
+  // can type immediately. Set on click; cleared after the next render that
+  // includes the new row.
+  const focusTopOnNextRender = useRef(false);
+  const topInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (focusTopOnNextRender.current && topInputRef.current) {
+      topInputRef.current.focus();
+      focusTopOnNextRender.current = false;
+    }
+  }, [cards.length]);
 
   const badgeClass = packBadge?.type === "themed"
     ? "text-cyan-300 bg-cyan-900/40 border border-cyan-600/40"
@@ -1492,7 +1503,7 @@ function CardListEditor({
           <div className="flex items-center justify-between mb-2">
             <p className="text-gray-400 text-xs">{hint}</p>
             <button
-              onClick={onAdd}
+              onClick={() => { focusTopOnNextRender.current = true; onAdd(); }}
               className={`px-3 py-1 text-xs rounded border transition-colors ${addButtonColor}`}
             >
               + Add
@@ -1512,6 +1523,7 @@ function CardListEditor({
                       </span>
                     )}
                     <input
+                      ref={i === 0 ? topInputRef : undefined}
                       type="text"
                       placeholder={placeholder(i)}
                       value={card.text}
