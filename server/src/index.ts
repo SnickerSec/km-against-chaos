@@ -224,6 +224,14 @@ io.on("connection", async (socket) => {
   }
 
   const sessionId: string = socket.handshake.auth?.sessionId || socket.id;
+  // The client sends ?code=<LOBBY> from the page URL as "intent." If the
+  // URL doesn't match the lobby we'd rejoin them to, treat the reconnect
+  // as a leave instead of force-restoring them — keeps users from being
+  // trapped on /?code=FOO every time they reload the bare home URL.
+  const intentLobby: string | null =
+    typeof socket.handshake.auth?.intentLobby === "string"
+      ? socket.handshake.auth.intentLobby.toUpperCase()
+      : null;
   // Join the per-player room so broadcasts addressed by stableId reach this
   // socket regardless of its transient socket.id — used by emitToPlayer
   // helpers as the socketId → stableId migration rolls out. Safe to call
@@ -242,6 +250,20 @@ io.on("connection", async (socket) => {
     const lobbyResult = await remapPlayer(oldSocketId, socket.id);
     if (lobbyResult) {
       const { code, lobby } = lobbyResult;
+
+      // Reconnect-without-intent: the client's URL doesn't say they're in
+      // this lobby, so they probably reloaded the bare home URL or opened
+      // a new tab. Drop them through the same path as clicking "Leave"
+      // rather than force-restoring them onto the lobby/game screen.
+      // Wifi-blip mid-game still works because useRoomCodeInUrl keeps
+      // ?code=<lobby> in the URL the whole time they're in the lobby.
+      if (intentLobby !== code) {
+        log.info("dropping stale session (no URL intent)", {
+          socketId: socket.id, sessionId, code, intentLobby,
+        });
+        await handleLeave(io, socket.id);
+        // Skip the rejoin emit; fall through to handler + disconnect setup.
+      } else {
       socket.join(code);
 
       const uno = await isUnoGame(code);
@@ -291,6 +313,7 @@ io.on("connection", async (socket) => {
       socket.to(code).emit("lobby:player-reconnected", socket.id);
       io.to(code).emit("lobby:updated", lobby);
       log.info("player reconnected", { socketId: socket.id, sessionId });
+      }
     } else {
       log.info("player connected", { socketId: socket.id });
     }

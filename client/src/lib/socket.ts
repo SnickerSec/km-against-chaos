@@ -15,6 +15,20 @@ function getSessionId(): string {
   return sessionId;
 }
 
+/**
+ * The URL's ?code=XXXX is "intent" — the user is on a page that says they
+ * want to be in lobby XXXX. The server uses this to decide whether to
+ * auto-rejoin them on reconnect: a stale session whose URL no longer
+ * matches gets dropped (handleLeave) instead of force-restoring them
+ * back into the lobby on every page load. Wifi blips still rejoin
+ * cleanly because useRoomCodeInUrl keeps ?code=<lobby> in the URL the
+ * whole time the user is in a lobby.
+ */
+function getIntentLobby(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URL(window.location.href).searchParams.get("code")?.toUpperCase() || null;
+}
+
 let socket: Socket | null = null;
 let authReady: Promise<void> | null = null;
 let resolveAuth: (() => void) | null = null;
@@ -23,7 +37,10 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io(SERVER_URL, {
       autoConnect: true,
-      auth: { sessionId: getSessionId() },
+      // Function form so the URL's ?code= is read fresh on every reconnect
+      // attempt, not frozen at first connect — otherwise a wifi-blip
+      // recovery would carry stale intent from when the page first loaded.
+      auth: (cb) => cb({ sessionId: getSessionId(), intentLobby: getIntentLobby() }),
       // WebSocket-only. Socket.IO's polling fallback requires sticky
       // sessions (sid from the handshake POST has to route back to the
       // same replica), which Railway doesn't provide. Going straight to
