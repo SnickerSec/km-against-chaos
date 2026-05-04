@@ -123,10 +123,20 @@ export default function LobbyScreen() {
             <input
               type="checkbox"
               checked={lobby.houseRules?.botCzar || false}
-              onChange={(e) => setHouseRules({ ...lobby.houseRules, botCzar: e.target.checked })}
+              onChange={(e) => {
+                const enabled = e.target.checked;
+                setHouseRules({ ...lobby.houseRules, botCzar: enabled });
+                // Auto-add a bot when turning the rule on if there isn't one
+                // already — bot-czar mode needs ≥1 bot to judge, and the
+                // start-game guard would otherwise block the host with an
+                // error nobody wants to read.
+                if (enabled && !lobby.players.some((p) => p.isBot)) {
+                  addBot();
+                }
+              }}
               className="accent-purple-500 w-3.5 h-3.5"
             />
-            Bot card czar (requires &ge;1 bot)
+            Bot card czar
           </label>
           {lobby.houseRules?.botCzar && (
             <div className="flex items-center gap-1 text-[11px] bg-gray-800/60 border border-gray-700 rounded-md p-0.5">
