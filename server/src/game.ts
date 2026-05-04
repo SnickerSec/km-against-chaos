@@ -43,6 +43,10 @@ interface InternalGameState {
   /** When true, only player IDs starting with "bot-" are eligible to be the
    *  card czar. Players just submit cards every round; bots judge. */
   botCzar: boolean;
+  /** Bot-czar scoring mode. "round" (default) = one winner per round gets +1
+   *  point. "tally" = each vote counts as a point for the player it was cast
+   *  for; the game-end leader is whoever accumulated the most votes. */
+  botCzarVoteMode: "round" | "tally";
 }
 
 const SUBMIT_TIME_MS = 60_000;
@@ -86,6 +90,7 @@ interface SerialisedGame {
   gameOver: boolean;
   gameType: GameType;
   botCzar?: boolean;
+  botCzarVoteMode?: "round" | "tally";
   currentRound: {
     chaosCard: ChaosCard;
     czarId: string;
@@ -118,6 +123,7 @@ function serialise(g: InternalGameState): SerialisedGame {
     gameOver: g.gameOver,
     gameType: g.gameType,
     botCzar: g.botCzar,
+    botCzarVoteMode: g.botCzarVoteMode,
     currentRound: g.currentRound ? {
       chaosCard: g.currentRound.chaosCard,
       czarId: g.currentRound.czarId,
@@ -151,6 +157,7 @@ function deserialise(s: SerialisedGame): InternalGameState {
     gameOver: s.gameOver,
     gameType: s.gameType,
     botCzar: s.botCzar || false,
+    botCzarVoteMode: s.botCzarVoteMode || "round",
     currentRound: s.currentRound ? {
       chaosCard: s.currentRound.chaosCard,
       czarId: s.currentRound.czarId,
@@ -309,7 +316,7 @@ export async function createGame(
   customKnowledge?: KnowledgeCard[],
   winCondition?: { mode: "rounds" | "points"; value: number },
   gameType?: GameType,
-  options?: { botCzar?: boolean },
+  options?: { botCzar?: boolean; botCzarVoteMode?: "round" | "tally" },
 ): Promise<void> {
   let chaosDeck: ChaosCard[];
   let knowledgeDeck: KnowledgeCard[];
@@ -371,6 +378,7 @@ export async function createGame(
     gameOver: false,
     gameType: gameType || "cah",
     botCzar: options?.botCzar || false,
+    botCzarVoteMode: options?.botCzarVoteMode || "round",
   };
 
   await saveGame(game);
@@ -1183,6 +1191,52 @@ export async function tallyVotesAndPick(lobbyCode: string): Promise<{
     const max = Math.max(...tally.values());
     const tied = Array.from(tally.entries()).filter(([, n]) => n === max).map(([id]) => id);
     winnerId = tied[Math.floor(Math.random() * tied.length)];
+  }
+
+  if (game.botCzarVoteMode === "tally") {
+    // Each vote = 1 point for the player it was cast for. The "round winner"
+    // is the highest-vote submitter (used for chaos meta-effect targeting and
+    // the round-result toast); the actual game winner is whoever has the most
+    // points at game's end.
+    for (const [pid, n] of tally) {
+      game.scores.set(pid, (game.scores.get(pid) || 0) + n);
+    }
+    round.winnerId = winnerId;
+    round.phase = "revealing";
+
+    let metaEffectPayload: any = undefined;
+    const metaEffect = round.chaosCard.metaEffect;
+    if (metaEffect) {
+      const targets = resolveMetaTargets(metaEffect.target, winnerId, round.czarId, game.playerIds);
+      if (metaEffect.type === "score_add" && metaEffect.value) {
+        for (const pid of targets) {
+          game.scores.set(pid, (game.scores.get(pid) || 0) + metaEffect.value);
+        }
+      } else if (metaEffect.type === "score_subtract" && metaEffect.value) {
+        for (const pid of targets) {
+          const current = game.scores.get(pid) || 0;
+          game.scores.set(pid, Math.max(0, current - metaEffect.value));
+        }
+      }
+      metaEffectPayload = {
+        effect: metaEffect,
+        winnerId,
+        czarId: round.czarId,
+        playerIds: game.playerIds,
+      };
+    }
+
+    if (game.winMode === "points") {
+      const top = Math.max(...game.scores.values());
+      if (top >= game.targetPoints) game.gameOver = true;
+    }
+
+    await saveGame(game);
+    return {
+      winnerId,
+      metaEffect: metaEffectPayload,
+      votes: Object.fromEntries(tally),
+    };
   }
 
   const result = pickWinnerOn(game, round.czarId, winnerId);

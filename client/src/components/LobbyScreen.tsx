@@ -118,7 +118,7 @@ export default function LobbyScreen() {
         </div>
       )}
       {(lobby.gameType === "cah" || lobby.gameType === "joking_hazard" || lobby.gameType === "apples_to_apples") && isHost && (
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex flex-col items-center gap-1 mb-2">
           <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -128,11 +128,34 @@ export default function LobbyScreen() {
             />
             Bot card czar (requires &ge;1 bot)
           </label>
+          {lobby.houseRules?.botCzar && (
+            <div className="flex items-center gap-1 text-[11px] bg-gray-800/60 border border-gray-700 rounded-md p-0.5">
+              {([
+                { id: "round", label: "Round winner", hint: "+1 to each round's top vote" },
+                { id: "tally",  label: "Running tally", hint: "Every vote = +1; most points at game end wins" },
+              ] as const).map((opt) => {
+                const active = (lobby.houseRules?.botCzarVoteMode || "round") === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    title={opt.hint}
+                    onClick={() => setHouseRules({ ...lobby.houseRules, botCzarVoteMode: opt.id })}
+                    className={`px-2 py-0.5 rounded transition-colors ${active ? "bg-purple-600 text-white" : "text-gray-400 hover:text-gray-200"}`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
       {(lobby.gameType === "cah" || lobby.gameType === "joking_hazard" || lobby.gameType === "apples_to_apples") && !isHost && lobby.houseRules?.botCzar && (
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs text-gray-400">Bot card czar enabled</span>
+          <span className="text-xs text-gray-400">
+            Bot card czar · {(lobby.houseRules?.botCzarVoteMode || "round") === "tally" ? "running tally" : "round winner"}
+          </span>
         </div>
       )}
       <h2 className="text-2xl font-bold mb-4">Lobby</h2>

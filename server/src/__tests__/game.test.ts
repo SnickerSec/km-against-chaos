@@ -798,6 +798,72 @@ describe("botCzar vote-driven judging", () => {
   });
 });
 
+// ── botCzar tally vote mode ───────────────────────────────────────────────────
+
+describe("botCzar tally vote mode", () => {
+  const T_LOBBY = "test-tally";
+  const HUMANS = ["h1", "h2", "h3"];
+  const BOT = "bot-tly";
+
+  afterEach(async () => { await cleanupGame(T_LOBBY); });
+
+  async function setupTallyRound() {
+    await cleanupGame(T_LOBBY);
+    await createGame(T_LOBBY, [...HUMANS, BOT], CHAOS, KNOWLEDGE, { mode: "rounds", value: 3 }, "cah", { botCzar: true, botCzarVoteMode: "tally" });
+    const round = (await startRound(T_LOBBY))!;
+    expect(round.czarId).toBe(BOT);
+    for (const p of HUMANS) {
+      const v = (await getPlayerView(T_LOBBY, p))!;
+      await submitCards(T_LOBBY, p, [v.hand[0].id]);
+    }
+    return round;
+  }
+
+  it("awards each player points equal to votes received", async () => {
+    await setupTallyRound();
+    // h2 gets 2 votes, h1 gets 1 vote, h3 gets 0
+    await spectatorVote(T_LOBBY, "h1", "h2");
+    await spectatorVote(T_LOBBY, "h3", "h2");
+    await spectatorVote(T_LOBBY, "h2", "h1");
+
+    const result = await tallyVotesAndPick(T_LOBBY);
+    expect(result.winnerId).toBe("h2");
+    expect(result.votes).toEqual({ h2: 2, h1: 1 });
+
+    const scores = (await getScores(T_LOBBY))!;
+    expect(scores.h2).toBe(2);
+    expect(scores.h1).toBe(1);
+    expect(scores.h3 || 0).toBe(0);
+  });
+
+  it("round-mode awards a single point regardless of vote count (sanity)", async () => {
+    await cleanupGame(T_LOBBY);
+    await createGame(T_LOBBY, [...HUMANS, BOT], CHAOS, KNOWLEDGE, { mode: "rounds", value: 3 }, "cah", { botCzar: true, botCzarVoteMode: "round" });
+    await startRound(T_LOBBY);
+    for (const p of HUMANS) {
+      const v = (await getPlayerView(T_LOBBY, p))!;
+      await submitCards(T_LOBBY, p, [v.hand[0].id]);
+    }
+    await spectatorVote(T_LOBBY, "h1", "h2");
+    await spectatorVote(T_LOBBY, "h3", "h2");
+    await spectatorVote(T_LOBBY, "h2", "h1");
+
+    await tallyVotesAndPick(T_LOBBY);
+    const scores = (await getScores(T_LOBBY))!;
+    expect(scores.h2).toBe(1);
+    expect(scores.h1 || 0).toBe(0);
+  });
+
+  it("falls back to a random submitter when no votes (no points awarded)", async () => {
+    await setupTallyRound();
+    const result = await tallyVotesAndPick(T_LOBBY);
+    expect(result.winnerId).not.toBeNull();
+    const scores = (await getScores(T_LOBBY))!;
+    // No votes were cast, so nobody should have gained points
+    expect(Object.values(scores).every((s) => s === 0)).toBe(true);
+  });
+});
+
 // ── addPlayerToGame / removePlayerFromGame ────────────────────────────────────
 
 describe("addPlayerToGame", () => {

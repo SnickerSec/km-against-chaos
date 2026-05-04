@@ -159,7 +159,7 @@ export function registerLobbyHandlers(
     }
   });
 
-  socket.on("lobby:set-house-rules" as any, async (houseRules: { unoStacking?: boolean; botCzar?: boolean }, callback: (res: any) => void) => {
+  socket.on("lobby:set-house-rules" as any, async (houseRules: { unoStacking?: boolean; botCzar?: boolean; botCzarVoteMode?: "round" | "tally" }, callback: (res: any) => void) => {
     const result = await setLobbyHouseRules(socket.id, houseRules);
     if ("error" in result) { callback({ success: false, error: result.error }); return; }
     callback({ success: true });
@@ -296,7 +296,7 @@ export function registerLobbyHandlers(
           await triggerBlackjackBots(io, code);
         } else {
           const houseRules = await getLobbyHouseRules(code);
-          await createGame(code, playerIds, customChaos, customKnowledge, winCondition as any, gameType, { botCzar: houseRules?.botCzar });
+          await createGame(code, playerIds, customChaos, customKnowledge, winCondition as any, gameType, { botCzar: houseRules?.botCzar, botCzarVoteMode: houseRules?.botCzarVoteMode });
           const round = await startRound(code);
           if (round) {
             io.to(code).emit("lobby:started");

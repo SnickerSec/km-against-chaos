@@ -24,7 +24,7 @@ export interface Lobby {
   deckName: string;
   gameType: GameType;
   winCondition: { mode: string; value: number };
-  houseRules?: { unoStacking?: boolean; botCzar?: boolean };
+  houseRules?: { unoStacking?: boolean; botCzar?: boolean; botCzarVoteMode?: "round" | "tally" };
   status: "waiting" | "playing" | "finished";
   maxPlayers: number;
   createdAt: Date;
@@ -45,7 +45,7 @@ export interface LobbyState {
   deckName: string;
   gameType: GameType;
   winCondition: { mode: string; value: number };
-  houseRules?: { unoStacking?: boolean; botCzar?: boolean };
+  houseRules?: { unoStacking?: boolean; botCzar?: boolean; botCzarVoteMode?: "round" | "tally" };
   status: "waiting" | "playing" | "finished";
   maxPlayers: number;
   rematchVotes: number;

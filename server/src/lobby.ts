@@ -620,7 +620,7 @@ export async function isPlayerBot(code: string, playerId: string): Promise<boole
   return lobby.players.get(playerId)?.isBot || false;
 }
 
-export async function setLobbyHouseRules(socketId: string, houseRules: { unoStacking?: boolean; botCzar?: boolean }): Promise<{ code: string; lobby: LobbyState } | { error: string }> {
+export async function setLobbyHouseRules(socketId: string, houseRules: { unoStacking?: boolean; botCzar?: boolean; botCzarVoteMode?: "round" | "tally" }): Promise<{ code: string; lobby: LobbyState } | { error: string }> {
   const code = await getPlayerLobbyCode(socketId);
   if (!code) return { error: "You are not in a lobby" };
   return withGameLock("lobby", code, async () => {
@@ -656,7 +656,7 @@ export async function setMaxPlayers(socketId: string, maxPlayers: number): Promi
   });
 }
 
-export async function getLobbyHouseRules(code: string): Promise<{ unoStacking?: boolean; botCzar?: boolean } | undefined> {
+export async function getLobbyHouseRules(code: string): Promise<{ unoStacking?: boolean; botCzar?: boolean; botCzarVoteMode?: "round" | "tally" } | undefined> {
   return (await getLobby(code))?.houseRules;
 }
 

@@ -643,7 +643,7 @@ export function useSocket() {
     });
   };
 
-  const setHouseRules = (houseRules: { unoStacking?: boolean; botCzar?: boolean }) => {
+  const setHouseRules = (houseRules: { unoStacking?: boolean; botCzar?: boolean; botCzarVoteMode?: "round" | "tally" }) => {
     const socket = socketRef.current;
     if (!socket) return;
     socket.emit("lobby:set-house-rules" as any, houseRules, (response: { success: boolean; error?: string }) => {
