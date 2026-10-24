@@ -21,6 +21,7 @@ import { saveCardsToLibrary } from "./cardLibraryRoutes.js";
 import { requireAuth, requireModeratorOrAdmin, isAdmin } from "./auth.js";
 import pool from "./db.js";
 import { createLogger } from "./logger.js";
+import { falConfig } from "./aiUpstreams.js";
 
 const log = createLogger("deck-api");
 const router = Router();
@@ -561,7 +562,7 @@ router.post("/:id/card-back/generate", requireAuth, requireAiRateLimit, async (r
     || `Playing card back design, symmetrical pattern, centered emblem, decorative border, themed around: ${themeBits || "party card game"}. No text, no letters, no words. Bold graphic design, high contrast, print-ready.`;
 
   try {
-    fal.config({ credentials: process.env.FAL_KEY });
+    fal.config(falConfig());
     const result = await fal.subscribe("fal-ai/flux/schnell", {
       input: {
         prompt,

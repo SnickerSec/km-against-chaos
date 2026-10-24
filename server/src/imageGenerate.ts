@@ -11,6 +11,7 @@ import pool from "./db.js";
 import { putObject } from "./storage.js";
 import path from "path";
 import fs from "fs";
+import { DEEPSEEK_BASE_URL, falConfig } from "./aiUpstreams.js";
 
 // Sniff image format from the first bytes of a buffer so we pick the right
 // R2 key extension and Content-Type. AI output is PNG from fal.ai; speech-
@@ -47,7 +48,7 @@ if (fs.existsSync(fontsDir)) {
 
 // Configure fal.ai
 if (process.env.FAL_KEY) {
-  fal.config({ credentials: process.env.FAL_KEY });
+  fal.config(falConfig());
 }
 
 // ── AI provider support (mirrors aiGenerate.ts) ──
@@ -96,7 +97,7 @@ async function callProvider(settings: AiSettings, prompt: string): Promise<strin
 
   switch (settings.provider) {
     case "deepseek": {
-      const client = new OpenAI({ apiKey, baseURL: "https://api.deepseek.com" });
+      const client = new OpenAI({ apiKey, baseURL: DEEPSEEK_BASE_URL });
       const response = await client.chat.completions.create({
         model: settings.model,
         max_tokens: settings.maxTokens,

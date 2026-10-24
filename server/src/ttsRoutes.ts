@@ -2,6 +2,7 @@ import { Router } from "express";
 import { createHash } from "crypto";
 import { createLogger } from "./logger.js";
 import { putObject, hasObject, urlFor } from "./storage.js";
+import { ELEVENLABS_BASE_URL } from "./aiUpstreams.js";
 
 const log = createLogger("tts");
 const router = Router();
@@ -62,7 +63,7 @@ router.post("/speak", async (req, res) => {
 
   try {
     const apiRes = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_64`,
+      `${ELEVENLABS_BASE_URL}/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_64`,
       {
         method: "POST",
         headers: {

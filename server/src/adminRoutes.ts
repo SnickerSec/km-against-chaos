@@ -7,6 +7,7 @@ import { createLogger } from "./logger.js";
 const log = createLogger("admin");
 import { DEFAULT_ART_STYLES, DEFAULT_IMAGE_SUFFIX, FAL_MODELS, IMAGE_MODEL_DEFAULTS } from "./imageGenerate.js";
 import { GAME_TYPE_KEYS, MATURITY_KEYS, getDefaultEngineRules, getDefaultMaturityRules } from "./aiGenerate.js";
+import { DEEPSEEK_BASE_URL, falFetch } from "./aiUpstreams.js";
 
 // Cache OpenRouter models for 1 hour
 let modelsCache: { data: any[]; fetchedAt: number } | null = null;
@@ -96,7 +97,7 @@ router.get("/models", async (_req, res) => {
     // DeepSeek — OpenAI-compatible /models endpoint
     if (process.env.DEEPSEEK_API_KEY) {
       fetches.push(
-        fetch("https://api.deepseek.com/models", {
+        fetch(`${DEEPSEEK_BASE_URL}/models`, {
           headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}` },
         })
           .then((r) => r.json())
@@ -251,7 +252,7 @@ router.post("/test-provider", async (req, res) => {
       const { default: OpenAI } = await import("openai");
       const client = new OpenAI({
         apiKey,
-        ...(provider === "deepseek" ? { baseURL: "https://api.deepseek.com" } : {}),
+        ...(provider === "deepseek" ? { baseURL: DEEPSEEK_BASE_URL } : {}),
       });
       const response = await client.chat.completions.create({
         model,
@@ -519,9 +520,7 @@ async function fetchFalModels(): Promise<any[]> {
         for (let i = 0; i < endpointIds.length; i += 50) {
           const batch = endpointIds.slice(i, i + 50);
           const pricingUrl = `https://api.fal.ai/v1/models/pricing?${batch.map((id: string) => `endpoint_id=${encodeURIComponent(id)}`).join("&")}`;
-          const pricingRes = await fetch(pricingUrl, {
-            headers: { Authorization: `Key ${falKey}` },
-          });
+          const pricingRes = await falFetch(pricingUrl);
           if (pricingRes.ok) {
             const pricingData = await pricingRes.json();
             for (const p of pricingData.prices || []) {

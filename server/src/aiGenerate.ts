@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import pool from "./db.js";
 import { createLogger } from "./logger.js";
+import { DEEPSEEK_BASE_URL } from "./aiUpstreams.js";
 
 const log = createLogger("ai");
 
@@ -439,7 +440,7 @@ async function callDeepSeek(model: string, maxTokens: number, prompt: string): P
   if (!apiKey) throw new Error("DeepSeek API key not configured");
   const client = new OpenAI({
     apiKey,
-    baseURL: "https://api.deepseek.com",
+    baseURL: DEEPSEEK_BASE_URL,
   });
   // Split prompt into static system content (cacheable) and dynamic user content
   // DeepSeek auto-caches the first N tokens of repeated system prompts
